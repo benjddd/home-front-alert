@@ -42,7 +42,7 @@
     <string name="notif_warning">⚠️ Caution/Pre-warning active.</string>
     <string name="notif_threat">🌍 Alerts active elsewhere in Israel.</string>
     <string name="notif_ok">✅ NO ALERTS</string>
-    <string name="notif_title">KeshevAdom Status</string>
+    <string name="notif_title">Tzeva Artzi Status</string>
 
     <string name="master_volume">Master Alert Volume</string>
     <string name="current_zone">Current Zone: %s</string>

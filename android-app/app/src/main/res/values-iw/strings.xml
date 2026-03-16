@@ -42,7 +42,7 @@
     <string name="notif_warning">⚠️ התרעת זהירות/מניעה פעילה.</string>
     <string name="notif_threat">🌍 התרעות פעילות באזורים אחרים בארץ.</string>
     <string name="notif_ok">✅ אין התרעות</string>
-    <string name="notif_title">סטטוס קשב אדום</string>
+    <string name="notif_title">סטטוס צבע ארצי</string>
 
     <string name="master_volume">עוצמת התרעה ראשית</string>
     <string name="current_zone">אזור נוכחי: %s</string>

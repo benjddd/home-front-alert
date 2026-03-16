@@ -596,7 +596,7 @@
                 android:id="@+id/tvAppVersion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="v1.6.0"
+                android:text="v1.7.0"
                 android:textColor="#444444"
                 android:textSize="11sp"
                 android:textAlignment="center"
