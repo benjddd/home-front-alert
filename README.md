@@ -1,4 +1,4 @@
-# KeshevAdom 🚨
+# Tzeva Artzi 🚨
 
 [![Release](https://img.shields.io/github/v/release/Attius-Digital-Art/home-front-alert)](https://github.com/Attius-Digital-Art/home-front-alert/releases)
 [![Internal Testing](https://img.shields.io/badge/Play%20Store-Internal%20Testing-blue)](https://play.google.com/console)

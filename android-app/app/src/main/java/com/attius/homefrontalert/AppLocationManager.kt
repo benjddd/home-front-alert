@@ -120,66 +120,76 @@ class AppLocationManager(private val context: Context) {
         }
         if (newStrategy != activeStrategy) applyStrategy(newStrategy)
 
-        // 2. Plausibility gate: reject wild network jumps.
-        // If we have a committed location and the new fix is both inaccurate (>100m) AND
-        // implies a teleport (>50 km jump), it's a bad network reading — discard it.
+        validateAndCommitLocation(location, providerLabel)
+    }
+
+    private fun validateAndCommitLocation(location: Location, providerLabel: String): ResolvedLocation? {
+        val mode = getTrackingMode()
+        
+        // 1. Plausibility gate: reject wild jumps.
+        // Network-based location (especially with VPNs or certain routers) can lie about accuracy (e.g. 40m).
+        // If we are stationary (speed < 2) or the jump is physically impossible (>50km), discard.
         val prev = sharedCachedLocation
-        if (prev != null && location.accuracy > 100f) {
+        if (prev != null) {
             val jumpKm = haversineKm(prev.lat, prev.lng, location.latitude, location.longitude)
-            if (jumpKm > 50.0) {
-                Log.w("HomeFrontAlerts", "REJECTED implausible fix: ${jumpKm.toInt()}km jump at ${location.accuracy}m accuracy from $providerLabel")
-                return
+            
+            // Tight Gate: If Accuracy is > 40m (Typical Network/Fused) and jump is > 10km, reject.
+            // Professional GPS fixes use satellites and have high confidence; Network fixes are guesses.
+            if (location.accuracy > 40f && jumpKm > 10.0) {
+                 Log.w("HomeFrontAlerts", "REJECTED suspected Network jump: ${jumpKm.toInt()}km jump at ${location.accuracy}m accuracy from $providerLabel")
+                 return null
+            }
+            
+            // Hard Limit: Reject anything > 50km jump unless satellites are actually being used.
+            if (jumpKm > 50.0 && satellitesUsed == 0) {
+                 Log.w("HomeFrontAlerts", "REJECTED wild teleport: ${jumpKm.toInt()}km jump with 0 sats from $providerLabel")
+                 return null
             }
         }
 
-        // 3. Resolve to Zone
-        val zoneInfo = distanceCalculator.getClosestZoneNameAndDistance(location.latitude, location.longitude)
-        if (zoneInfo != null) {
-            val newZone = zoneInfo.first
-            val committedZone = sharedCachedLocation?.zoneNameHe
+        // 2. Resolve to Zone
+        val zoneInfo = distanceCalculator.getClosestZoneNameAndDistance(location.latitude, location.longitude) ?: return null
+        val newZone = zoneInfo.first
+        val committedZone = sharedCachedLocation?.zoneNameHe
 
-            // 4. Zone stability buffer.
-            // When accuracy is poor (>50m = BRUTAL/network mode), require 2 consecutive readings
-            // in the same zone before committing a zone change. High-quality fixes commit immediately.
-            if (newZone != committedZone) {
-                if (location.accuracy > 50f) {
-                    // Poor accuracy: buffer the change
-                    if (newZone == pendingZone) {
-                        pendingZoneCount++
-                    } else {
-                        pendingZone = newZone
-                        pendingZoneCount = 1
-                    }
-                    if (pendingZoneCount < 2) {
-                        Log.d("HomeFrontAlerts", "BUFFERING zone → $newZone (${pendingZoneCount}/2, acc=${location.accuracy}m)")
-                        return  // Wait for confirmation
-                    }
-                    Log.d("HomeFrontAlerts", "CONFIRMED zone → $newZone after buffering")
+        // 3. Zone stability buffer.
+        // When accuracy is poor (>50m), require 2 consecutive readings in the same zone.
+        if (newZone != committedZone) {
+            if (location.accuracy > 50f) {
+                if (newZone == pendingZone) {
+                    pendingZoneCount++
+                } else {
+                    pendingZone = newZone
+                    pendingZoneCount = 1
                 }
-                // Good accuracy or confirmed: reset buffer and commit
-                pendingZone = null
-                pendingZoneCount = 0
-            } else {
-                // Same zone — reading is consistent, reset any pending buffer
-                pendingZone = null
-                pendingZoneCount = 0
+                if (pendingZoneCount < 2) {
+                    Log.d("HomeFrontAlerts", "BUFFERING zone → $newZone (${pendingZoneCount}/2, acc=${location.accuracy}m)")
+                    return null 
+                }
+                Log.d("HomeFrontAlerts", "CONFIRMED zone → $newZone after buffering")
             }
-
-            val res = ResolvedLocation(
-                location.latitude, 
-                location.longitude, 
-                newZone, 
-                false, 
-                "GPS", 
-                mode, 
-                providerLabel, 
-                location.accuracy,
-                System.currentTimeMillis(),
-                location.isFromMockProvider
-            )
-            updateSessionCache(res)
-            savePersistentLocation(res.lat, res.lng, res.zoneNameHe)
+            pendingZone = null
+            pendingZoneCount = 0
+        } else {
+            pendingZone = null
+            pendingZoneCount = 0
         }
+
+        val res = ResolvedLocation(
+            location.latitude, 
+            location.longitude, 
+            newZone, 
+            false, 
+            "GPS", 
+            mode, 
+            providerLabel, 
+            location.accuracy,
+            System.currentTimeMillis(),
+            location.isFromMockProvider
+        )
+        updateSessionCache(res)
+        savePersistentLocation(res.lat, res.lng, res.zoneNameHe)
+        return res
     }
 
     /** Haversine distance in km between two GPS coordinates. */
@@ -370,13 +380,7 @@ class AppLocationManager(private val context: Context) {
             val freshTask = fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
             val freshLoc: Location? = Tasks.await(freshTask, 3, java.util.concurrent.TimeUnit.SECONDS)
             if (freshLoc != null) {
-                val zoneInfo = distanceCalculator.getClosestZoneNameAndDistance(freshLoc.latitude, freshLoc.longitude)
-                if (zoneInfo != null) {
-                    val res = ResolvedLocation(freshLoc.latitude, freshLoc.longitude, zoneInfo.first, false, "GPS", mode, freshLoc.provider ?: "fused", freshLoc.accuracy)
-                    updateSessionCache(res)
-                    savePersistentLocation(res.lat, res.lng, res.zoneNameHe)
-                    return res
-                }
+                validateAndCommitLocation(freshLoc, freshLoc.provider ?: "fused-oneshot")?.let { return it }
             }
         } catch (e: Exception) {
             Log.e("HomeFrontAlerts", "GPS FastResolve failed", e)

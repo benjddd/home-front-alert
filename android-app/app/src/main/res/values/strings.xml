@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">KeshevAdom - Home Front Alerts</string>
-    <string name="monitoring_title">KeshevAdom - Home Front Alerts</string>
+    <string name="app_name">Tzeva Artzi - Home Front Alerts</string>
+    <string name="monitoring_title">Tzeva Artzi - Home Front Alerts</string>
     <string name="current_status">CURRENT STATUS</string>
     <string name="no_alerts">NO ALERTS</string>
     <string name="critical_status">CRITICAL</string>
@@ -58,12 +58,9 @@
     <string name="language_selection">Select Language / בחר שפה</string>
     <string name="help_title">App Functionality</string>
     <string name="help_content">
-        &lt;b&gt;Eyes-Free Monitoring&lt;/b&gt;: Stay alert through distinct auditory patterns representing distance and severity, designed for situational awareness while driving or active.&lt;br/&gt;&lt;br/&gt;
-        &lt;b&gt;Country-Wide Scope&lt;/b&gt;: Monitor the broader picture of alerts across the entire country in real-time.&lt;br/&gt;&lt;br/&gt;
-        &lt;b&gt;Sound Legend&lt;/b&gt;:&lt;br/&gt;
-        • &lt;b&gt;Urgent&lt;/b&gt;: A staccato sequence of tones shifting in pitch. It starts with high-pitched chirps for distant alerts and transitions into deep, low-pitched tones for threats near you.&lt;br/&gt;
-        • &lt;b&gt;Caution&lt;/b&gt;: A steady, alternating two-note melody alerting to activity in neighboring areas.&lt;br/&gt;
-        • &lt;b&gt;All Clear&lt;/b&gt;: A soft, ascending three-note melody.&lt;br/&gt;&lt;br/&gt;
+        &lt;b&gt;Eyes-Free Awareness&lt;/b&gt;: Stay informed through unique sound patterns that distinguish between local threats and distant alerts, designed for use while driving or when the phone is in your pocket.&lt;br/&gt;&lt;br/&gt;
+        &lt;b&gt;Situational Distinction&lt;/b&gt;: Each alert is audible country-wide, but the audio signature tells you the urgency and proximity without needing to look at the screen.&lt;br/&gt;&lt;br/&gt;
+        &lt;b&gt;Less Intrusive&lt;/b&gt;: Provides a subtle but clear pulse of information, reducing the false-urgency fatigue of generic sirens.&lt;br/&gt;&lt;br/&gt;
         &lt;b&gt;Disclaimer&lt;/b&gt;: This is an unofficial tool. Always prioritize official instructions and sirens from the Home Front Command.&lt;br/&gt;&lt;br/&gt;
         &lt;b&gt;Internal Alpha&lt;/b&gt;: You are using a development version for testing purposes. Please report any issues.
     </string>
