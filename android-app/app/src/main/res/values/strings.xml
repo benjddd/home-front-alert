@@ -29,8 +29,18 @@
     <string name="status_saved_zone">Zone: %s</string>
     <string name="status_default_zone">Default: %s</string>
 
-    <string name="connectivity_shield_title">Direct Connectivity Shield</string>
-    <string name="connectivity_shield_warning">WARNING: Connects directly to HFC/Backend for minimum latency. Drains more battery while active.</string>
+    <string name="connectivity_shield_title">Connectivity Mode</string>
+    <string name="connectivity_shield_warning">Automatic selection is recommended for the best balance of reliability and battery.</string>
+    <string name="mode_auto">Intelligent (Recommended)</string>
+    <string name="mode_auto_sub">Auto-switches to Direct connection during outages</string>
+    <string name="mode_direct">Maximum Reliability</string>
+    <string name="mode_direct_sub">Talks directly to source (Higher battery use)</string>
+    <string name="mode_cloud">Battery Optimized</string>
+    <string name="mode_cloud_sub">Depends on Cloud/Google services</string>
+    <string name="status_intelligent_cloud">Intelligent (using Cloud)</string>
+    <string name="status_intelligent_direct">Intelligent (using Direct — Failover)</string>
+    <string name="status_reliability_direct">Direct Source Active</string>
+    <string name="status_battery_cloud">Cloud Mode Active</string>
     <string name="diag_polling_log">DIAGNOSTIC POLLING LOG:</string>
     <string name="diag_baseline">BASELINE (EMPTY SAMPLE):</string>
     <string name="diag_anomalies">RECENT NON-EMPTY PACKETS:</string>
@@ -42,7 +52,7 @@
     <string name="notif_warning">⚠️ Caution/Pre-warning active.</string>
     <string name="notif_threat">🌍 Alerts active elsewhere in Israel.</string>
     <string name="notif_ok">✅ NO ALERTS</string>
-    <string name="notif_title">KeshevAdom Status</string>
+    <string name="notif_title">Tzeva Artzi Status</string>
 
     <string name="master_volume">Master Alert Volume</string>
     <string name="current_zone">Current Zone: %s</string>

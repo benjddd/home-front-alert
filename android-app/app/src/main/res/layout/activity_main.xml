@@ -75,6 +75,21 @@
                 android:backgroundTint="#60FF5252"
                 android:paddingHorizontal="4dp"
                 android:paddingVertical="1dp" />
+
+            <TextView
+                android:id="@+id/tvFailoverBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🛡️ SHIELD"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:background="@drawable/bg_badge"
+                android:backgroundTint="#2196F3"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
+                android:layout_marginStart="6dp"
+                android:visibility="gone" />
         </LinearLayout>
 
         <ImageButton
@@ -250,7 +265,6 @@
                                 android:singleLine="true"
                                 android:ellipsize="end" />
                         </LinearLayout>
-                    </LinearLayout>
 
                     <View
                         android:id="@+id/vStatusDot"

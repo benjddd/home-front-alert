@@ -29,8 +29,18 @@
     <string name="status_saved_zone">אזור: %s</string>
     <string name="status_default_zone">ברירת מחדל: %s</string>
 
-    <string name="connectivity_shield_title">מגן חיבור ישיר</string>
-    <string name="connectivity_shield_warning">אזהרה: מתחבר ישירות לפיקוד העורף/שרת למינימום שיהוי. צורך יותר סוללה כשהוא פעיל.</string>
+    <string name="connectivity_shield_title">מצב חיבור</string>
+    <string name="connectivity_shield_warning">מומלץ להשתמש בבחירה אוטומטית לאיזון אופטימלי בין אמינות לסוללה.</string>
+    <string name="mode_auto">חיבור חכם (מומלץ)</string>
+    <string name="mode_auto_sub">מעבר אוטומטי לחיבור ישיר בעת תקלת תקשורת</string>
+    <string name="mode_direct">אמינות מקסימלית</string>
+    <string name="mode_direct_sub">חיבור ישיר למקור (צריכת סוללה מוגברת)</string>
+    <string name="mode_cloud">חסכון בסוללה</string>
+    <string name="mode_cloud_sub">שימוש בשירותי ענן של גוגל בלבד</string>
+    <string name="status_intelligent_cloud">חיבור חכם (שימוש בענן)</string>
+    <string name="status_intelligent_direct">חיבור חכם (שימוש ישיר - גיבוי)</string>
+    <string name="status_reliability_direct">חיבור ישיר פעיל</string>
+    <string name="status_battery_cloud">חיבור ענן פעיל</string>
     <string name="diag_polling_log">יומן ניטור דיאגנוסטי:</string>
     <string name="diag_baseline">בסיס (דגימה ריקה):</string>
     <string name="diag_anomalies">חבילות מידע אחרונות (לא ריקות):</string>
@@ -42,7 +52,7 @@
     <string name="notif_warning">⚠️ התרעת זהירות/מניעה פעילה.</string>
     <string name="notif_threat">🌍 התרעות פעילות באזורים אחרים בארץ.</string>
     <string name="notif_ok">✅ אין התרעות</string>
-    <string name="notif_title">סטטוס קשב אדום</string>
+    <string name="notif_title">סטטוס צבע ארצי</string>
 
     <string name="master_volume">עוצמת התרעה ראשית</string>
     <string name="current_zone">אזור נוכחי: %s</string>

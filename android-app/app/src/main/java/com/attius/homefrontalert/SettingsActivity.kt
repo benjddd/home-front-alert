@@ -28,6 +28,15 @@ class SettingsActivity : AppCompatActivity() {
     private var isResolvingLocation = false
     private lateinit var sharedPrefs: android.content.SharedPreferences
     private lateinit var toneGenerator: DynamicToneGenerator
+    private lateinit var tvConnectivityDetail: TextView
+
+    private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "shield_active" || key == "connectivity_mode") {
+            Handler(Looper.getMainLooper()).post {
+                updateSourceRadios()
+            }
+        }
+    }
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -163,35 +172,27 @@ class SettingsActivity : AppCompatActivity() {
 
         // 6b. Alert Source Selector (PRO only)
         val cardAlertSource = findViewById<androidx.cardview.widget.CardView>(R.id.cardAlertSource)
-        val rgAlertSource = findViewById<RadioGroup>(R.id.rgAlertSource)
-        val rbSourceFcm = findViewById<RadioButton>(R.id.rbSourceFcm)
-        val rbSourceDirectHfc = findViewById<RadioButton>(R.id.rbSourceDirectHfc)
+        val rgConnectivityMode = findViewById<RadioGroup>(R.id.rgConnectivityMode)
+        tvConnectivityDetail = findViewById(R.id.tvConnectivityDetail)
 
         if (BuildConfig.IS_PAID) {
             cardAlertSource.visibility = android.view.View.VISIBLE
-            // Reflect current state: shield_active = Direct HFC mode
-            if (sharedPrefs.getBoolean("shield_active", false)) {
-                rbSourceDirectHfc.isChecked = true
-            } else {
-                rbSourceFcm.isChecked = true
-            }
-            rgAlertSource.setOnCheckedChangeListener { _, checkedId ->
-                when (checkedId) {
-                    R.id.rbSourceFcm -> {
-                        // Switch to FCM mode: stop LocalPollingService
-                        sharedPrefs.edit().putBoolean("shield_active", false).apply()
-                        stopService(Intent(this, LocalPollingService::class.java))
-                        Toast.makeText(this, "⚡ Backend (FCM) active", Toast.LENGTH_SHORT).show()
+            updateSourceRadios()
+            rgConnectivityMode.setOnCheckedChangeListener { _, checkedId ->
+                val mode = when(checkedId) {
+                    R.id.rbModeAuto -> 0
+                    R.id.rbModeDirect -> 1
+                    R.id.rbModeCloud -> 2
+                    else -> 0
+                }
+                sharedPrefs.edit().putInt("connectivity_mode", mode).apply()
+                
+                // Immediate Service Action based on selection
+                when(mode) {
+                    0 -> { // AUTO: Leave it as-is, let background eval handle it
+                        Toast.makeText(this, "Intelligent Mode Active", Toast.LENGTH_SHORT).show()
                     }
-                    R.id.rbSourceDirectHfc -> {
-                        // Switch to Direct HFC mode: start LocalPollingService
-                        val hasLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                        if (!hasLocation) {
-                            Toast.makeText(this, "Location permission required for Direct HFC", Toast.LENGTH_LONG).show()
-                            rbSourceFcm.isChecked = true
-                            requestCriticalPermissions()
-                            return@setOnCheckedChangeListener
-                        }
+                    1 -> { // DIRECT: Force it ON
                         sharedPrefs.edit().putBoolean("shield_active", true).apply()
                         val intent = Intent(this, LocalPollingService::class.java)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -199,7 +200,12 @@ class SettingsActivity : AppCompatActivity() {
                         } else {
                             startService(intent)
                         }
-                        Toast.makeText(this, "📡 Direct HFC active", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "Maximum Reliability Active", Toast.LENGTH_SHORT).show()
+                    }
+                    2 -> { // CLOUD: Force it OFF
+                        sharedPrefs.edit().putBoolean("shield_active", false).apply()
+                        stopService(Intent(this, LocalPollingService::class.java))
+                        Toast.makeText(this, "Battery Optimized Active", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -450,12 +456,42 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        sharedPrefs.registerOnSharedPreferenceChangeListener(prefsListener)
         locationManager.startTracking()
     }
 
     override fun onPause() {
         super.onPause()
+        sharedPrefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
         locationManager.stopTracking()
+    }
+
+    private fun updateSourceRadios() {
+        if (!BuildConfig.IS_PAID) return
+        val rgConnectivityMode = findViewById<RadioGroup>(R.id.rgConnectivityMode)
+        val rbModeAuto = findViewById<RadioButton>(R.id.rbModeAuto)
+        val rbModeDirect = findViewById<RadioButton>(R.id.rbModeDirect)
+        val rbModeCloud = findViewById<RadioButton>(R.id.rbModeCloud)
+        
+        val mode = sharedPrefs.getInt("connectivity_mode", 0)
+        when(mode) {
+            0 -> rbModeAuto.isChecked = true
+            1 -> rbModeDirect.isChecked = true
+            2 -> rbModeCloud.isChecked = true
+        }
+
+        val isShieldActive = sharedPrefs.getBoolean("shield_active", false)
+        tvConnectivityDetail.text = when(mode) {
+            0 -> { // AUTO
+                if (isShieldActive) getString(R.string.status_intelligent_direct)
+                else getString(R.string.status_intelligent_cloud)
+            }
+            1 -> getString(R.string.status_reliability_direct)
+            2 -> getString(R.string.status_battery_cloud)
+            else -> ""
+        }
+        val color = if (isShieldActive) Color.parseColor("#FFD60A") else Color.parseColor("#606060")
+        tvConnectivityDetail.setTextColor(color)
     }
 
     private fun refreshSettingsUI() {

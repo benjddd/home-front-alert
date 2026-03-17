@@ -334,5 +334,30 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
+// FCM Keepalive Heartbeat for Auto-Failover
+// Emits a silent KEEPALIVE message to the 'alerts' topic every 10 minutes
+setInterval(() => {
+    if (isConnected) {
+        console.log(`💓 Emitting KEEPALIVE heartbeat to 'alerts' topic...`);
+        const keepaliveMessage = {
+            data: {
+                type: 'KEEPALIVE',
+                time: new Date().toISOString()
+            },
+            android: {
+                priority: 'normal',
+                ttl: 60 * 1000 // 60 seconds
+            },
+            topic: 'alerts'
+        };
+
+        admin.messaging().send(keepaliveMessage)
+            .then(res => console.log('💓 KEEPALIVE Success:', res))
+            .catch(err => console.error('❌ KEEPALIVE Error:', err.message));
+    } else {
+        console.log(`💔 Skipping KEEPALIVE (Backend disconnected from HFC)`);
+    }
+}, 10 * 60 * 1000); // 10 minutes
+
 // Start polling
 poll();

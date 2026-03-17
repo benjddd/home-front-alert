@@ -96,7 +96,7 @@ class LocalPollingService : Service() {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
                 "Direct Connectivity Shield",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_HIGH
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(serviceChannel)
@@ -136,6 +136,7 @@ class LocalPollingService : Service() {
             .setStyle(NotificationCompat.BigTextStyle().bigText(content))
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setColor(color)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setColorized(true)
             .setOngoing(true)
             .setContentIntent(pendingIntent)

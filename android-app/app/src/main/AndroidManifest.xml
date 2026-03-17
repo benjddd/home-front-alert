@@ -80,7 +80,7 @@
             android:foregroundServiceType="location"
             android:exported="false" />
 
-        <!-- Desktop Widget -->
+        <!-- Restart LocalPollingService after device reboot -->
         <receiver android:name=".StatusWidgetProvider" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
