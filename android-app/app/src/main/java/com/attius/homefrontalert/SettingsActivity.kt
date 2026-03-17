@@ -13,6 +13,7 @@ import android.util.Log
 import android.widget.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import android.graphics.Color
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
@@ -51,6 +52,7 @@ class SettingsActivity : AppCompatActivity() {
         distanceCalculator = ZoneDistanceCalculator(this)
         toneGenerator = DynamicToneGenerator(this)
         sharedPrefs = getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
+        tvConnectivityDetail = findViewById(R.id.tvConnectivityDetail)
 
         requestCriticalPermissions()
 
@@ -173,7 +175,6 @@ class SettingsActivity : AppCompatActivity() {
         // 6b. Alert Source Selector (PRO only)
         val cardAlertSource = findViewById<androidx.cardview.widget.CardView>(R.id.cardAlertSource)
         val rgConnectivityMode = findViewById<RadioGroup>(R.id.rgConnectivityMode)
-        tvConnectivityDetail = findViewById(R.id.tvConnectivityDetail)
 
         if (BuildConfig.IS_PAID) {
             cardAlertSource.visibility = android.view.View.VISIBLE

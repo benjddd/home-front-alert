@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.attius.homefrontalert">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- REQUIRED PERMISSIONS FOR LIFE-SAVING BACKGROUND EXECUTION -->
     
