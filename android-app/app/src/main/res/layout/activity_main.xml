@@ -265,6 +265,7 @@
                                 android:singleLine="true"
                                 android:ellipsize="end" />
                         </LinearLayout>
+                    </LinearLayout>
 
                     <View
                         android:id="@+id/vStatusDot"
