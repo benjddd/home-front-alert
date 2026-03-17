@@ -13,7 +13,9 @@ if (localPropertiesFile.exists()) {
 }
 
 val backendUrlEnv = localProperties.getProperty("backend.url") ?: "https://home-front-alert-hfc.web.app"
-val apiKeyEnv = localProperties.getProperty("backend.api_key") ?: "Attius-HFC-Shield-2026-Bypass"
+val apiKeyEnv = localProperties.getProperty("backend.api_key") ?: "DEVELOPMENT_MODE_UNSET"
+val storePasswordEnv = localProperties.getProperty("keystore.password") ?: ""
+val keyPasswordEnv = localProperties.getProperty("key.password") ?: ""
 
 android {
     namespace = "com.attius.homefrontalert"
@@ -33,9 +35,9 @@ android {
     signingConfigs {
         create("release") {
             storeFile = file("../release.jks")
-            storePassword = "HomeFront2026!"
+            storePassword = storePasswordEnv
             keyAlias = "homefront"
-            keyPassword = "HomeFront2026!"
+            keyPassword = keyPasswordEnv
         }
     }
 
