@@ -13,6 +13,7 @@ import android.util.Log
 import android.widget.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import android.graphics.Color
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread

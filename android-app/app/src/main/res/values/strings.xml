@@ -38,7 +38,7 @@
     <string name="mode_cloud">Battery Optimized</string>
     <string name="mode_cloud_sub">Depends on Cloud/Google services</string>
     <string name="status_intelligent_cloud">Intelligent (using Cloud)</string>
-    <string name="status_intelligent_direct">Intelligent (using Direct — Failover)</string>
+    <string name="status_intelligent_direct">Intelligent (using Direct - Failover)</string>
     <string name="status_reliability_direct">Direct Source Active</string>
     <string name="status_battery_cloud">Cloud Mode Active</string>
     <string name="diag_polling_log">DIAGNOSTIC POLLING LOG:</string>
