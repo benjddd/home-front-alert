@@ -353,12 +353,16 @@ object StatusManager {
                 if (isLocalTotal) {
                     toneGenerator.playTonesForDistances(emptyList(), volume, type, true)
                 }
-            } else if (newCitiesForAudio.isNotEmpty()) {
-                Log.i("HomeFrontAlerts", "🔊 DELTA AUDIO: $id | New Cities: ${newCitiesForAudio.size} | Local: $isLocalInDelta")
-                if (distancesForAudio.isNotEmpty() || isLocalInDelta) {
+            } else if (newCitiesForAudio.isNotEmpty() || type == AlertType.CAUTION) {
+                // For CAUTION (pre-warnings), we play audio even if no NEW cities are in the delta
+                // This ensures remote pre-warnings are heard/updated correctly.
+                val audioDistances = if (type == AlertType.CAUTION && newCitiesForAudio.isEmpty()) distancesTotal else distancesForAudio
+                
+                Log.i("HomeFrontAlerts", "🔊 AUDIO: $id | Type: $type | New: ${newCitiesForAudio.size} | Local: $isLocalInDelta")
+                if (audioDistances.isNotEmpty() || isLocalInDelta) {
                     // Mark these cities as signaled for this ID
                     newCitiesForAudio.forEach { signaledSet.add(normalizeCity(it)) }
-                    toneGenerator.playTonesForDistances(distancesForAudio, volume, type, isLocalInDelta)
+                    toneGenerator.playTonesForDistances(audioDistances, volume, type, isLocalInDelta)
                 }
             }
         }

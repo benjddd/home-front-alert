@@ -32,7 +32,7 @@
     <string name="connectivity_shield_title">Connectivity Mode</string>
     <string name="connectivity_shield_warning">Automatic selection is recommended for the best balance of reliability and battery.</string>
     
-    <string name="recent_alerts_summary">Recent (10m): %1$d alerts | Closest: %2$s</string>
+    <string name="recent_alerts_summary">Recent (10m): %1$d alerts\nClosest: %2$s</string>
     <string name="volume_control_title">Master Volume</string>
 
     <string name="mode_auto">Intelligent (Recommended)</string>
