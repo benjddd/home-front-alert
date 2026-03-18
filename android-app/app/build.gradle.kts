@@ -29,7 +29,7 @@ android {
         applicationId = "com.attius.homefrontalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 26
+        versionCode = 27
         versionName = "1.7.4"
 
         buildConfigField("String", "BACKEND_URL", "\"$backendUrlEnv\"")
