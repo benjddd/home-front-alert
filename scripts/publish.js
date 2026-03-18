@@ -55,6 +55,10 @@ async function main() {
                           {
                             language: 'en-US',
                             text: '1.7.4 Release. Forced phone-only hardware requirements. Added chunking for large FCM payloads.'
+                          },
+                          {
+                            language: 'iw-IL',
+                            text: 'גרסת 1.7.4 לשחרור. פתרון לצבירת הודעות FCM גדולות, תמיכה בשמות אפליקציה דו-לשוניים (צבע ארצי), והתאמה משופרת לטלפונים בלבד.'
                           }
                         ]
                     }
