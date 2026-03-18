@@ -101,9 +101,10 @@ object StatusManager {
             newStatus = "YELLOW"
             val iterKeys = threats.keys()
             while(iterKeys.hasNext()) {
-                val zone = iterKeys.next()
-                val obj = threats.getJSONObject(zone)
-                if (normalizeCity(zone) == homeZone) {
+                val zoneKey = iterKeys.next()
+                val obj = threats.getJSONObject(zoneKey)
+                // Use normalized check
+                if (zoneKey == homeZone || normalizeCity(zoneKey) == homeZone) {
                     val style = obj.optString("s", "URGENT")
                     if (style == "URGENT") {
                         newStatus = "RED"
@@ -285,14 +286,19 @@ object StatusManager {
         val calculator = ZoneDistanceCalculator(context)
         
         cities.forEach { zone ->
+            val normZone = normalizeCity(zone)
             if (type == AlertType.CALM) {
+                // If it's an all-clear, remove any entries matching this normalized zone
+                threats.remove(normZone)
+                // Also remove the raw name if it was stored previously
                 threats.remove(zone)
             } else {
                 val obj = org.json.JSONObject()
                 obj.put("t", System.currentTimeMillis())
                 obj.put("s", type.name)
                 obj.put("c", calculator.getZoneCountdown(zone))
-                threats.put(zone, obj)
+                obj.put("name", zone) // Store raw name for display if needed
+                threats.put(normZone, obj)
             }
         }
         prefs.edit().putString("active_threat_map", threats.toString()).apply()

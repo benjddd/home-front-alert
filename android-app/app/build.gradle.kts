@@ -30,12 +30,15 @@ android {
         buildConfigField("String", "API_KEY", "\"$apiKeyEnv\"")
     }
 
+    val storePasswordEnv = localProperties.getProperty("keystore.password") ?: ""
+    val keyPasswordEnv = localProperties.getProperty("key.password") ?: ""
+
     signingConfigs {
         create("release") {
             storeFile = file("../release.jks")
-            storePassword = "HomeFront2026!"
+            storePassword = storePasswordEnv
             keyAlias = "homefront"
-            keyPassword = "HomeFront2026!"
+            keyPassword = keyPasswordEnv
         }
     }
 
