@@ -29,7 +29,10 @@
     <!-- Restart LocalPollingService after device reboot (Standard + Pro Direct HFC mode) -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- Restrict to phones only -->
+    <!-- Force Phone-Only: tablets typically lack telephony hardware -->
+    <uses-feature android:name="android.hardware.telephony" android:required="true" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="true" />
+
     <supports-screens 
         android:smallScreens="true" 
         android:normalScreens="true" 

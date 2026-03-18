@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="launcher_name">צבע ארצי</string>
+    <string name="launcher_name">Tzeva Artzi</string>
     <string name="app_name">Tzeva Artzi - Home Front Alerts</string>
     <string name="monitoring_title">Tzeva Artzi - Home Front Alerts</string>
     <string name="current_status">CURRENT STATUS</string>
