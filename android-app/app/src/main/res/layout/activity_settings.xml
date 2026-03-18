@@ -90,47 +90,7 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- ── VOLUME & SOUND ── -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:backgroundTint="#1E1E1E"
-                android:elevation="4dp">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="16dp"
-                    android:orientation="vertical">
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/master_volume"
-                        android:textStyle="bold"
-                        android:textColor="#FFFFFF"
-                        android:layout_marginBottom="8dp" />
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal">
-                        <SeekBar
-                            android:id="@+id/seekVolume"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:max="100"
-                            android:progress="100" />
-                        <Button
-                            android:id="@+id/btnTestSound"
-                            android:layout_width="wrap_content"
-                            android:layout_height="36dp"
-                            android:text="BEEP"
-                            android:textSize="10sp"
-                            android:padding="0dp"
-                            android:backgroundTint="#FF9800" />
-                    </LinearLayout>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
+
 
             <!-- ── CURRENT ZONE STATUS ── -->
             <TextView
@@ -241,13 +201,12 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- ── ALERT SOURCE SELECTOR (PRO ONLY — shown in code) ── -->
             <androidx.cardview.widget.CardView
                 android:id="@+id/cardAlertSource"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
-                android:backgroundTint="#1A2A1A"
+                android:backgroundTint="#1A1A1A"
                 android:elevation="4dp"
                 android:visibility="gone">
                 <LinearLayout
@@ -258,40 +217,84 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Alert Source"
+                        android:text="@string/connectivity_shield_title"
                         android:textStyle="bold"
                         android:textColor="#FFFFFF"
-                        android:textSize="15sp"
+                        android:textSize="14sp" />
+                    <TextView
+                        android:id="@+id/tvConnectivityDetail"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="..."
+                        android:textColor="#FFD60A"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
                         android:layout_marginBottom="4dp" />
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Backend (FCM) is instant and battery-efficient. Direct HFC polls the official feed every 2s from your device."
+                        android:text="@string/connectivity_shield_warning"
                         android:textColor="#808080"
                         android:textSize="11sp"
-                        android:layout_marginBottom="12dp" />
+                        android:layout_marginBottom="16dp" />
                     <RadioGroup
-                        android:id="@+id/rgAlertSource"
+                        android:id="@+id/rgConnectivityMode"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
+                        
+                        <!-- Mode: AUTO -->
                         <RadioButton
-                            android:id="@+id/rbSourceFcm"
+                            android:id="@+id/rbModeAuto"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="⚡ Backend (FCM)  — server push, instant"
-                            android:textColor="#FFFFFF"
-                            android:textSize="13sp"
-                            android:buttonTint="#4CAF50"
-                            android:layout_marginBottom="6dp" />
-                        <RadioButton
-                            android:id="@+id/rbSourceDirectHfc"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="📡 Direct HFC  — 2s polling, your network"
+                            android:text="@string/mode_auto"
                             android:textColor="#FFFFFF"
                             android:textSize="13sp"
                             android:buttonTint="#4CAF50" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/mode_auto_sub"
+                            android:textColor="#606060"
+                            android:textSize="10sp"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginBottom="12dp" />
+
+                        <!-- Mode: DIRECT -->
+                        <RadioButton
+                            android:id="@+id/rbModeDirect"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/mode_direct"
+                            android:textColor="#FFFFFF"
+                            android:textSize="13sp"
+                            android:buttonTint="#4CAF50" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/mode_direct_sub"
+                            android:textColor="#606060"
+                            android:textSize="10sp"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginBottom="12dp" />
+
+                        <!-- Mode: CLOUD -->
+                        <RadioButton
+                            android:id="@+id/rbModeCloud"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/mode_cloud"
+                            android:textColor="#FFFFFF"
+                            android:textSize="13sp"
+                            android:buttonTint="#4CAF50" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/mode_cloud_sub"
+                            android:textColor="#606060"
+                            android:textSize="10sp"
+                            android:layout_marginStart="32dp" />
                     </RadioGroup>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>

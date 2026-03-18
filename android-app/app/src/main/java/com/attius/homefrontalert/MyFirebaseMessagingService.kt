@@ -5,6 +5,8 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import org.json.JSONArray
+import android.content.Context
+import android.content.Intent
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -26,8 +28,28 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         if (remoteMessage.data.isNotEmpty()) {
             val alertData = remoteMessage.data
-            val citiesJsonStr = alertData["cities"]
+            
+            // Auto-Failover Recovery: We received FCM, so backend must be healthy.
+            val prefs = getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
+            
+            // Record the heartbeat
+            prefs.edit().putLong("last_fcm_heartbeat_ms", System.currentTimeMillis()).apply()
+            
+            // If we are currently in failover mode (shield_active = true) AND mode is AUTO, turn it off.
+            val mode = prefs.getInt("connectivity_mode", 0)
+            if (prefs.getBoolean("shield_active", false) && mode == 0) {
+                Log.i("HomeFrontAlerts", "FCM received while in AUTO failover! Stopping Direct Shield.")
+                prefs.edit().putBoolean("shield_active", false).apply()
+                stopService(Intent(this, LocalPollingService::class.java))
+            }
+            
             val alertType = alertData["type"]
+            if (alertType == "KEEPALIVE") {
+                Log.d("HomeFrontAlerts", "FCM Keepalive received. Heartbeat registered.")
+                return // Silently drop the message now that we've updated the timer.
+            }
+            
+            val citiesJsonStr = alertData["cities"]
             val alertId = alertData["alertId"] ?: System.currentTimeMillis().toString()
 
             if (citiesJsonStr != null) {

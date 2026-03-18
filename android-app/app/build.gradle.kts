@@ -21,16 +21,23 @@ android {
     namespace = "com.attius.homefrontalert"
     compileSdk = 34
 
+    androidResources {
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:desktop.ini"
+    }
+
     defaultConfig {
         applicationId = "com.attius.homefrontalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "1.7.0"
+        versionCode = 22
+        versionName = "1.7.2"
 
         buildConfigField("String", "BACKEND_URL", "\"$backendUrlEnv\"")
         buildConfigField("String", "API_KEY", "\"$apiKeyEnv\"")
     }
+
+    val storePasswordEnv = localProperties.getProperty("keystore.password") ?: ""
+    val keyPasswordEnv = localProperties.getProperty("key.password") ?: ""
 
     signingConfigs {
         create("release") {
@@ -60,7 +67,6 @@ android {
         }
         create("pro") {
             dimension = "version"
-            versionNameSuffix = "-pro"
             buildConfigField("boolean", "IS_PAID", "true")
         }
     }
@@ -102,3 +108,5 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging-ktx:23.4.0")
     implementation("com.google.android.gms:play-services-location:21.1.0")
 }
+
+project.layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/homefrontalert/app/build"))

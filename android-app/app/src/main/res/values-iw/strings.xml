@@ -6,7 +6,7 @@
     <string name="no_alerts">אין התרעות</string>
     <string name="critical_status">קריטי</string>
     <string name="warning_status">אזהרה</string>
-    <string name="threat_status">איום</string>
+    <string name="threat_status">איום מרוחק</string>
     <string name="monitoring_for">בניטור למשך</string>
     <string name="active_for">פעיל למשך</string>
     <string name="last_detected_threat">איום אחרון שזוהה</string>
@@ -29,8 +29,22 @@
     <string name="status_saved_zone">אזור: %s</string>
     <string name="status_default_zone">ברירת מחדל: %s</string>
 
-    <string name="connectivity_shield_title">מגן חיבור ישיר</string>
-    <string name="connectivity_shield_warning">אזהרה: מתחבר ישירות לפיקוד העורף/שרת למינימום שיהוי. צורך יותר סוללה כשהוא פעיל.</string>
+    <string name="connectivity_shield_title">מצב חיבור</string>
+    <string name="connectivity_shield_warning">מומלץ להשתמש בבחירה אוטומטית לאיזון אופטימלי בין אמינות לסוללה.</string>
+
+    <string name="recent_alerts_summary">התרעות (10 דק\'): %1$d | קרוב ביותר: %2$s</string>
+    <string name="volume_control_title">עוצמת שמע ראשית</string>
+
+    <string name="mode_auto">חיבור חכם (מומלץ)</string>
+    <string name="mode_auto_sub">מעבר אוטומטי לחיבור ישיר בעת תקלת תקשורת</string>
+    <string name="mode_direct">דגימה פעילה</string>
+    <string name="mode_direct_sub">מושפע מהגדרות סוללה (צריכת משאבים מוגברת)</string>
+    <string name="mode_cloud">חסכון בסוללה</string>
+    <string name="mode_cloud_sub">שימוש בשירותי ענן של גוגל בלבד</string>
+    <string name="status_intelligent_cloud">חיבור חכם (שימוש בענן)</string>
+    <string name="status_intelligent_direct">חיבור חכם (שימוש ישיר - גיבוי)</string>
+    <string name="status_reliability_direct">חיבור ישיר פעיל</string>
+    <string name="status_battery_cloud">חיבור ענן פעיל</string>
     <string name="diag_polling_log">יומן ניטור דיאגנוסטי:</string>
     <string name="diag_baseline">בסיס (דגימה ריקה):</string>
     <string name="diag_anomalies">חבילות מידע אחרונות (לא ריקות):</string>

@@ -33,7 +33,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var vStatusRing: android.view.View
     private lateinit var layoutDashboardContent: ConstraintLayout
     private lateinit var tvDashCountdown: TextView
-    
     private lateinit var tvLastAlertZones: TextView
     private lateinit var tvLastAlertInfo: TextView
     private lateinit var cardLastAlert: androidx.cardview.widget.CardView
@@ -45,6 +44,17 @@ class MainActivity : AppCompatActivity() {
 
     private val uiHandler = Handler(Looper.getMainLooper())
     private var isResolvingLocation = false
+    
+    private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "shield_active") {
+            uiHandler.post { 
+                refreshDashboardState()
+                setVersionBadge()
+                startPollingServiceIfEnabled()
+            }
+        }
+    }
+
     private val uiUpdater = object : Runnable {
         override fun run() {
             refreshDashboardState()
@@ -72,6 +82,10 @@ class MainActivity : AppCompatActivity() {
                 .addOnCompleteListener { task ->
                     if (task.isSuccessful) android.util.Log.d("HomeFrontAlerts", "FCM: Subscribed to 'alerts' topic.")
                 }
+                
+            // Start the periodic health check (Auto-Failover) using a simple background thread
+            // to bypass the WorkManager PKIX certification download issues on this network.
+            startNativeHealthCheckLoop()
         }
 
         performInitialSetupIfNeeded()
@@ -85,6 +99,10 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        findViewById<ImageButton>(R.id.btnVolume).setOnClickListener {
+            showVolumeDialog()
         }
 
         findViewById<ImageButton>(R.id.btnHelp).setOnClickListener {
@@ -136,12 +154,23 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        sharedPrefs.registerOnSharedPreferenceChangeListener(prefsListener)
         locationManager.startTracking()
         uiHandler.post(uiUpdater)
+        
+        // Proactive evaluation of heartbeat upon returning to app
+        if (BuildConfig.IS_PAID && !sharedPrefs.getBoolean("shield_active", false)) {
+            val lastFcmMs = sharedPrefs.getLong("last_fcm_heartbeat_ms", System.currentTimeMillis())
+            if (System.currentTimeMillis() - lastFcmMs > 20 * 60 * 1000L) {
+                android.util.Log.i("HomeFrontAlerts", "Heartbeat stale on resume. Eval immediately.")
+                evaluateFailoverCondition()
+            }
+        }
     }
 
     override fun onPause() {
         super.onPause()
+        sharedPrefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
         uiHandler.removeCallbacks(uiUpdater)
     }
 
@@ -183,8 +212,11 @@ class MainActivity : AppCompatActivity() {
                     val startTime = obj.optLong("t", 0)
                     val duration = obj.optInt("c", 0)
                     if (startTime > 0 && duration > 0) {
-                        val rem = duration - (System.currentTimeMillis() - startTime) / 1000
-                        if (rem > 0) localRemaining = rem
+                        val isUrgent = obj.optString("s", "URGENT") == "URGENT"
+                        if (isUrgent) {
+                            val rem = duration - (System.currentTimeMillis() - startTime) / 1000
+                            if (rem > 0) localRemaining = rem
+                        }
                     }
                 }
             }
@@ -197,6 +229,43 @@ class MainActivity : AppCompatActivity() {
         } else {
             tvDashCountdown.visibility = android.view.View.GONE
             tvDashTimer.visibility = android.view.View.VISIBLE
+        }
+
+        // 10-Minute Summary Logic
+        val tenMinsMs = 10 * 60 * 1000L
+        var alertsCount10m = 0
+        var closestDist10m = Double.MAX_VALUE
+        try {
+            val threats = org.json.JSONObject(threatsStr)
+            val iter = threats.keys()
+            val res = locationManager.resolveCurrentLocation()
+            
+            val recentZones = mutableListOf<String>()
+            while(iter.hasNext()) {
+                val z = iter.next()
+                val obj = threats.getJSONObject(z)
+                val t = obj.optLong("t", 0L)
+                val rawName = obj.optString("name", z)
+                if (System.currentTimeMillis() - t <= tenMinsMs) {
+                    alertsCount10m++
+                    recentZones.add(rawName)
+                }
+            }
+            if (recentZones.isNotEmpty()) {
+                val dists = distanceCalculator.calculateDistancesToAlerts(res.lat, res.lng, recentZones)
+                if (dists.isNotEmpty()) {
+                    closestDist10m = dists.minOrNull() ?: Double.MAX_VALUE
+                }
+            }
+        } catch(e: Exception) {}
+
+        val tvRecentAlertsSummary = findViewById<TextView>(R.id.tvRecentAlertsSummary)
+        if (alertsCount10m > 0) {
+            tvRecentAlertsSummary.visibility = android.view.View.VISIBLE
+            val distText = if (closestDist10m == Double.MAX_VALUE) getString(R.string.remote_alert) else String.format("%.1f km", closestDist10m)
+            tvRecentAlertsSummary.text = getString(R.string.recent_alerts_summary, alertsCount10m, distText)
+        } else {
+            tvRecentAlertsSummary.visibility = android.view.View.GONE
         }
         
         val statusColor = when(status) {
@@ -333,6 +402,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
     private fun startPollingServiceIfEnabled() {
         val hasTos = sharedPrefs.getBoolean("tos_accepted", false)
         val hasLocation = androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -360,12 +430,15 @@ class MainActivity : AppCompatActivity() {
 
         // Always show alpha badge for internal testing phase
         tvAlphaBadge.visibility = android.view.View.VISIBLE
+        
+        // Failover Badge logic completely removed.
     }
 
     private fun refreshLastAlertHistory() {
         val zones = sharedPrefs.getString("last_alert_zones", null)
         val dist = sharedPrefs.getFloat("last_alert_dist", -1f)
         val time = sharedPrefs.getLong("last_alert_time", 0L)
+        val alertType = sharedPrefs.getString("last_alert_type", "") ?: ""
         
         if (zones != null && time > 0) {
             cardLastAlert.visibility = android.view.View.VISIBLE
@@ -380,9 +453,137 @@ class MainActivity : AppCompatActivity() {
                 else -> android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date(time))
             }
             val distText = if (dist < 0) getString(R.string.remote_alert) else getString(R.string.distance, String.format("%.1f", dist))
-            tvLastAlertInfo.text = "$timeText • $distText"
+            
+            val translatedType = LocaleHelper.translateAlertType(this, alertType)
+            val prefix = if (translatedType.isNotEmpty()) "$translatedType • " else ""
+            tvLastAlertInfo.text = "$prefix$timeText • $distText"
         } else {
             cardLastAlert.visibility = android.view.View.GONE
         }
+    }
+
+    private fun startNativeHealthCheckLoop() {
+        kotlin.concurrent.thread(start = true) {
+            while (true) {
+                evaluateFailoverCondition()
+                
+                // Sleep for 2 minutes before evaluating the heartbeat timer again
+                try {
+                    Thread.sleep(2 * 60 * 1000L)
+                } catch (e: InterruptedException) {
+                    break
+                }
+            }
+        }
+    }
+
+    private fun evaluateFailoverCondition() {
+        try {
+            // Only evaluate failover if we are in AUTO mode (0)
+            if (sharedPrefs.getInt("connectivity_mode", 0) != 0) return
+            
+            val isCurrentlyInFailover = sharedPrefs.getBoolean("shield_active", false)
+            if (isCurrentlyInFailover) return
+
+            // The backend sends a KEEPALIVE FCM every 10 minutes.
+            // We wait 20 minutes before assuming it's dead.
+            val lastFcmMs = sharedPrefs.getLong("last_fcm_heartbeat_ms", System.currentTimeMillis())
+            val elapsedMs = System.currentTimeMillis() - lastFcmMs
+            val timeoutMs = 20L * 60L * 1000L // 20 minutes
+            
+            if (elapsedMs > timeoutMs) {
+                // We haven't heard from FCM in 20+ minutes. Suspect outage.
+                android.util.Log.w("HomeFrontAlerts", "FCM Heartbeat missing for ${elapsedMs/60000} mins. Suspect outage.")
+                
+                // Jitter: 0 to 5 minutes random sleep to prevent Thundering Herd DDoS on the backend
+                val jitterMs = (0..300000).random().toLong()
+                android.util.Log.w("HomeFrontAlerts", "Applying jitter of ${jitterMs/1000}s before checking health.")
+                Thread.sleep(jitterMs)
+                
+                // Now do the ONE single HTTP ping to confirm it's actually dead
+                var isHealthy = false
+                try {
+                    val url = java.net.URL("${BuildConfig.BACKEND_URL}/health")
+                    val conn = url.openConnection() as java.net.HttpURLConnection
+                    conn.setRequestProperty("X-API-Key", BuildConfig.API_KEY)
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    if (conn.responseCode == 200) {
+                        isHealthy = true
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("HomeFrontAlerts", "Fallback health check failed: ${e.message}")
+                }
+
+                if (isHealthy) {
+                    android.util.Log.i("HomeFrontAlerts", "HealthCheck: Proxy is HEALTHY. (FCM might be delayed but backend is up).")
+                    // We can reset the heartbeat to prevent immediately pinging again
+                    sharedPrefs.edit().putLong("last_fcm_heartbeat_ms", System.currentTimeMillis()).apply()
+                } else {
+                    android.util.Log.w("HomeFrontAlerts", "HealthCheck: Proxy is DEAD. Triggering failover to Direct HFC Shield!")
+                    sharedPrefs.edit().putBoolean("shield_active", true).apply()
+                    // UI listener handles starting the service
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("HomeFrontAlerts", "Failover eval error", e)
+        }
+    }
+
+    private fun showVolumeDialog() {
+        val linearLayout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+        val seekVolume = android.widget.SeekBar(this).apply {
+            max = 100
+            progress = (sharedPrefs.getFloat("alert_volume", 1.0f) * 100).toInt()
+        }
+        val btnTest = android.widget.Button(this).apply {
+            text = "TEST BEEP"
+            textSize = 12f
+            setOnClickListener {
+                val vol = sharedPrefs.getFloat("alert_volume", 1.0f)
+                toneGenerator.playTonesForDistances(listOf(5.0), vol)
+            }
+        }
+        linearLayout.addView(seekVolume)
+        linearLayout.addView(btnTest)
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.volume_control_title)
+            .setView(linearLayout)
+            .setPositiveButton("OK", null)
+            .create()
+
+        seekVolume.setOnSeekBarChangeListener(object: android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    val vol = progress / 100f
+                    sharedPrefs.edit().putFloat("alert_volume", vol).apply()
+                    toneGenerator.updateLiveVolume(vol)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+        })
+
+        dialog.show()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP || keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) {
+            var currentVol = sharedPrefs.getFloat("alert_volume", 1.0f)
+            val isUp = keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP
+            currentVol += if (isUp) 0.05f else -0.05f
+            currentVol = kotlin.math.max(0.0f, kotlin.math.min(1.0f, currentVol))
+            sharedPrefs.edit().putFloat("alert_volume", currentVol).apply()
+            toneGenerator.updateLiveVolume(currentVol)
+            
+            // Do not consume the event, allow the system to adjust actual media volume as well
+            return super.onKeyDown(keyCode, event)
+        }
+        return super.onKeyDown(keyCode, event)
     }
 }
