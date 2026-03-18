@@ -33,11 +33,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var vStatusRing: android.view.View
     private lateinit var layoutDashboardContent: ConstraintLayout
     private lateinit var tvDashCountdown: TextView
-<<<<<<< HEAD
-    private lateinit var tvFailoverBadge: TextView
-    
-=======
->>>>>>> feature/ui-tweaks
+
     private lateinit var tvLastAlertZones: TextView
     private lateinit var tvLastAlertInfo: TextView
     private lateinit var cardLastAlert: androidx.cardview.widget.CardView
@@ -436,17 +432,7 @@ class MainActivity : AppCompatActivity() {
         // Always show alpha badge for internal testing phase
         tvAlphaBadge.visibility = android.view.View.VISIBLE
         
-<<<<<<< HEAD
-        // Failover Badge (Pro only)
-        tvFailoverBadge = findViewById(R.id.tvFailoverBadge)
-        if (BuildConfig.IS_PAID && sharedPrefs.getBoolean("shield_active", false)) {
-            tvFailoverBadge.visibility = android.view.View.VISIBLE
-        } else {
-            tvFailoverBadge.visibility = android.view.View.GONE
-        }
-=======
         // Failover Badge logic completely removed.
->>>>>>> feature/ui-tweaks
     }
 
     private fun refreshLastAlertHistory() {
@@ -544,8 +530,7 @@ class MainActivity : AppCompatActivity() {
             android.util.Log.e("HomeFrontAlerts", "Failover eval error", e)
         }
     }
-<<<<<<< HEAD
-=======
+
 
     private fun showVolumeDialog() {
         val linearLayout = android.widget.LinearLayout(this).apply {
