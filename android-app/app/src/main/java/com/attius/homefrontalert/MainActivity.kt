@@ -588,5 +588,5 @@ class MainActivity : AppCompatActivity() {
         }
         return super.onKeyDown(keyCode, event)
     }
->>>>>>> feature/ui-tweaks
+
 }
