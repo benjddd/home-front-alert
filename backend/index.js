@@ -30,8 +30,8 @@ app.use((req, res, next) => {
     // Health and Alerts check
     const isSensitive = req.path === '/alerts';
     
-    // Health check is public for monitoring
-    if (req.path === '/health') return next();
+    // Health and Privacy check is public
+    if (req.path === '/health' || req.path === '/privacy') return next();
 
     // Block sensitive endpoints if key is missing or wrong
     if (isSensitive && apiKey !== validKey) {
@@ -58,6 +58,11 @@ app.get('/health', (req, res) => {
         lastReportedAlert: lastDetectedAlert,
         timestamp: new Date().toISOString()
     });
+});
+
+// Privacy Policy Route
+app.get('/privacy', (req, res) => {
+    res.sendFile(__dirname + '/public/privacy.html');
 });
 
 // Expose the latest active alert for the Android App's Hybrid Polling mode
