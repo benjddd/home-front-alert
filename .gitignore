@@ -6,7 +6,6 @@
 *.keystore
 *.p12
 *.pfx
-
 # Environment and secret files
 .env
 .env.*
@@ -15,12 +14,10 @@ keystore.properties
 signing.properties
 local.properties
 serviceAccountKey.json
-
 # Google Cloud service accounts
 *-service-account*.json
 *credentials*.json
 gcloud_key*.json
-
 # ===== ANDROID BUILD =====
 android-app/.gradle/
 android-app/local.properties
@@ -29,7 +26,6 @@ android-app/app/build/
 android-app/**/*.apk
 android-app/**/*.aab
 android-app/**/*.ap_
-
 # Temp build logs & artifacts
 *.txt
 *.log
@@ -37,13 +33,11 @@ android-app/**/*.ap_
 !README.md
 firebase-debug.log
 proxy-microsite/firebase-debug.log
-
 # ===== NODE / BACKEND =====
 node_modules/
 backend/node_modules/
 dist/
 .npm
-
 # ===== IDE =====
 .idea/
 *.iml
@@ -52,7 +46,7 @@ dist/
 *.swo
 .DS_Store
 Thumbs.db
-
+desktop.ini
 # ===== GOOGLE CLOUD SDK / TEMP =====
 override_policy.yaml
 login_url.txt

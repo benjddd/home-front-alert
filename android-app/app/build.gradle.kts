@@ -23,19 +23,22 @@ android {
         applicationId = "com.attius.homefrontalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "1.7.0"
+        versionCode = 21
+        versionName = "1.7.1"
 
         buildConfigField("String", "BACKEND_URL", "\"$backendUrlEnv\"")
         buildConfigField("String", "API_KEY", "\"$apiKeyEnv\"")
     }
 
+    val storePasswordEnv = localProperties.getProperty("keystore.password") ?: ""
+    val keyPasswordEnv = localProperties.getProperty("key.password") ?: ""
+
     signingConfigs {
         create("release") {
             storeFile = file("../release.jks")
-            storePassword = "HomeFront2026!"
+            storePassword = storePasswordEnv
             keyAlias = "homefront"
-            keyPassword = "HomeFront2026!"
+            keyPassword = keyPasswordEnv
         }
     }
 
@@ -58,7 +61,6 @@ android {
         }
         create("pro") {
             dimension = "version"
-            versionNameSuffix = "-pro"
             buildConfigField("boolean", "IS_PAID", "true")
         }
     }

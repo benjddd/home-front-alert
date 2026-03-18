@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var vStatusRing: android.view.View
     private lateinit var layoutDashboardContent: ConstraintLayout
     private lateinit var tvDashCountdown: TextView
+    private lateinit var tvFailoverBadge: TextView
     
     private lateinit var tvLastAlertZones: TextView
     private lateinit var tvLastAlertInfo: TextView
@@ -45,6 +46,17 @@ class MainActivity : AppCompatActivity() {
 
     private val uiHandler = Handler(Looper.getMainLooper())
     private var isResolvingLocation = false
+    
+    private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "shield_active") {
+            uiHandler.post { 
+                refreshDashboardState()
+                setVersionBadge()
+                startPollingServiceIfEnabled()
+            }
+        }
+    }
+
     private val uiUpdater = object : Runnable {
         override fun run() {
             refreshDashboardState()
@@ -72,6 +84,10 @@ class MainActivity : AppCompatActivity() {
                 .addOnCompleteListener { task ->
                     if (task.isSuccessful) android.util.Log.d("HomeFrontAlerts", "FCM: Subscribed to 'alerts' topic.")
                 }
+                
+            // Start the periodic health check (Auto-Failover) using a simple background thread
+            // to bypass the WorkManager PKIX certification download issues on this network.
+            startNativeHealthCheckLoop()
         }
 
         performInitialSetupIfNeeded()
@@ -136,12 +152,23 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        sharedPrefs.registerOnSharedPreferenceChangeListener(prefsListener)
         locationManager.startTracking()
         uiHandler.post(uiUpdater)
+        
+        // Proactive evaluation of heartbeat upon returning to app
+        if (BuildConfig.IS_PAID && !sharedPrefs.getBoolean("shield_active", false)) {
+            val lastFcmMs = sharedPrefs.getLong("last_fcm_heartbeat_ms", System.currentTimeMillis())
+            if (System.currentTimeMillis() - lastFcmMs > 20 * 60 * 1000L) {
+                android.util.Log.i("HomeFrontAlerts", "Heartbeat stale on resume. Eval immediately.")
+                evaluateFailoverCondition()
+            }
+        }
     }
 
     override fun onPause() {
         super.onPause()
+        sharedPrefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
         uiHandler.removeCallbacks(uiUpdater)
     }
 
@@ -333,6 +360,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
     private fun startPollingServiceIfEnabled() {
         val hasTos = sharedPrefs.getBoolean("tos_accepted", false)
         val hasLocation = androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -360,6 +388,14 @@ class MainActivity : AppCompatActivity() {
 
         // Always show alpha badge for internal testing phase
         tvAlphaBadge.visibility = android.view.View.VISIBLE
+        
+        // Failover Badge (Pro only)
+        tvFailoverBadge = findViewById(R.id.tvFailoverBadge)
+        if (BuildConfig.IS_PAID && sharedPrefs.getBoolean("shield_active", false)) {
+            tvFailoverBadge.visibility = android.view.View.VISIBLE
+        } else {
+            tvFailoverBadge.visibility = android.view.View.GONE
+        }
     }
 
     private fun refreshLastAlertHistory() {
@@ -383,6 +419,74 @@ class MainActivity : AppCompatActivity() {
             tvLastAlertInfo.text = "$timeText • $distText"
         } else {
             cardLastAlert.visibility = android.view.View.GONE
+        }
+    }
+
+    private fun startNativeHealthCheckLoop() {
+        kotlin.concurrent.thread(start = true) {
+            while (true) {
+                evaluateFailoverCondition()
+                
+                // Sleep for 2 minutes before evaluating the heartbeat timer again
+                try {
+                    Thread.sleep(2 * 60 * 1000L)
+                } catch (e: InterruptedException) {
+                    break
+                }
+            }
+        }
+    }
+
+    private fun evaluateFailoverCondition() {
+        try {
+            // Only evaluate failover if we are in AUTO mode (0)
+            if (sharedPrefs.getInt("connectivity_mode", 0) != 0) return
+            
+            val isCurrentlyInFailover = sharedPrefs.getBoolean("shield_active", false)
+            if (isCurrentlyInFailover) return
+
+            // The backend sends a KEEPALIVE FCM every 10 minutes.
+            // We wait 20 minutes before assuming it's dead.
+            val lastFcmMs = sharedPrefs.getLong("last_fcm_heartbeat_ms", System.currentTimeMillis())
+            val elapsedMs = System.currentTimeMillis() - lastFcmMs
+            val timeoutMs = 20L * 60L * 1000L // 20 minutes
+            
+            if (elapsedMs > timeoutMs) {
+                // We haven't heard from FCM in 20+ minutes. Suspect outage.
+                android.util.Log.w("HomeFrontAlerts", "FCM Heartbeat missing for ${elapsedMs/60000} mins. Suspect outage.")
+                
+                // Jitter: 0 to 5 minutes random sleep to prevent Thundering Herd DDoS on the backend
+                val jitterMs = (0..300000).random().toLong()
+                android.util.Log.w("HomeFrontAlerts", "Applying jitter of ${jitterMs/1000}s before checking health.")
+                Thread.sleep(jitterMs)
+                
+                // Now do the ONE single HTTP ping to confirm it's actually dead
+                var isHealthy = false
+                try {
+                    val url = java.net.URL("${BuildConfig.BACKEND_URL}/health")
+                    val conn = url.openConnection() as java.net.HttpURLConnection
+                    conn.setRequestProperty("X-API-Key", BuildConfig.API_KEY)
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    if (conn.responseCode == 200) {
+                        isHealthy = true
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("HomeFrontAlerts", "Fallback health check failed: ${e.message}")
+                }
+
+                if (isHealthy) {
+                    android.util.Log.i("HomeFrontAlerts", "HealthCheck: Proxy is HEALTHY. (FCM might be delayed but backend is up).")
+                    // We can reset the heartbeat to prevent immediately pinging again
+                    sharedPrefs.edit().putLong("last_fcm_heartbeat_ms", System.currentTimeMillis()).apply()
+                } else {
+                    android.util.Log.w("HomeFrontAlerts", "HealthCheck: Proxy is DEAD. Triggering failover to Direct HFC Shield!")
+                    sharedPrefs.edit().putBoolean("shield_active", true).apply()
+                    // UI listener handles starting the service
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("HomeFrontAlerts", "Failover eval error", e)
         }
     }
 }
