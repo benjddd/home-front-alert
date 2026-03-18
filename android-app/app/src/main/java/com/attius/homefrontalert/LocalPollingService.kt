@@ -115,7 +115,41 @@ class LocalPollingService : Service() {
             else -> getString(R.string.notif_ok)
         }
         
-        val content = "Zone: $zone | Vol: $vol%\n$statusText"
+        // 10-Minute Summary Logic
+        val threatsStr = sharedPrefs.getString("active_threat_map", "{}") ?: "{}"
+        val tenMinsMs = 10 * 60 * 1000L
+        var alertsCount10m = 0
+        var closestDist10m = Double.MAX_VALUE
+        try {
+            val threats = org.json.JSONObject(threatsStr)
+            val iter = threats.keys()
+            val res = locationManager.resolveCurrentLocation()
+            val recentZones = mutableListOf<String>()
+            while(iter.hasNext()) {
+                val z = iter.next()
+                val obj = threats.getJSONObject(z)
+                val t = obj.optLong("t", 0L)
+                val rawName = obj.optString("name", z)
+                if (System.currentTimeMillis() - t <= tenMinsMs) {
+                    alertsCount10m++
+                    recentZones.add(rawName)
+                }
+            }
+            if (recentZones.isNotEmpty()) {
+                val dists = distanceCalculator.calculateDistancesToAlerts(res.lat, res.lng, recentZones)
+                if (dists.isNotEmpty()) {
+                    closestDist10m = dists.minOrNull() ?: Double.MAX_VALUE
+                }
+            }
+        } catch(e: Exception) {}
+
+        var recentText = ""
+        if (alertsCount10m > 0) {
+            val distText = if (closestDist10m == Double.MAX_VALUE) getString(R.string.remote_alert) else String.format("%.1f km", closestDist10m)
+            recentText = "\n📍 " + getString(R.string.recent_alerts_summary, alertsCount10m, distText)
+        }
+
+        val content = "Zone: $zone | Vol: $vol%\n$statusText$recentText"
         val notification = createStatusNotification(content, status)
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)

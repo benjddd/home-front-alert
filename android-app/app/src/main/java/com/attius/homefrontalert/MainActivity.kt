@@ -33,8 +33,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var vStatusRing: android.view.View
     private lateinit var layoutDashboardContent: ConstraintLayout
     private lateinit var tvDashCountdown: TextView
+<<<<<<< HEAD
     private lateinit var tvFailoverBadge: TextView
     
+=======
+>>>>>>> feature/ui-tweaks
     private lateinit var tvLastAlertZones: TextView
     private lateinit var tvLastAlertInfo: TextView
     private lateinit var cardLastAlert: androidx.cardview.widget.CardView
@@ -101,6 +104,10 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        findViewById<ImageButton>(R.id.btnVolume).setOnClickListener {
+            showVolumeDialog()
         }
 
         findViewById<ImageButton>(R.id.btnHelp).setOnClickListener {
@@ -210,8 +217,11 @@ class MainActivity : AppCompatActivity() {
                     val startTime = obj.optLong("t", 0)
                     val duration = obj.optInt("c", 0)
                     if (startTime > 0 && duration > 0) {
-                        val rem = duration - (System.currentTimeMillis() - startTime) / 1000
-                        if (rem > 0) localRemaining = rem
+                        val isUrgent = obj.optString("s", "URGENT") == "URGENT"
+                        if (isUrgent) {
+                            val rem = duration - (System.currentTimeMillis() - startTime) / 1000
+                            if (rem > 0) localRemaining = rem
+                        }
                     }
                 }
             }
@@ -224,6 +234,43 @@ class MainActivity : AppCompatActivity() {
         } else {
             tvDashCountdown.visibility = android.view.View.GONE
             tvDashTimer.visibility = android.view.View.VISIBLE
+        }
+
+        // 10-Minute Summary Logic
+        val tenMinsMs = 10 * 60 * 1000L
+        var alertsCount10m = 0
+        var closestDist10m = Double.MAX_VALUE
+        try {
+            val threats = org.json.JSONObject(threatsStr)
+            val iter = threats.keys()
+            val res = locationManager.resolveCurrentLocation()
+            
+            val recentZones = mutableListOf<String>()
+            while(iter.hasNext()) {
+                val z = iter.next()
+                val obj = threats.getJSONObject(z)
+                val t = obj.optLong("t", 0L)
+                val rawName = obj.optString("name", z)
+                if (System.currentTimeMillis() - t <= tenMinsMs) {
+                    alertsCount10m++
+                    recentZones.add(rawName)
+                }
+            }
+            if (recentZones.isNotEmpty()) {
+                val dists = distanceCalculator.calculateDistancesToAlerts(res.lat, res.lng, recentZones)
+                if (dists.isNotEmpty()) {
+                    closestDist10m = dists.minOrNull() ?: Double.MAX_VALUE
+                }
+            }
+        } catch(e: Exception) {}
+
+        val tvRecentAlertsSummary = findViewById<TextView>(R.id.tvRecentAlertsSummary)
+        if (alertsCount10m > 0) {
+            tvRecentAlertsSummary.visibility = android.view.View.VISIBLE
+            val distText = if (closestDist10m == Double.MAX_VALUE) getString(R.string.remote_alert) else String.format("%.1f km", closestDist10m)
+            tvRecentAlertsSummary.text = getString(R.string.recent_alerts_summary, alertsCount10m, distText)
+        } else {
+            tvRecentAlertsSummary.visibility = android.view.View.GONE
         }
         
         val statusColor = when(status) {
@@ -389,6 +436,7 @@ class MainActivity : AppCompatActivity() {
         // Always show alpha badge for internal testing phase
         tvAlphaBadge.visibility = android.view.View.VISIBLE
         
+<<<<<<< HEAD
         // Failover Badge (Pro only)
         tvFailoverBadge = findViewById(R.id.tvFailoverBadge)
         if (BuildConfig.IS_PAID && sharedPrefs.getBoolean("shield_active", false)) {
@@ -396,12 +444,16 @@ class MainActivity : AppCompatActivity() {
         } else {
             tvFailoverBadge.visibility = android.view.View.GONE
         }
+=======
+        // Failover Badge logic completely removed.
+>>>>>>> feature/ui-tweaks
     }
 
     private fun refreshLastAlertHistory() {
         val zones = sharedPrefs.getString("last_alert_zones", null)
         val dist = sharedPrefs.getFloat("last_alert_dist", -1f)
         val time = sharedPrefs.getLong("last_alert_time", 0L)
+        val alertType = sharedPrefs.getString("last_alert_type", "") ?: ""
         
         if (zones != null && time > 0) {
             cardLastAlert.visibility = android.view.View.VISIBLE
@@ -416,7 +468,10 @@ class MainActivity : AppCompatActivity() {
                 else -> android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date(time))
             }
             val distText = if (dist < 0) getString(R.string.remote_alert) else getString(R.string.distance, String.format("%.1f", dist))
-            tvLastAlertInfo.text = "$timeText • $distText"
+            
+            val translatedType = LocaleHelper.translateAlertType(this, alertType)
+            val prefix = if (translatedType.isNotEmpty()) "$translatedType • " else ""
+            tvLastAlertInfo.text = "$prefix$timeText • $distText"
         } else {
             cardLastAlert.visibility = android.view.View.GONE
         }
@@ -489,4 +544,64 @@ class MainActivity : AppCompatActivity() {
             android.util.Log.e("HomeFrontAlerts", "Failover eval error", e)
         }
     }
+<<<<<<< HEAD
+=======
+
+    private fun showVolumeDialog() {
+        val linearLayout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+        val seekVolume = android.widget.SeekBar(this).apply {
+            max = 100
+            progress = (sharedPrefs.getFloat("alert_volume", 1.0f) * 100).toInt()
+        }
+        val btnTest = android.widget.Button(this).apply {
+            text = "TEST BEEP"
+            textSize = 12f
+            setOnClickListener {
+                val vol = sharedPrefs.getFloat("alert_volume", 1.0f)
+                toneGenerator.playTonesForDistances(listOf(5.0), vol)
+            }
+        }
+        linearLayout.addView(seekVolume)
+        linearLayout.addView(btnTest)
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.volume_control_title)
+            .setView(linearLayout)
+            .setPositiveButton("OK", null)
+            .create()
+
+        seekVolume.setOnSeekBarChangeListener(object: android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    val vol = progress / 100f
+                    sharedPrefs.edit().putFloat("alert_volume", vol).apply()
+                    toneGenerator.updateLiveVolume(vol)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+        })
+
+        dialog.show()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP || keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) {
+            var currentVol = sharedPrefs.getFloat("alert_volume", 1.0f)
+            val isUp = keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP
+            currentVol += if (isUp) 0.05f else -0.05f
+            currentVol = kotlin.math.max(0.0f, kotlin.math.min(1.0f, currentVol))
+            sharedPrefs.edit().putFloat("alert_volume", currentVol).apply()
+            toneGenerator.updateLiveVolume(currentVol)
+            
+            // Do not consume the event, allow the system to adjust actual media volume as well
+            return super.onKeyDown(keyCode, event)
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+>>>>>>> feature/ui-tweaks
 }

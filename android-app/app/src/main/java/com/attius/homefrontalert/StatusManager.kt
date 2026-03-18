@@ -101,9 +101,10 @@ object StatusManager {
             newStatus = "YELLOW"
             val iterKeys = threats.keys()
             while(iterKeys.hasNext()) {
-                val zone = iterKeys.next()
-                val obj = threats.getJSONObject(zone)
-                if (normalizeCity(zone) == homeZone) {
+                val zoneKey = iterKeys.next()
+                val obj = threats.getJSONObject(zoneKey)
+                // Use normalized check
+                if (zoneKey == homeZone || normalizeCity(zoneKey) == homeZone) {
                     val style = obj.optString("s", "URGENT")
                     if (style == "URGENT") {
                         newStatus = "RED"
@@ -285,14 +286,19 @@ object StatusManager {
         val calculator = ZoneDistanceCalculator(context)
         
         cities.forEach { zone ->
+            val normZone = normalizeCity(zone)
             if (type == AlertType.CALM) {
+                // If it's an all-clear, remove any entries matching this normalized zone
+                threats.remove(normZone)
+                // Also remove the raw name if it was stored previously
                 threats.remove(zone)
             } else {
                 val obj = org.json.JSONObject()
                 obj.put("t", System.currentTimeMillis())
                 obj.put("s", type.name)
                 obj.put("c", calculator.getZoneCountdown(zone))
-                threats.put(zone, obj)
+                obj.put("name", zone) // Store raw name for display if needed
+                threats.put(normZone, obj)
             }
         }
         prefs.edit().putString("active_threat_map", threats.toString()).apply()
@@ -314,10 +320,26 @@ object StatusManager {
 
         // 5. Update UI Metadata (ONLY for real threats)
         if (type != AlertType.CALM) {
+            var alertTypeStr = ""
+            try {
+                if (rawBody != null) {
+                    val root = org.json.JSONObject(rawBody)
+                    val jsonObject = if (root.has("active") && !root.isNull("active")) {
+                        val active = root.get("active")
+                        if (active is org.json.JSONObject) active 
+                        else if (active is org.json.JSONArray && active.length() > 0) active.getJSONObject(0) 
+                        else root
+                    } else root
+                    
+                    alertTypeStr = if (jsonObject.has("title")) jsonObject.getString("title") else jsonObject.optString("cat", "")
+                }
+            } catch(e: Exception) {}
+
             prefs.edit()
                 .putString("last_alert_zones", cities.joinToString(", "))
                 .putFloat("last_alert_dist", minDistance.toFloat())
                 .putLong("last_alert_time", System.currentTimeMillis())
+                .putString("last_alert_type", alertTypeStr)
                 .apply()
         }
 
@@ -331,12 +353,16 @@ object StatusManager {
                 if (isLocalTotal) {
                     toneGenerator.playTonesForDistances(emptyList(), volume, type, true)
                 }
-            } else if (newCitiesForAudio.isNotEmpty()) {
-                Log.i("HomeFrontAlerts", "🔊 DELTA AUDIO: $id | New Cities: ${newCitiesForAudio.size} | Local: $isLocalInDelta")
-                if (distancesForAudio.isNotEmpty() || isLocalInDelta) {
+            } else if (newCitiesForAudio.isNotEmpty() || type == AlertType.CAUTION) {
+                // For CAUTION (pre-warnings), we play audio even if no NEW cities are in the delta
+                // This ensures remote pre-warnings are heard/updated correctly.
+                val audioDistances = if (type == AlertType.CAUTION && newCitiesForAudio.isEmpty()) distancesTotal else distancesForAudio
+                
+                Log.i("HomeFrontAlerts", "🔊 AUDIO: $id | Type: $type | New: ${newCitiesForAudio.size} | Local: $isLocalInDelta")
+                if (audioDistances.isNotEmpty() || isLocalInDelta) {
                     // Mark these cities as signaled for this ID
                     newCitiesForAudio.forEach { signaledSet.add(normalizeCity(it)) }
-                    toneGenerator.playTonesForDistances(distancesForAudio, volume, type, isLocalInDelta)
+                    toneGenerator.playTonesForDistances(audioDistances, volume, type, isLocalInDelta)
                 }
             }
         }

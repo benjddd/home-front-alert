@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="launcher_name">צבע ארצי</string>
     <string name="app_name">Tzeva Artzi - Home Front Alerts</string>
     <string name="monitoring_title">Tzeva Artzi - Home Front Alerts</string>
     <string name="current_status">CURRENT STATUS</string>
     <string name="no_alerts">NO ALERTS</string>
     <string name="critical_status">CRITICAL</string>
     <string name="warning_status">WARNING</string>
-    <string name="threat_status">THREAT</string>
+    <string name="threat_status">REMOTE THREAT</string>
     <string name="monitoring_for">Monitoring for</string>
     <string name="active_for">Active for</string>
     <string name="last_detected_threat">LAST DETECTED THREAT</string>
@@ -31,10 +32,13 @@
 
     <string name="connectivity_shield_title">Connectivity Mode</string>
     <string name="connectivity_shield_warning">Automatic selection is recommended for the best balance of reliability and battery.</string>
+    <string name="recent_alerts_summary">Recent (10m): %1$d alerts\nClosest: %2$s</string>
+    <string name="volume_control_title">Master Volume</string>
+
     <string name="mode_auto">Intelligent (Recommended)</string>
     <string name="mode_auto_sub">Auto-switches to Direct connection during outages</string>
-    <string name="mode_direct">Maximum Reliability</string>
-    <string name="mode_direct_sub">Talks directly to source (Higher battery use)</string>
+    <string name="mode_direct">Active Polling</string>
+    <string name="mode_direct_sub">Depends on battery settings (High resource usage)</string>
     <string name="mode_cloud">Battery Optimized</string>
     <string name="mode_cloud_sub">Depends on Cloud/Google services</string>
     <string name="status_intelligent_cloud">Intelligent (using Cloud)</string>

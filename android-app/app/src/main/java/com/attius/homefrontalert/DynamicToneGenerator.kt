@@ -13,6 +13,9 @@ import kotlin.math.PI
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
+import android.media.VolumeProvider
 
 enum class AlertType {
     URGENT,      // Rocket / UAV
@@ -39,6 +42,69 @@ class DynamicToneGenerator(private val context: Context) {
     // Far = High Pitch (e.g., sharp, distant ping) = 1500 Hz
     private val maxFreqHz = 1500.0
 
+    private var mediaSession: MediaSession? = null
+
+    private fun setupVolumeProvider() {
+        val prefs = context.getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
+        val maxVol = 100
+        val currentVol = (prefs.getFloat("alert_volume", 1.0f) * 100).toInt()
+
+        val volumeProvider = object : VolumeProvider(VolumeProvider.VOLUME_CONTROL_ABSOLUTE, maxVol, currentVol) {
+            override fun onSetVolumeTo(v: Int) {
+                super.onSetVolumeTo(v)
+                setCurrentVolume(v)
+                updateSharedVolume(v)
+            }
+            override fun onAdjustVolume(direction: Int) {
+                val currentFloat = prefs.getFloat("alert_volume", 1.0f)
+                var newFloat = currentFloat
+                if (direction > 0) newFloat += 0.05f
+                else if (direction < 0) newFloat -= 0.05f
+                
+                newFloat = max(0.0f, min(1.0f, newFloat))
+                val newInt = (newFloat * 100).toInt()
+                setCurrentVolume(newInt)
+                updateSharedVolume(newInt)
+            }
+        }
+        mediaSession?.setPlaybackToRemote(volumeProvider)
+    }
+
+    private fun updateSharedVolume(volInt: Int) {
+        val volF = volInt / 100f
+        context.getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
+            .edit().putFloat("alert_volume", volF).apply()
+        updateLiveVolume(volF)
+    }
+
+    private fun activateMediaSession() {
+        try {
+            if (mediaSession == null) {
+                mediaSession = MediaSession(context, "AlertVolumeSession")
+                setupVolumeProvider()
+            }
+            mediaSession?.isActive = true
+            val state = PlaybackState.Builder()
+                .setState(PlaybackState.STATE_PLAYING, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f)
+                .build()
+            mediaSession?.setPlaybackState(state)
+        } catch (e: Exception) {
+            android.util.Log.e("HomeFrontAlerts", "MediaSession activation failed", e)
+        }
+    }
+
+    private fun deactivateMediaSession() {
+        try {
+            if (mediaSession?.isActive == true) {
+                val state = PlaybackState.Builder()
+                    .setState(PlaybackState.STATE_STOPPED, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f)
+                    .build()
+                mediaSession?.setPlaybackState(state)
+                mediaSession?.isActive = false
+            }
+        } catch (e: Exception) {}
+    }
+
     /**
      * Calculates the frequency based on distance
      */
@@ -58,6 +124,8 @@ class DynamicToneGenerator(private val context: Context) {
     fun playTonesForDistances(distancesKm: List<Double>, volume: Float = 1.0f, type: AlertType = AlertType.URGENT, isLocal: Boolean = false) {
         // Only URGENT requires a distance array to calculate frequencies. CAUTION and CALM have fixed tones.
         if (distancesKm.isEmpty() && type == AlertType.URGENT) return
+        
+        activateMediaSession()
         
         // Safety Logic for CALM: Twice master volume, min 50%
         val effectiveMaster = if (type == AlertType.CALM) {
@@ -245,6 +313,7 @@ class DynamicToneGenerator(private val context: Context) {
                 currentAudioTrack?.release()
                 currentAudioTrack = null
             }
+            deactivateMediaSession()
         }
     }
 

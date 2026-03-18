@@ -19,6 +19,22 @@ object LocaleHelper {
         return getPersistedData(context, Locale.getDefault().language)
     }
 
+    fun translateAlertType(context: Context, hebrewType: String): String {
+        val lang = getLanguage(context)
+        if (lang == "iw" || lang == "he") return hebrewType
+        return when (hebrewType.trim()) {
+            "ירי רקטות וטילים" -> "Rocket Attack"
+            "חדירת כלי טיס עוין" -> "Hostile Aircraft"
+            "חדירת מחבלים" -> "Terrorist Infiltration"
+            "רעידת אדמה" -> "Earthquake"
+            "צונאמי" -> "Tsunami"
+            "אירוע רדיולוגי" -> "Radiological Event"
+            "אירוע חומרים מסוכנים" -> "Hazardous Materials"
+            "התרעה ביטחונית" -> "Security Alert"
+            else -> hebrewType
+        }
+    }
+
     fun setLocale(context: Context, language: String): Context {
         persist(context, language)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
