@@ -19,6 +19,11 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         distanceCalculator = ZoneDistanceCalculator(this)
     }
 
+    companion object {
+        private val chunkBuffers = mutableMapOf<String, MutableMap<Int, List<String>>>()
+        private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    }
+
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
 
@@ -35,7 +40,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             // Record the heartbeat
             prefs.edit().putLong("last_fcm_heartbeat_ms", System.currentTimeMillis()).apply()
             
-            // If we are currently in failover mode (shield_active = true) AND mode is AUTO, turn it off.
             val mode = prefs.getInt("connectivity_mode", 0)
             if (prefs.getBoolean("shield_active", false) && mode == 0) {
                 Log.i("HomeFrontAlerts", "FCM received while in AUTO failover! Stopping Direct Shield.")
@@ -46,24 +50,56 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             val alertType = alertData["type"]
             if (alertType == "KEEPALIVE") {
                 Log.d("HomeFrontAlerts", "FCM Keepalive received. Heartbeat registered.")
-                return // Silently drop the message now that we've updated the timer.
+                return 
             }
             
             val citiesJsonStr = alertData["cities"]
             val alertId = alertData["alertId"] ?: System.currentTimeMillis().toString()
+            val chunkInfo = alertData["chunkInfo"]
 
             if (citiesJsonStr != null) {
                 try {
                     val citiesArray = JSONArray(citiesJsonStr)
-                    val cities = mutableListOf<String>()
-                    for (i in 0 until citiesArray.length()) cities.add(citiesArray.getString(i))
+                    val chunkCities = mutableListOf<String>()
+                    for (i in 0 until citiesArray.length()) chunkCities.add(citiesArray.getString(i))
 
                     val type = AlertStyleRegistry.getStyle("", alertType ?: "")
 
-                    // Log raw FCM metadata for diagnostics
-                    StatusManager.logFcmDiagnostic(this, remoteMessage.data.toString())
+                    if (chunkInfo != null && chunkInfo.contains("/")) {
+                        val parts = chunkInfo.split("/")
+                        val chunkIdx = parts[0].toIntOrNull() ?: 1
+                        val totalChunks = parts[1].toIntOrNull() ?: 1
 
-                    StatusManager.processAlert(this, alertId, type, cities, "[FCM]", toneGenerator, remoteMessage.data.toString())
+                        if (totalChunks > 1) {
+                            chunkBuffers.getOrPut(alertId) { mutableMapOf() }[chunkIdx] = chunkCities
+                            
+                            val processFullPayload = Runnable {
+                                val buffer = chunkBuffers.remove(alertId) ?: return@Runnable
+                                val fullCities = mutableListOf<String>()
+                                for (i in 1..totalChunks) { buffer[i]?.let { fullCities.addAll(it) } }
+                                StatusManager.logFcmDiagnostic(this@MyFirebaseMessagingService, "Assembled ${buffer.size}/$totalChunks chunks internally")
+                                StatusManager.processAlert(this@MyFirebaseMessagingService, alertId, type, fullCities, "[FCM-CHUNKS]", toneGenerator, remoteMessage.data.toString())
+                            }
+
+                            // If this is the FIRST chunk received for this alert, set a safety fallback timer
+                            if (chunkBuffers[alertId]!!.size == 1) {
+                                handler.postDelayed(processFullPayload, 2000) // Wait up to 2.0s for remaining chunks before processing what we have
+                            }
+
+                            val buffer = chunkBuffers[alertId]!!
+                            if (buffer.size == totalChunks) {
+                                // We have all chunks, process immediately (the timeout runnable will become a no-op)
+                                processFullPayload.run()
+                            } else {
+                                Log.d("HomeFrontAlerts", "Buffered chunk $chunkIdx/$totalChunks for $alertId")
+                            }
+                            return
+                        }
+                    }
+
+                    // Single-chunk / Normal behavior
+                    StatusManager.logFcmDiagnostic(this, remoteMessage.data.toString())
+                    StatusManager.processAlert(this, alertId, type, chunkCities, "[FCM]", toneGenerator, remoteMessage.data.toString())
 
                 } catch (e: Exception) {
                     Log.e("HomeFrontAlerts", "FCM processing failed: ${e.message}")
