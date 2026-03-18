@@ -1,0 +1,21 @@
+{
+  "name": "home-front-alerts",
+  "version": "1.0.0",
+  "description": "[![Release](https://img.shields.io/github/v/release/Attius-Digital-Art/home-front-alert)](https://github.com/Attius-Digital-Art/home-front-alert/releases)\r [![Internal Testing](https://img.shields.io/badge/Play%20Store-Internal%20Testing-blue)](https://play.google.com/console)\r [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Attius-Digital-Art/home-front-alert.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Attius-Digital-Art/home-front-alert/issues"
+  },
+  "homepage": "https://github.com/Attius-Digital-Art/home-front-alert#readme"
+}
