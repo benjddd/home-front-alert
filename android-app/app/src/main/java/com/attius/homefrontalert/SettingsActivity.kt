@@ -194,35 +194,7 @@ class SettingsActivity : AppCompatActivity() {
         val cardShield = findViewById<androidx.cardview.widget.CardView>(R.id.cardShield)
         if (BuildConfig.IS_PAID) cardShield.visibility = android.view.View.GONE
 
-        val seekDistTest = findViewById<SeekBar>(R.id.seekDistTest)
-        val tvDistTestLabel = findViewById<TextView>(R.id.tvDistTestLabel)
-        val btnTestDistSound = findViewById<Button>(R.id.btnTestDistSound)
-        val btnTestCaution = findViewById<Button>(R.id.btnTestCaution)
-        val btnTestCalm = findViewById<Button>(R.id.btnTestCalm)
 
-        seekDistTest.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                tvDistTestLabel.text = "Simulate Distance: ${progress}km"
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        btnTestDistSound.setOnClickListener {
-            val volume = sharedPrefs.getFloat("alert_volume", 1.0f)
-            val dist = seekDistTest.progress.toDouble()
-            toneGenerator.playTonesForDistances(listOf(dist), volume, AlertType.URGENT)
-        }
-
-        btnTestCaution.setOnClickListener {
-            val volume = sharedPrefs.getFloat("alert_volume", 1.0f)
-            toneGenerator.playTonesForDistances(emptyList(), volume, AlertType.CAUTION)
-        }
-
-        btnTestCalm.setOnClickListener {
-            val volume = sharedPrefs.getFloat("alert_volume", 1.0f)
-            toneGenerator.playTonesForDistances(emptyList(), volume, AlertType.CALM)
-        }
 
         // 7. Dynamic UI Refresh (Zone Status)
         val tvShieldLog = findViewById<TextView>(R.id.tvHybridLog)

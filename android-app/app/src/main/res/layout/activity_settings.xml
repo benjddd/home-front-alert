@@ -327,78 +327,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <!-- CARD A: TEST TOOLS -->
-                <androidx.cardview.widget.CardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:backgroundTint="#1E1E1E"
-                    android:elevation="4dp">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:padding="12dp"
-                        android:orientation="vertical">
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Test Tools"
-                            android:textStyle="bold"
-                            android:textColor="#FFFFFF"
-                            android:textSize="13sp"
-                            android:layout_marginBottom="8dp" />
-                        <TextView
-                            android:id="@+id/tvDistTestLabel"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Simulate Distance: 50km"
-                            android:textColor="#FFFFFF"
-                            android:textSize="12sp" />
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical">
-                            <SeekBar
-                                android:id="@+id/seekDistTest"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:max="500"
-                                android:progress="50" />
-                            <Button
-                                android:id="@+id/btnTestDistSound"
-                                android:layout_width="wrap_content"
-                                android:layout_height="36dp"
-                                android:text="TEST"
-                                android:textSize="10sp"
-                                android:backgroundTint="#2196F3" />
-                        </LinearLayout>
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:layout_marginTop="8dp">
-                            <Button
-                                android:id="@+id/btnTestCaution"
-                                android:layout_width="0dp"
-                                android:layout_height="36dp"
-                                android:layout_weight="1"
-                                android:text="PRE-WARN"
-                                android:textSize="10sp"
-                                android:backgroundTint="#FFC107"
-                                android:layout_marginEnd="4dp" />
-                            <Button
-                                android:id="@+id/btnTestCalm"
-                                android:layout_width="0dp"
-                                android:layout_height="36dp"
-                                android:layout_weight="1"
-                                android:text="ALL CLEAR"
-                                android:textSize="10sp"
-                                android:backgroundTint="#4CAF50" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
+
 
                 <!-- CARD B: SYSTEM DIAGNOSTICS (unified) -->
                 <androidx.cardview.widget.CardView
