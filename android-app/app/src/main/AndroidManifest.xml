@@ -1,43 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.attius.homefrontalert">
 
-    <!-- REQUIRED PERMISSIONS FOR LIFE-SAVING BACKGROUND EXECUTION -->
-    
-    <!-- Required to connect to Firebase and the Unofficial API -->
+    <!-- 1. NETWORK: Required for FCM and Home Front Command API Polling -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
-    <!-- Required to keep the CPU awake while we synthesize audio -->
+    <!-- 2. LIFELINE: Required to ensure sirens sound even when the device is idle -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-
-    <!-- Location Permissions so our App knows where you are locally -->
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <!-- Needed to track location if the screen is fully locked/dozing long-term -->
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-
-    <!-- Required for the "Hybrid" Fallback Route (Silent Audio Polling) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <!-- Android 13+ requirement for Foreground Notification -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Optional: Override silent mode for critical alarm stream -->
+    <!-- 3. LOCATION: Foreground-only access for real-time distance calculations -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- 4. UTILITIES: Audio control for the critical alert volume and boot recovery -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.VIBRATE" />
-
-    <!-- Restart LocalPollingService after device reboot (Standard + Pro Direct HFC mode) -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- Force Phone-Only: tablets typically lack telephony hardware -->
-    <uses-feature android:name="android.hardware.telephony" android:required="true" />
+    <!-- 5. HARDWARE: Flexible requirements to maximize device support -->
     <uses-feature android:name="android.hardware.location.gps" android:required="true" />
-
-    <supports-screens 
-        android:smallScreens="true" 
-        android:normalScreens="true" 
-        android:largeScreens="false" 
-        android:xlargeScreens="false" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -47,7 +34,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.PikudAlert">
         
-        <!-- Standard Main App Activity -->
+        <!-- Main Entry Point -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -59,18 +46,17 @@
 
         <activity
             android:name=".SettingsActivity"
-            android:label="Advanced Settings"
+            android:label="Settings"
             android:exported="false" />
 
         <activity
             android:name=".TOSActivity"
             android:label="Terms of Conditions"
-            android:theme="@style/Theme.PikudAlert"
             android:exported="false" />
 
         <!-- 
-             THIS IS THE CRITICAL COMPONENT: 
-             It hooks our Kotlin FCM logic blindly into Android's core messaging broadcast system.
+             FCM SERVICE: 
+             Crucial for receiving rocket alerts via Google's messaging network.
         -->
         <service
             android:name=".MyFirebaseMessagingService"
@@ -81,15 +67,16 @@
         </service>
 
         <!-- 
-             We'll eventually need this service declared to run the "Hybrid Polling" 
-             when the user decides they don't trust Firebase latency!
+             LIFE-SAFETY SERVICE: 
+             Runs in the foreground to provide a backup polling loop and 
+             to trigger sirens immediately based on the user's distance.
         -->
         <service
             android:name=".LocalPollingService"
-            android:foregroundServiceType="location"
+            android:foregroundServiceType="location|dataSync"
             android:exported="false" />
 
-        <!-- Restart LocalPollingService after device reboot -->
+        <!-- Widget Support -->
         <receiver android:name=".StatusWidgetProvider" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -99,7 +86,9 @@
                 android:resource="@xml/widget_info" />
         </receiver>
 
-        <!-- Restart LocalPollingService after device reboot -->
+        <!-- AUTO-REBOOT RECOVERY: 
+             Ensures the polling service restarts if the phone reboots during an attack.
+        -->
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"

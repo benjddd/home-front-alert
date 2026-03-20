@@ -29,8 +29,8 @@ android {
         applicationId = "com.attius.homefrontalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 27
-        versionName = "1.7.4"
+        versionCode = 28
+        versionName = "1.7.5"
 
         buildConfigField("String", "BACKEND_URL", "\"$backendUrlEnv\"")
         buildConfigField("String", "API_KEY", "\"$apiKeyEnv\"")
@@ -48,9 +48,51 @@ android {
         }
     }
 
+    sourceSets.getByName("main") {
+        resources.setExcludes(setOf("**/desktop.ini"))
+        res.setExcludes(setOf("**/desktop.ini"))
+    }
+
+    packaging {
+        resources {
+            excludes += "/desktop.ini"
+            excludes += "**/desktop.ini"
+        }
+    }
+
+    aaptOptions {
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:desktop.ini"
+    }
+
+    packaging {
+        resources {
+            excludes += "**/desktop.ini"
+        }
+    }
+
+    // NUCLEAR OPTION: Delete any auto-generated desktop.ini files 
+    // exactly before the build starts to avoid Google Drive sync locks.
+    tasks.register("cleanDesktopInit") {
+        doLast {
+            println("🛡️ Purging desktop.ini files from resources...")
+            val resDir = file("src/main/res")
+            resDir.walkBottomUp().forEach { file ->
+                if (file.name == "desktop.ini") {
+                    file.delete()
+                }
+            }
+        }
+    }
+
+    tasks.all {
+        if (this.name.startsWith("mergePro") || this.name == "preBuild") {
+            this.dependsOn("cleanDesktopInit")
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
