@@ -54,11 +54,11 @@ async function main() {
                         releaseNotes: [
                           {
                             language: 'en-US',
-                            text: '1.7.4 Release. Forced phone-only hardware requirements. Added chunking for large FCM payloads.'
+                            text: '1.7.5 Performance and Policy Update. Fully compliant with new Play Store location policies. Reduced siren latency.'
                           },
                           {
                             language: 'iw-IL',
-                            text: 'גרסת 1.7.4 לשחרור. פתרון לצבירת הודעות FCM גדולות, תמיכה בשמות אפליקציה דו-לשוניים (צבע ארצי), והתאמה משופרת לטלפונים בלבד.'
+                            text: 'גרסת 1.7.5 - עדכון פרטיות ושיפור ביצועים. האפליקציה בגרסה זו אינה דורשת מיקום ברקע (רק בזמן שימוש) בהתאם למדיניות גוגל. סירנה מהירה יותר.'
                           }
                         ]
                     }
@@ -69,7 +69,7 @@ async function main() {
         // 4. Commit
         console.log('Commiting changes...');
         await publisher.edits.commit({ editId, packageName });
-        console.log('--- SUCCESS! Version 1.7.4 is now live on Internal Track. ---');
+        console.log('--- SUCCESS! Version 1.7.5 (Build 28) is now in Draft on Internal Track. ---');
 
     } catch (e) {
         console.error('--- Play API ERROR ---');
