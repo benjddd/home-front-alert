@@ -151,7 +151,7 @@ firebase deploy --only hosting --project=home-front-alert-hfc
 
 ## Privacy Policy
 
-[View Privacy Policy](https://storage.googleapis.com/home-front-policy-attius/privacy_policy.html)
+[View Privacy Policy](https://home-front-alert-hfc.web.app/privacy.html)
 
 ---
 
