@@ -1,4 +1,4 @@
-# Release Notes — KeshevAdom
+# Release Notes — Tzeva Artzi 🚨
 
 ## v1.6.0 (2026-03-16) — FCM Fix + Infrastructure Consolidation
 
@@ -43,3 +43,12 @@
 - Dashboard redesign with NO ALERTS / ALERT states
 - Distance-based audio urgency system (pitch-mapped, 300–1500 Hz)
 - PreferenceMigration for safe upgrades
+
+---
+
+## v1.7.5 (2026-03-20) — Play Store Automation & Resilience
+- **Play Store Dashboard**: Automated tester recruitment and status dashboard.
+- **Intelligent Connectivity**: Pro mode now automatically failsover to Direct HFC if FCM heartbeats are missed.
+- **Android 14 Compliance**: Proper foreground service types and lifecycle labels.
+- **UI Improvements**: Bilingual zone display and 10-minute alert summary.
+- **Cleanup**: Housekeeping and stale branch pruning.

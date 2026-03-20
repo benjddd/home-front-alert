@@ -327,7 +327,7 @@ class SettingsActivity : AppCompatActivity() {
             val url = URL("$rootUrl/health")
             val conn = url.openConnection() as HttpURLConnection
             conn.setRequestProperty("X-API-Key", BuildConfig.API_KEY)
-            conn.setRequestProperty("User-Agent", "HomeFrontAlerts/1.7.2")
+            conn.setRequestProperty("User-Agent", "TzevaArtzi/${BuildConfig.VERSION_NAME}")
             conn.connectTimeout = 5000
             backendResult = if (conn.responseCode == 200) "🟢 Proxy: Online" else "🔴 Proxy: Error ${conn.responseCode}"
         } catch (e: Exception) { backendResult = "🔴 Proxy: Offline" }
@@ -346,7 +346,7 @@ class SettingsActivity : AppCompatActivity() {
             val url = URL("$rootUrl/alerts/history")
             val conn = url.openConnection() as HttpURLConnection
             conn.setRequestProperty("X-API-Key", BuildConfig.API_KEY)
-            conn.setRequestProperty("User-Agent", "HomeFrontAlerts/1.7.2")
+            conn.setRequestProperty("User-Agent", "TzevaArtzi/${BuildConfig.VERSION_NAME}")
             conn.connectTimeout = 5000
             if (conn.responseCode == 200) {
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
