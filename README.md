@@ -11,7 +11,7 @@
 
 ## What Makes This Different
 
-Most alert apps play the same loud beep for every event, everywhere. KeshevAdom tells you *what* and *how close* through audio alone:
+Most alert apps play the same loud beep for every event, everywhere. Tzeva Artzi tells you *what* and *how close* through audio alone:
 
 - 🔊 **Pitch = Distance** — Alert tone pitch is calculated from your GPS position to the alerted zones. Low pitch means it's near you; high pitch means it's far away. Instantly intuitive while driving or in a noisy environment.
 - 🎵 **Pattern = Threat Type** — Three distinct audio patterns: **URGENT** (rockets / UAVs / infiltrators), **CAUTION** (early warning / approximate), **CALM** (all-clear). You know what's happening without looking.
@@ -19,7 +19,7 @@ Most alert apps play the same loud beep for every event, everywhere. KeshevAdom 
 - 📍 **GPS-Aware from First Second** — Fused Location Provider with a saved fallback zone. Even without live GPS, you always hear a contextually-relevant tone.
 - 🔕 **Silent Delivery, Loud Alert** — Uses Android's `STREAM_ALARM` channel directly. No notification badges, no shade clutter. Just sound.
 - 🌍 **Hebrew & English** — Full bilingual support in UI and zone names.
-- ⚡ **Two Delivery Modes** — Standard (direct HFC polling, no backend dependency) and Pro (instant Firebase push, no polling battery drain).
+- ⚡ **Two Delivery Modes** — Standard (direct HFC polling) and Pro (Intelligent failover: uses instant FCM by default, but auto-switches to Direct HFC if it detects an outage).
 
 ---
 
@@ -44,12 +44,13 @@ Frequencies: 300 Hz = 0 km away, 1500 Hz = 500 km away. Linear interpolation per
 - No backend or internet infrastructure dependency beyond the HFC API
 - Default for Standard flavor
 
-### Pro — Instant FCM
-- Backend (Cloud Run, always-on) polls HFC and dispatches Firebase push the moment an alert is detected
-- No continuous polling on the device — battery-neutral while waiting
-- Instant delivery, no polling cycle delay
-- Default for Pro flavor
-- Switchable to Direct HFC mode from Settings → Advanced if needed
+### Pro — Instant FCM / Intelligent (Recommended)
+- **Primary Delivery**: Backend (Cloud Run) polls HFC and dispatches Firebase push the moment an alert is detected. Zero battery drain on device while idle.
+- **Failover Resilience**: Uses a 10-minute "Heartbeat" (KEEPALIVE) to monitor connectivity.
+- **Automatic Shield**: If the heartbeat is missed for 20+ minutes, the app automatically activates **Direct HFC Shield** (polling) to ensure safety until the connection recovers.
+- **Auto-Recovery**: If a valid FCM message is received while in failover, the app automatically switches back to cloud mode to save battery.
+- Default for Pro flavor.
+- Manual override available in Settings → Connectivity Mode.
 
 ---
 
