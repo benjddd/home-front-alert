@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tzeva Artzi - Home Front Alert / צבע ארצי</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #121212;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            overflow: hidden;
+            color: white;
+        }
+
+        .container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .logo-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .logo {
+            width: 150px;
+            height: 150px;
+            border-radius: 20%;
+            z-index: 10;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            transition: transform 0.1s ease-out;
+        }
+
+        .pulse {
+            position: absolute;
+            background-color: rgba(211, 47, 47, 0.3);
+            border: 2px solid rgba(211, 47, 47, 0.8);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 0;
+            height: 0;
+            opacity: 0;
+            z-index: 1;
+        }
+
+        @keyframes pulsing {
+            0% {
+                width: 150px;
+                height: 150px;
+                opacity: 0.8;
+            }
+            100% {
+                width: 600px;
+                height: 600px;
+                opacity: 0;
+                border-width: 10px;
+            }
+        }
+
+        .pulse.active {
+            animation: pulsing 1.2s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+        }
+
+        h1 {
+            margin-top: 40px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            color: #d32f2f;
+        }
+
+        .desc {
+            color: #b3b3b3;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        button {
+            margin-top: 40px;
+            background-color: #d32f2f;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            border-radius: 30px;
+            cursor: pointer;
+            z-index: 20;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(211, 47, 47, 0.4);
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background-color: #f44336;
+            transform: scale(1.05);
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="logo-container" id="logoBox">
+            <div id="pulse1" class="pulse"></div>
+            <div id="pulse2" class="pulse"></div>
+            <div id="pulse3" class="pulse"></div>
+            <img src="logo.png" alt="Tzeva Artzi Logo" class="logo" id="logo">
+        </div>
+        
+        <h1 id="status-text">Tzeva Artzi / צבע ארצי</h1>
+        <div class="desc" id="subtitle">Listen to the map / להקשיב למפה</div>
+    </div>
+
+    <div id="ui-layer">
+        <button id="startBtn">START DEMO</button>
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playTone(freq, type, durationMs, startTime) {
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, startTime);
+            
+            // Fast attack/release (5ms) to mimic raw Android PCM output but prevent speaker popping
+            const dur = durationMs / 1000;
+            gainNode.gain.setValueAtTime(0, startTime);
+            gainNode.gain.linearRampToValueAtTime(1.0, startTime + 0.005);
+            gainNode.gain.setValueAtTime(1.0, startTime + dur - 0.005);
+            gainNode.gain.linearRampToValueAtTime(0, startTime + dur);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.start(startTime);
+            osc.stop(startTime + dur);
+        }
+
+        function triggerVisualPulse(pulseId, scale) {
+            const el = document.getElementById(pulseId);
+            el.classList.remove('active');
+            void el.offsetWidth; // trigger reflow
+            el.style.borderColor = scale > 0.8 ? 'rgba(255, 0, 0, 0.9)' : 'rgba(211, 47, 47, 0.6)';
+            el.classList.add('active');
+            
+            const logo = document.getElementById('logo');
+            logo.style.transform = `scale(${1 + (scale * 0.1)})`;
+            setTimeout(() => {
+                logo.style.transform = 'scale(1)';
+            }, 100);
+        }
+
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            document.getElementById('ui-layer').style.display = 'none';
+            document.getElementById('status-text').innerText = "URGENT ALERT";
+            document.getElementById('status-text').style.color = "#ff3333";
+            document.getElementById('status-text').style.fontWeight = "bold";
+            
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+            }
+
+            // Let's simulate 3 locations at different distances (high pitch to low pitch)
+            const frequencies = [1200, 700, 350];
+            const toneDur = 100;
+            const pauseDur = 50;
+            const cycleMs = toneDur + pauseDur;
+            
+            const now = audioCtx.currentTime;
+            
+            // Play cycle 1
+            frequencies.forEach((freq, idx) => {
+                const startTime = now + (idx * cycleMs / 1000);
+                playTone(freq, 'sine', toneDur, startTime);
+                
+                setTimeout(() => {
+                    const id = (idx % 3) + 1;
+                    triggerVisualPulse('pulse' + id, freq / 1000);
+                }, (idx * cycleMs));
+            });
+
+            // Pause for 1 second, then Play cycle 2
+            setTimeout(() => {
+                const now2 = audioCtx.currentTime;
+                frequencies.forEach((freq, idx) => {
+                    const startTime = now2 + (idx * cycleMs / 1000);
+                    playTone(freq, 'sine', toneDur, startTime);
+                    
+                    setTimeout(() => {
+                        const id = (idx % 3) + 1;
+                        triggerVisualPulse('pulse' + id, freq / 1000);
+                    }, (idx * cycleMs));
+                });
+            }, 1000);
+            
+            // Reset UI after 3 seconds
+            setTimeout(() => {
+                document.getElementById('status-text').innerText = "Tzeva Artzi";
+                document.getElementById('status-text').style.color = "#d32f2f";
+                // Done recording!
+                const completeEvt = new Event('demo-complete');
+                document.dispatchEvent(completeEvt);
+            }, 3000);
+        });
+    </script>
+</body>
+</html>

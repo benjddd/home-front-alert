@@ -4,13 +4,27 @@ const cors = require('cors');
 const axios = require('axios');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { google } = require('googleapis');
+const path = require('path');
 
+const play = google.androidpublisher('v3');
 const app = express();
 app.set('trust proxy', 1); // Trust Cloud Run Load Balancer
 
-// Security Hardening
-app.use(helmet()); // Sets various secure HTTP headers
+// Security Hardening — custom CSP needed for dashboard iframes / inline scripts
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+            "script-src": ["'self'", "'unsafe-inline'", "*.opendns.com", "gateway.id.swg.umbrella.com", "*.sse.cisco.com", "*.ciscosecureaccess.cn"],
+            "script-src-attr": ["'self'", "'unsafe-inline'"],
+        },
+    },
+}));
 app.use(express.json());
+
+// Handle favicon to prevent 404 logs
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 // Strict Rate Limiting: 100 requests per 15 minutes
 const limiter = rateLimit({
@@ -22,18 +36,38 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Strict Access Control: Use a private API Key
+// Dashboard Password Check Utility
+const dashboardAuth = (req, res, next) => {
+    const pass = req.headers['x-dashboard-pass'] || req.query.pass;
+    const correctPass = process.env.DASHBOARD_PASS;
+
+    if (!correctPass) {
+        console.error("CRITICAL: DASHBOARD_PASS environment variable is not set.");
+        return res.status(500).json({ error: "Server Configuration Error" });
+    }
+
+    if (pass !== correctPass) {
+        console.warn(`Unauthorized access attempt. Received pass length: ${pass?.length}, expected length: ${correctPass.length}`);
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+    next();
+};
+
+// Auth middleware for sensitive endpoints
 app.use((req, res, next) => {
     const apiKey = req.headers['x-api-key'];
-    const validKey = process.env.API_KEY || "DEVELOPMENT_MODE_UNSET"; 
-    
-    // Health and Alerts check
-    const isSensitive = req.path === '/alerts';
-    
-    // Health and Privacy check is public
-    if (req.path === '/health' || req.path === '/privacy') return next();
+    const validKey = process.env.API_KEY;
 
-    // Block sensitive endpoints if key is missing or wrong
+    // Health, Privacy, Tester, and Dashboard paths are public or have their own auth
+    const publicPaths = ['/health', '/privacy', '/apply-tester', '/apply-tester/status', '/dashboard', '/dashboard/data', '/dashboard/delete', '/dashboard/sync-all', '/dashboard/play-status'];
+    if (publicPaths.some(p => req.path.startsWith(p))) return next();
+
+    if (!validKey) {
+        console.error("CRITICAL: API_KEY environment variable is not set.");
+        return res.status(500).json({ error: "Server Configuration Error" });
+    }
+
+    const isSensitive = req.path === '/alerts' || req.path === '/test-fcm';
     if (isSensitive && apiKey !== validKey) {
         return res.status(403).json({ error: "Forbidden: Valid API Key required" });
     }
@@ -41,15 +75,76 @@ app.use((req, res, next) => {
 });
 
 app.use(cors({
-    origin: '*', // We now rely on User-Agent and Rate Limiting for security
-    methods: ['GET'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'User-Agent', 'X-API-Key']
+    origin: '*',
+    methods: ['GET', 'POST', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'User-Agent', 'X-API-Key', 'X-Dashboard-Pass']
 }));
 
-// Track the last alert globally for persistent history reporting
-let lastDetectedAlert = null;
+// --- Firebase Init ---
+try {
+    if (!admin.apps.length) {
+        if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+            admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+            console.log("🔥 Firebase: Initialized via Environment Variable.");
+        } else if (process.env.K_SERVICE) {
+            admin.initializeApp({ credential: admin.credential.applicationDefault() });
+            console.log("🔥 Firebase: Initialized via Application Default Credentials (GCP).");
+        } else {
+            const keyPath = path.join(__dirname, 'serviceAccountKey.json');
+            admin.initializeApp({ credential: admin.credential.cert(require(keyPath)) });
+            console.log("🔥 Firebase: Initialized via local file at:", keyPath);
+        }
+    } else {
+        console.log("ℹ️ Firebase: App already initialized.");
+    }
+} catch (e) {
+    console.error("❌ Firebase: Initialization failed critical error.", e);
+}
 
-// Expose a public /health endpoint for the Android App to check status
+// --- Google Play Automation ---
+async function addTesterToPlayStore(email) {
+    const packageName = "com.attius.homefrontalert";
+    const trackName = "alpha";
+    const auth = new google.auth.GoogleAuth({
+        scopes: ['https://www.googleapis.com/auth/androidpublisher']
+    });
+
+    try {
+        const authClient = await auth.getClient();
+        const edit = await play.edits.insert({ auth: authClient, packageName });
+        const editId = edit.data.id;
+
+        const currentTesters = await play.edits.testers.get({ auth: authClient, editId, packageName, track: trackName });
+        const emails = currentTesters.data.emails || [];
+
+        if (!emails.includes(email.toLowerCase())) {
+            emails.push(email.toLowerCase());
+            await play.edits.testers.update({
+                auth: authClient, editId, packageName, track: trackName,
+                requestBody: { emails }
+            });
+            await play.edits.commit({ auth: authClient, editId, packageName });
+            console.log(`✅ Play Store Sync: ${email} added.`);
+            return true;
+        }
+        return true; // Already there
+    } catch (e) {
+        console.error("❌ Play Store Sync Error:", e.response?.data?.error || e.message);
+        return false;
+    }
+}
+
+// --- App State ---
+let lastDetectedAlert = null;
+let currentAlert = null;
+let isConnected = false;
+let activeSource = "None";
+let lastSuccessfulPoll = null;
+let lastErrors = [];
+let alertExpirationTimer = null;
+
+// --- API Endpoints ---
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'ok',
@@ -60,76 +155,128 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Privacy Policy Route
 app.get('/privacy', (req, res) => {
     res.sendFile(__dirname + '/public/privacy.html');
 });
 
-// Expose the latest active alert for the Android App's Hybrid Polling mode
-let currentAlert = null;
 app.get('/alerts', (req, res) => {
-    res.json({
-        active: currentAlert || {},
-        system: {
-            connected: isConnected,
-            source: activeSource,
-            last_sync: lastSuccessfulPoll
-        }
-    });
+    res.json({ active: currentAlert || {}, system: { connected: isConnected, source: activeSource, last_sync: lastSuccessfulPoll } });
 });
 
-// History endpoint for proof of delivery
 app.get('/alerts/history', (req, res) => {
     res.json(lastDetectedAlert ? [lastDetectedAlert] : []);
 });
 
-// Test FCM endpoint — fires a synthetic alert to confirm end-to-end FCM delivery.
-// API-key protected. Use: curl -X POST -H 'X-API-Key: <key>' https://.../test-fcm
 app.post('/test-fcm', (req, res) => {
-    const apiKey = process.env.API_KEY || 'DEVELOPMENT_MODE_UNSET';
-    if (req.headers['x-api-key'] !== apiKey) {
-        return res.status(403).json({ error: 'Forbidden' });
-    }
     const testAlert = {
         id: 'TEST_' + Date.now(),
-        type: 'Test Alert / בדיקה',
-        cities: ['בדיקה — FCM Test']
+        type: req.body.type || 'Test Alert / בדיקה',
+        cities: req.body.cities || ['בדיקה — FCM Test']
     };
-    console.log('🧪 Manual /test-fcm triggered — sending FCM now');
+    console.log('🧪 Manual /test-fcm triggered');
     sendFCMAlert(testAlert);
-    res.json({ ok: true, alertId: testAlert.id, time: new Date().toISOString() });
+    res.json({ ok: true, alert: testAlert });
 });
 
-
-
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-    console.log(`Backend Server listening on port ${PORT}`);
+// --- Closed Testing Endpoints ---
+const testerLimit = 100;
+const testerLimiter = rateLimit({
+    windowMs: 24 * 60 * 60 * 1000,
+    max: 5,
+    message: "Rate limit exceeded for tester applications. Please try again tomorrow."
 });
 
-// Initialize Firebase Admin (Application Default Credentials on Cloud Run)
-try {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-        admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-        console.log("🔥 Firebase: Initialized via Environment Variable.");
-    } else {
-        // This will work automatically on Cloud Run using the Service Account
-        admin.initializeApp({ credential: admin.credential.applicationDefault() });
-        console.log("🔥 Firebase: Initialized via Application Default Credentials.");
-    }
-} catch (e) {
-    console.warn("⚠️ Firebase: Falling back to local file check...");
+app.get('/apply-tester/status', async (req, res) => {
     try {
-        admin.initializeApp({ credential: admin.credential.cert(require('./serviceAccountKey.json')) });
-        console.log("🔥 Firebase: Initialized via local serviceAccountKey.json.");
-    } catch (e2) {
-        console.error("❌ Firebase: Initialization failed.", e2.message);
+        const snapshot = await admin.firestore().collection('testers').count().get();
+        const count = snapshot.data().count;
+        res.json({ count, full: count >= testerLimit });
+    } catch (e) {
+        res.status(500).json({ error: "Failed to fetch status" });
     }
-}
+});
 
-// Polling configuration
-const interval = 1000; // Increased frequency for sub-second trailing
+app.post('/apply-tester', testerLimiter, async (req, res) => {
+    const { name, email } = req.body;
+    if (!name || !email || !email.includes('@')) {
+        return res.status(400).json({ error: "Name and valid Email address are required." });
+    }
+
+    try {
+        const db = admin.firestore();
+        const snapshot = await db.collection('testers').count().get();
+        if (snapshot.data().count >= testerLimit) {
+            return res.status(403).json({ error: "Testing program full.", full: true });
+        }
+
+        const existing = await db.collection('testers').where('email', '==', email.toLowerCase()).get();
+        if (!existing.empty) {
+            return res.status(400).json({ error: "This email is already registered." });
+        }
+
+        const synced = await addTesterToPlayStore(email.toLowerCase());
+        await db.collection('testers').add({
+            name,
+            email: email.toLowerCase(),
+            appliedAt: admin.firestore.FieldValue.serverTimestamp(),
+            synced
+        });
+
+        res.json({ ok: true, synced, message: synced ? "Tester added and synced to Play Store." : "Tester added to queue (Play Store sync pending)." });
+    } catch (e) {
+        console.error("Apply error:", e);
+        res.status(500).json({ error: "Database error." });
+    }
+});
+
+// --- Admin Dashboard Endpoints ---
+app.get('/dashboard', (req, res) => {
+    res.sendFile(__dirname + '/public/dashboard.html');
+});
+
+app.get('/dashboard/data', dashboardAuth, async (req, res) => {
+    try {
+        const snapshot = await admin.firestore().collection('testers').orderBy('appliedAt', 'desc').get();
+        res.json(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (e) {
+        console.error("Dashboard data fetch error:", e);
+        res.status(500).json({ error: "Failed to fetch dashboard data: " + e.message });
+    }
+});
+
+app.delete('/dashboard/delete/:id', dashboardAuth, async (req, res) => {
+    try {
+        await admin.firestore().collection('testers').doc(req.params.id).delete();
+        res.json({ ok: true });
+    } catch (e) { res.status(500).json({ error: "Delete failed" }); }
+});
+
+app.post('/dashboard/sync-all', dashboardAuth, async (req, res) => {
+    try {
+        const pending = await admin.firestore().collection('testers').where('synced', '==', false).get();
+        let successCount = 0;
+        for (const doc of pending.docs) {
+            if (await addTesterToPlayStore(doc.data().email)) {
+                await doc.ref.update({ synced: true });
+                successCount++;
+            }
+        }
+        res.json({ ok: true, syncedCount: successCount });
+    } catch (e) { res.status(500).json({ error: "Batch sync failed" }); }
+});
+
+app.get('/dashboard/play-status', dashboardAuth, async (req, res) => {
+    try {
+        const auth = new google.auth.GoogleAuth({ scopes: ['https://www.googleapis.com/auth/androidpublisher'] });
+        const authClient = await auth.getClient();
+        const edit = await play.edits.insert({ auth: authClient, packageName: "com.attius.homefrontalert" });
+        const track = await play.edits.tracks.get({ auth: authClient, editId: edit.data.id, packageName: "com.attius.homefrontalert", track: 'alpha' });
+        res.json({ status: "Live", releases: track.data.releases });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Poller Logic ---
+const interval = 1000; // 1s polling frequency
 const HFC_API_URL = 'https://www.oref.org.il/WarningMessages/alert/Alerts.json';
 const HFC_HEADERS = {
     'User-Agent': 'PikudHaoref/1.6 (iPhone; iOS 17.4; Scale/3.00)',
@@ -140,11 +287,6 @@ const HFC_HEADERS = {
     'Pragma': 'no-cache'
 };
 
-let isConnected = false;
-let activeSource = "None";
-let lastErrors = [];
-let lastSuccessfulPoll = null;
-
 console.log("Starting Home Front Command Native Poller (Axios)...");
 
 const poll = async function () {
@@ -153,17 +295,16 @@ const poll = async function () {
         let source = "None";
         let errors = [];
 
-        // 1. Try Official API (Native Axios call)
+        // 1. Official API
         try {
             const hfcRes = await axios.get(HFC_API_URL, {
                 headers: HFC_HEADERS,
                 timeout: 3000,
                 validateStatus: s => s === 200 || s === 204
             });
-            
-            // HFC returns 204 No Content when there are no alerts
+            // HFC returns 204 No Content when there are no active alerts
             if (hfcRes.status === 204 || !hfcRes.data) {
-                data = []; // No active alerts
+                data = []; // Connected but no active alerts
             } else {
                 data = hfcRes.data;
             }
@@ -191,7 +332,7 @@ const poll = async function () {
             }
         }
 
-        // 3. Fallback to Mirror B (Tzeva Adom Hist)
+        // 3. Fallback to Mirror B (Tzeva Adom Historical Feed)
         if (data === null) {
             try {
                 const res = await axios.get('https://www.tzevaadom.co.il/static/historical/all.json', {
@@ -199,18 +340,15 @@ const poll = async function () {
                     headers: HFC_HEADERS,
                     validateStatus: s => s === 200
                 });
-                // Take the most recent alert if it's very recent (less than 30s old)
                 if (Array.isArray(res.data) && res.data.length > 0) {
                     const latest = res.data[0];
                     const alertTime = new Date(latest.alertDate).getTime();
-                    const now = Date.now();
-                    // Show as active if within last 60 seconds
-                    if (now - alertTime < 60000) {
+                    // Show as active only if it fired within the last 60 seconds
+                    if (Date.now() - alertTime < 60000) {
                         data = latest;
                         source = "Mirror B (History Feed)";
                     } else {
-                        // Return empty array to signify "no current alerts" but connected
-                        data = [];
+                        data = []; // Connected but no recent alerts
                         source = "Mirror B (Connected)";
                     }
                 } else {
@@ -221,12 +359,11 @@ const poll = async function () {
             }
         }
 
-
         // Process results
         if (data !== null) {
             activeSource = source;
             lastSuccessfulPoll = new Date().toISOString();
-            isConnected = true; // Mark as connected since we got a valid response (even if data is empty)
+            isConnected = true;
             handleSuccessfulConnection(data, source);
         } else {
             if (isConnected) {
@@ -240,14 +377,12 @@ const poll = async function () {
     } catch (e) {
         console.error("CRITICAL Poller Error:", e.message);
         isConnected = false;
-        activeSource = "None"; // No active source if critical error
+        activeSource = "None";
     } finally {
-        // Tight loop: 1s pause between requests
+        // Always restart poll, even after an unhandled error
         setTimeout(poll, interval);
     }
 };
-
-let alertExpirationTimer = null;
 
 function handleSuccessfulConnection(data, source) {
     if (!isConnected) {
@@ -265,16 +400,13 @@ function handleSuccessfulConnection(data, source) {
             console.log("Alert state cleared: API is now empty.");
             currentAlert = null;
         }
-        if (Math.random() < 0.02) { // Periodic heartbeat log (2% of polls)
+        if (Math.random() < 0.02) { // Periodic heartbeat log (2% of polls = ~every 50s)
             console.log(`[${new Date().toLocaleTimeString()}] Heartbeat: Watching via ${source}`);
         }
         return;
     }
 
-    // If we reach here, we have a REAL alert payload
-    const payloadStr = JSON.stringify(data);
-    
-    // Canonicalize
+    // We have a REAL alert payload — canonicalize it
     const normalizedAlert = {
         id: data.id || Date.now().toString(),
         type: data.title || data.desc || data.type || "Rocket Alert",
@@ -283,15 +415,16 @@ function handleSuccessfulConnection(data, source) {
     };
 
     if (normalizedAlert.cities.length > 0) {
-        // Backend Deduplication: Only dispatch if City List or ID changed
-        const currentCitiesKey = normalizedAlert.cities.sort().join('|');
-        const lastCitiesKey = lastDetectedAlert ? lastDetectedAlert.cities.sort().join('|') : "";
-        
+        // Backend Deduplication: Only dispatch FCM if City List or ID changed.
+        // Use sorted copies to avoid mutating the original array (which would corrupt dedup).
+        const currentCitiesKey = [...normalizedAlert.cities].sort().join('|');
+        const lastCitiesKey = lastDetectedAlert ? [...lastDetectedAlert.cities].sort().join('|') : "";
+
         if (normalizedAlert.id !== (lastDetectedAlert ? lastDetectedAlert.id : "") || currentCitiesKey !== lastCitiesKey) {
             console.log(`🚨 DISPATCHING [${source}]: ${normalizedAlert.cities.length} cities`);
             handleAlertDispatch(normalizedAlert);
         } else {
-            // Heartbeat for existing alert
+            // Suppress duplicate FCM; log occasionally for confirmation
             if (Math.random() < 0.05) console.log(`... Alert ${normalizedAlert.id} still active (suppressing redundant FCM)`);
         }
 
@@ -299,7 +432,7 @@ function handleSuccessfulConnection(data, source) {
         currentAlert = normalizedAlert;
         if (alertExpirationTimer) clearTimeout(alertExpirationTimer);
         alertExpirationTimer = setTimeout(() => {
-            console.log("Current alert state cleared (90s).");
+            console.log("Current alert state cleared (90s timeout).");
             currentAlert = null;
         }, 90000);
     }
@@ -316,12 +449,13 @@ function handleAlertDispatch(alert) {
 }
 
 function sendFCMAlert(alertData) {
-    const CHUNK_SIZE = 100; // Safe threshold for 4KB limit
+    const CHUNK_SIZE = 100; // Safe threshold below FCM's 4KB data payload limit
     const citiesList = alertData.cities || [];
-    
+
+    // Guard: never send FCM with an empty cities list
     if (citiesList.length === 0) return;
 
-    // Send the array in chunks to avoid "FCM Broadcast Error: Android message is too big"
+    // Send in chunks to avoid "Android message is too big" errors on large alerts
     for (let i = 0; i < citiesList.length; i += CHUNK_SIZE) {
         const chunk = citiesList.slice(i, i + CHUNK_SIZE);
         const chunkIndex = Math.floor(i / CHUNK_SIZE) + 1;
@@ -336,7 +470,7 @@ function sendFCMAlert(alertData) {
             },
             android: {
                 priority: 'high',
-                ttl: 60 * 1000 // 60 seconds
+                ttl: 60 * 1000 // 60 seconds — life-safety alerts must be fresh or discarded
             },
             topic: 'alerts'
         };
@@ -347,13 +481,14 @@ function sendFCMAlert(alertData) {
     }
 }
 
-// Global crash handlers
+// Global crash handler — surface unhandled promise rejections to GC logs
 process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // FCM Keepalive Heartbeat for Auto-Failover
-// Emits a silent KEEPALIVE message to the 'alerts' topic every 10 minutes
+// Emits a silent KEEPALIVE message to the 'alerts' topic every 10 minutes.
+// The Android app uses this to detect backend connectivity and reset connection state.
 setInterval(() => {
     if (isConnected) {
         console.log(`💓 Emitting KEEPALIVE heartbeat to 'alerts' topic...`);
@@ -377,5 +512,8 @@ setInterval(() => {
     }
 }, 10 * 60 * 1000); // 10 minutes
 
-// Start polling
-poll();
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+    console.log(`Backend Server listening on port ${PORT}`);
+    poll();
+});
