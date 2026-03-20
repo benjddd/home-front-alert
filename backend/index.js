@@ -30,8 +30,8 @@ app.use((req, res, next) => {
     // Health and Alerts check
     const isSensitive = req.path === '/alerts';
     
-    // Health check is public for monitoring
-    if (req.path === '/health') return next();
+    // Health and Privacy check is public
+    if (req.path === '/health' || req.path === '/privacy') return next();
 
     // Block sensitive endpoints if key is missing or wrong
     if (isSensitive && apiKey !== validKey) {
@@ -58,6 +58,11 @@ app.get('/health', (req, res) => {
         lastReportedAlert: lastDetectedAlert,
         timestamp: new Date().toISOString()
     });
+});
+
+// Privacy Policy Route
+app.get('/privacy', (req, res) => {
+    res.sendFile(__dirname + '/public/privacy.html');
 });
 
 // Expose the latest active alert for the Android App's Hybrid Polling mode
@@ -311,22 +316,35 @@ function handleAlertDispatch(alert) {
 }
 
 function sendFCMAlert(alertData) {
-    const message = {
-        data: {
-            alertId: String(alertData.id),
-            type: String(alertData.type),
-            cities: JSON.stringify(alertData.cities)
-        },
-        android: {
-            priority: 'high',
-            ttl: 60 * 1000 // 60 seconds (Life-safety alerts must be fresh or discarded)
-        },
-        topic: 'alerts'
-    };
+    const CHUNK_SIZE = 100; // Safe threshold for 4KB limit
+    const citiesList = alertData.cities || [];
+    
+    if (citiesList.length === 0) return;
 
-    admin.messaging().send(message)
-        .then(res => console.log('🚀 FCM Broadcast Success:', res))
-        .catch(err => console.error('❌ FCM Broadcast Error:', err.message));
+    // Send the array in chunks to avoid "FCM Broadcast Error: Android message is too big"
+    for (let i = 0; i < citiesList.length; i += CHUNK_SIZE) {
+        const chunk = citiesList.slice(i, i + CHUNK_SIZE);
+        const chunkIndex = Math.floor(i / CHUNK_SIZE) + 1;
+        const totalChunks = Math.ceil(citiesList.length / CHUNK_SIZE);
+
+        const message = {
+            data: {
+                alertId: String(alertData.id),
+                type: String(alertData.type),
+                cities: JSON.stringify(chunk),
+                chunkInfo: String(`${chunkIndex}/${totalChunks}`)
+            },
+            android: {
+                priority: 'high',
+                ttl: 60 * 1000 // 60 seconds
+            },
+            topic: 'alerts'
+        };
+
+        admin.messaging().send(message)
+            .then(res => console.log(`🚀 FCM Broadcast Success (Chunk ${chunkIndex}/${totalChunks}):`, res))
+            .catch(err => console.error(`❌ FCM Broadcast Error (Chunk ${chunkIndex}/${totalChunks}):`, err.message));
+    }
 }
 
 // Global crash handlers

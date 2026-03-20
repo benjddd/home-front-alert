@@ -320,10 +320,26 @@ object StatusManager {
 
         // 5. Update UI Metadata (ONLY for real threats)
         if (type != AlertType.CALM) {
+            var alertTypeStr = ""
+            try {
+                if (rawBody != null) {
+                    val root = org.json.JSONObject(rawBody)
+                    val jsonObject = if (root.has("active") && !root.isNull("active")) {
+                        val active = root.get("active")
+                        if (active is org.json.JSONObject) active 
+                        else if (active is org.json.JSONArray && active.length() > 0) active.getJSONObject(0) 
+                        else root
+                    } else root
+                    
+                    alertTypeStr = if (jsonObject.has("title")) jsonObject.getString("title") else jsonObject.optString("cat", "")
+                }
+            } catch(e: Exception) {}
+
             prefs.edit()
                 .putString("last_alert_zones", cities.joinToString(", "))
                 .putFloat("last_alert_dist", minDistance.toFloat())
                 .putLong("last_alert_time", System.currentTimeMillis())
+                .putString("last_alert_type", alertTypeStr)
                 .apply()
         }
 
@@ -337,12 +353,24 @@ object StatusManager {
                 if (isLocalTotal) {
                     toneGenerator.playTonesForDistances(emptyList(), volume, type, true)
                 }
-            } else if (newCitiesForAudio.isNotEmpty()) {
-                Log.i("HomeFrontAlerts", "🔊 DELTA AUDIO: $id | New Cities: ${newCitiesForAudio.size} | Local: $isLocalInDelta")
-                if (distancesForAudio.isNotEmpty() || isLocalInDelta) {
-                    // Mark these cities as signaled for this ID
+            } else if (newCitiesForAudio.isNotEmpty() || type == AlertType.CAUTION) {
+                val homeZone = normalizeCity(userZone)
+                val alreadyLocal = signaledSet.contains(homeZone)
+                
+                if (alreadyLocal) {
+                    Log.i("HomeFrontAlerts", "🔊 AUDIO: $id | Suppressing chunk audio, local siren already triggered.")
                     newCitiesForAudio.forEach { signaledSet.add(normalizeCity(it)) }
-                    toneGenerator.playTonesForDistances(distancesForAudio, volume, type, isLocalInDelta)
+                } else if (isLocalInDelta) {
+                    Log.i("HomeFrontAlerts", "🔊 AUDIO: $id | Escalating to LOCAL siren!")
+                    newCitiesForAudio.forEach { signaledSet.add(normalizeCity(it)) }
+                    toneGenerator.playTonesForDistances(distancesForAudio, volume, type, true)
+                } else {
+                    val audioDistances = if (type == AlertType.CAUTION && newCitiesForAudio.isEmpty()) distancesTotal else distancesForAudio
+                    Log.i("HomeFrontAlerts", "🔊 AUDIO: $id | Type: $type | New: ${newCitiesForAudio.size} | Local: $isLocalInDelta")
+                    if (audioDistances.isNotEmpty()) {
+                        newCitiesForAudio.forEach { signaledSet.add(normalizeCity(it)) }
+                        toneGenerator.playTonesForDistances(audioDistances, volume, type, false)
+                    }
                 }
             }
         }

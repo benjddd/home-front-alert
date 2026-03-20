@@ -47,6 +47,7 @@ dist/
 .DS_Store
 Thumbs.db
 desktop.ini
+
 # ===== GOOGLE CLOUD SDK / TEMP =====
 override_policy.yaml
 login_url.txt

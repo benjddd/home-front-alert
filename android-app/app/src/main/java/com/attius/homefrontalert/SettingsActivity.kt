@@ -93,29 +93,7 @@ class SettingsActivity : AppCompatActivity() {
 
         refreshSettingsUI() // Initial state
 
-        // 3. Volume and Sound Test
-        val seekVolume = findViewById<SeekBar>(R.id.seekVolume)
-        val btnTestSound = findViewById<Button>(R.id.btnTestSound)
-        
-        val currentVol = sharedPrefs.getFloat("alert_volume", 1.0f)
-        seekVolume.progress = (currentVol * 100).toInt()
-        
-        seekVolume.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    val vol = progress / 100f
-                    sharedPrefs.edit().putFloat("alert_volume", vol).apply()
-                    toneGenerator.updateLiveVolume(vol)
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
 
-        btnTestSound.setOnClickListener {
-            val volume = sharedPrefs.getFloat("alert_volume", 1.0f)
-            toneGenerator.playTonesForDistances(listOf(5.0), volume)
-        }
 
         // 4. Connectivity Shield Toggle
         val switchShieldActive = findViewById<Switch>(R.id.switchHybridMode)
@@ -216,35 +194,7 @@ class SettingsActivity : AppCompatActivity() {
         val cardShield = findViewById<androidx.cardview.widget.CardView>(R.id.cardShield)
         if (BuildConfig.IS_PAID) cardShield.visibility = android.view.View.GONE
 
-        val seekDistTest = findViewById<SeekBar>(R.id.seekDistTest)
-        val tvDistTestLabel = findViewById<TextView>(R.id.tvDistTestLabel)
-        val btnTestDistSound = findViewById<Button>(R.id.btnTestDistSound)
-        val btnTestCaution = findViewById<Button>(R.id.btnTestCaution)
-        val btnTestCalm = findViewById<Button>(R.id.btnTestCalm)
 
-        seekDistTest.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                tvDistTestLabel.text = "Simulate Distance: ${progress}km"
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        btnTestDistSound.setOnClickListener {
-            val volume = sharedPrefs.getFloat("alert_volume", 1.0f)
-            val dist = seekDistTest.progress.toDouble()
-            toneGenerator.playTonesForDistances(listOf(dist), volume, AlertType.URGENT)
-        }
-
-        btnTestCaution.setOnClickListener {
-            val volume = sharedPrefs.getFloat("alert_volume", 1.0f)
-            toneGenerator.playTonesForDistances(emptyList(), volume, AlertType.CAUTION)
-        }
-
-        btnTestCalm.setOnClickListener {
-            val volume = sharedPrefs.getFloat("alert_volume", 1.0f)
-            toneGenerator.playTonesForDistances(emptyList(), volume, AlertType.CALM)
-        }
 
         // 7. Dynamic UI Refresh (Zone Status)
         val tvShieldLog = findViewById<TextView>(R.id.tvHybridLog)
@@ -377,6 +327,7 @@ class SettingsActivity : AppCompatActivity() {
             val url = URL("$rootUrl/health")
             val conn = url.openConnection() as HttpURLConnection
             conn.setRequestProperty("X-API-Key", BuildConfig.API_KEY)
+            conn.setRequestProperty("User-Agent", "HomeFrontAlerts/1.7.2")
             conn.connectTimeout = 5000
             backendResult = if (conn.responseCode == 200) "🟢 Proxy: Online" else "🔴 Proxy: Error ${conn.responseCode}"
         } catch (e: Exception) { backendResult = "🔴 Proxy: Offline" }
@@ -395,6 +346,7 @@ class SettingsActivity : AppCompatActivity() {
             val url = URL("$rootUrl/alerts/history")
             val conn = url.openConnection() as HttpURLConnection
             conn.setRequestProperty("X-API-Key", BuildConfig.API_KEY)
+            conn.setRequestProperty("User-Agent", "HomeFrontAlerts/1.7.2")
             conn.connectTimeout = 5000
             if (conn.responseCode == 200) {
                 val body = conn.inputStream.bufferedReader().use { it.readText() }

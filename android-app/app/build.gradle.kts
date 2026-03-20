@@ -13,18 +13,24 @@ if (localPropertiesFile.exists()) {
 }
 
 val backendUrlEnv = localProperties.getProperty("backend.url") ?: "https://home-front-alert-hfc.web.app"
-val apiKeyEnv = localProperties.getProperty("backend.api_key") ?: "Attius-HFC-Shield-2026-Bypass"
+val apiKeyEnv = localProperties.getProperty("backend.api_key") ?: "DEVELOPMENT_MODE_UNSET"
+val storePasswordEnv = localProperties.getProperty("keystore.password") ?: ""
+val keyPasswordEnv = localProperties.getProperty("key.password") ?: ""
 
 android {
     namespace = "com.attius.homefrontalert"
     compileSdk = 34
 
+    androidResources {
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:desktop.ini"
+    }
+
     defaultConfig {
         applicationId = "com.attius.homefrontalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 21
-        versionName = "1.7.1"
+        versionCode = 27
+        versionName = "1.7.4"
 
         buildConfigField("String", "BACKEND_URL", "\"$backendUrlEnv\"")
         buildConfigField("String", "API_KEY", "\"$apiKeyEnv\"")
@@ -102,3 +108,5 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging-ktx:23.4.0")
     implementation("com.google.android.gms:play-services-location:21.1.0")
 }
+
+project.layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/homefrontalert/app/build"))
