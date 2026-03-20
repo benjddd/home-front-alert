@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Tzeva Artzi Admin Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --accent-color: #d32f2f;
+            --border-color: #333333;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: -apple-system, sans-serif;
+            margin: 0; padding: 20px;
+        }
+
+        .auth-overlay {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: var(--bg-color); z-index: 1000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px;
+        }
+
+        input {
+            padding: 12px; border: 1px solid var(--border-color); border-radius: 8px;
+            background: #000; color: #fff; text-align: center; font-size: 18px;
+        }
+
+        table { width: 100%; border-collapse: collapse; background: var(--surface-color); margin-top: 20px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border-color); }
+        th { background: #222; font-size: 11px; color: var(--text-secondary); text-transform: uppercase; }
+
+        button {
+            padding: 10px 15px; border-radius: 6px; border: none; cursor: pointer;
+            background: var(--accent-color); color: white; font-weight: bold;
+        }
+        button:disabled { opacity: 0.5; cursor: wait; }
+        .btn-sync { background: #2196F3; }
+        .btn-status { background: #444; margin-bottom: 20px; }
+        .synced-tag { color: #4CAF50; font-size: 12px; font-weight: bold; }
+        .pending-tag { color: #ff9800; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <div id="authOverlay" class="auth-overlay">
+        <h1>Dashboard Login</h1>
+        <input type="password" id="passInput" placeholder="Password">
+        <button onclick="login()">Access Dashboard</button>
+        <p id="authError" style="color: #ff5252; display: none;">Error logging in...</p>
+    </div>
+
+    <div id="mainContent" style="display: none;">
+        <header style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 20px;">
+            <div>
+                <h1>Admin: Tzeva Artzi</h1>
+                <p id="stats">Loading stats...</p>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn-sync" onclick="exportCSV()" style="background: #4CAF50;">📥 Export Pending to CSV & Mark Synced</button>
+                <button onclick="fetchData()">Refresh</button>
+            </div>
+        </header>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Play Sync</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="dataTable"></tbody>
+        </table>
+    </div>
+
+    <script>
+        let p = "";
+        let globalData = [];
+
+        async function login() {
+            p = document.getElementById('passInput').value;
+            await fetchData();
+        }
+
+        async function fetchData() {
+            document.getElementById('authError').style.display = 'none';
+            try {
+                const res = await fetch(`/dashboard/data?pass=${p}`);
+                if (!res.ok) {
+                    const errText = await res.text();
+                    document.getElementById('authError').innerText = "Status: " + res.status + " - " + errText;
+                    document.getElementById('authError').style.display = 'block';
+                    return;
+                }
+                const data = await res.json();
+                globalData = data;
+                document.getElementById('authOverlay').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+                render(data);
+            } catch (e) {
+                document.getElementById('authError').innerText = "Network Error: " + e.message;
+                document.getElementById('authError').style.display = 'block';
+            }
+        }
+
+        function render(data) {
+            const tbody = document.getElementById('dataTable');
+            tbody.innerHTML = "";
+            document.getElementById('stats').innerText = `${data.length} Total Registered Testers`;
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(item.appliedAt?._seconds * 1000).toLocaleDateString()}</td>
+                    <td>${item.name}</td>
+                    <td>${item.email}</td>
+                    <td class="${item.synced ? 'synced-tag' : 'pending-tag'}">${item.synced ? '✅ SYNCED' : '⏳ PENDING'}</td>
+                    <td><button style="padding: 5px 10px; font-size: 12px; background: #555;" onclick="deleteTester('${item.id}')">Delete</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        async function deleteTester(id) {
+            if(!confirm("Delete this tester from database?")) return;
+            try {
+                const res = await fetch(`/dashboard/delete/${id}?pass=${p}`, { method: 'DELETE' });
+                if(res.ok) fetchData();
+                else alert("Delete failed.");
+            } catch(e) { alert("Error: " + e.message); }
+        }
+
+        async function exportCSV() {
+            const pending = globalData.filter(d => !d.synced);
+            if (pending.length === 0) {
+                alert("No pending testers to export!");
+                return;
+            }
+
+            if (!confirm(`Export ${pending.length} pending testers to CSV and mark them as synced?`)) return;
+
+            // Generate CSV (Format: email,name)
+            let csvContent = "data:text/csv;charset=utf-8,";
+            pending.forEach(row => {
+               csvContent += `${row.email},${row.name}\r\n`;
+            });
+
+            // Trigger Download
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `testers-${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Mark as synced on server
+            try {
+                const res = await fetch(`/dashboard/sync-all?pass=${p}`, { method: 'POST' });
+                const result = await res.json();
+                fetchData();
+            } catch (e) {
+                alert("Saved CSV, but failed to update status on server: " + e.message);
+            }
+        }
+    </script>
+</body>
+</html>
