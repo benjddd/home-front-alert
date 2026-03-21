@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tzeva Artzi — Sound Lab v3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --urgent:#ff3b30; --urgent-dim:rgba(255,59,48,.13);
+      --caution:#ff9500; --caution-dim:rgba(255,149,0,.13);
+      --calm:#34c759; --calm-dim:rgba(52,199,89,.13);
+      --chosen:#6c63ff; --chosen-dim:rgba(108,99,255,.15);
+      --mode:#6c63ff; --mode-dim:rgba(108,99,255,.13);
+      --bg:#09090d; --surface:#111118; --surface2:#181824;
+      --border:rgba(255,255,255,.07); --text:#f0f0f5; --muted:#6e6e90;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;padding:38px 22px 90px}
+
+    /* header */
+    header{text-align:center;max-width:640px;margin:0 auto 40px}
+    header h1{font-size:1.85rem;font-weight:700;letter-spacing:-.5px;margin-bottom:8px;background:linear-gradient(135deg,#fff,#bbb);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    header p{color:var(--muted);font-size:.85rem;line-height:1.55}
+
+    /* controls */
+    .controls{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:40px;flex-wrap:wrap}
+    .unlock-btn{background:linear-gradient(135deg,#3a3aff,#8a2be2);color:#fff;border:none;padding:11px 28px;border-radius:50px;font-size:.88rem;font-weight:600;cursor:pointer;transition:opacity .2s,transform .2s;box-shadow:0 4px 20px rgba(58,58,255,.35)}
+    .unlock-btn:hover{opacity:.88;transform:scale(1.03)}
+    .unlock-btn.active{background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 4px 20px rgba(34,197,94,.35)}
+    .vol-pill{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--border);border-radius:50px;padding:9px 17px}
+    .vol-pill label{font-size:.76rem;color:var(--muted);white-space:nowrap}
+    .vol-pill input{width:108px;accent-color:#6c6cff}
+    .vol-pill span{font-size:.76rem;font-weight:600;min-width:30px;text-align:right}
+
+    /* sections */
+    section{max-width:1160px;margin:0 auto 52px}
+    .sh{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+    .sh .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .sh h2{font-size:1rem;font-weight:600}
+    .sh .note{margin-left:auto;color:var(--muted);font-size:.7rem}
+
+    /* cards */
+    .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(186px,1fr));gap:10px}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:15px 13px;cursor:pointer;transition:background .13s,border-color .13s,transform .1s;user-select:none;position:relative;overflow:hidden}
+    .card:hover{background:var(--surface2);transform:translateY(-1px)}
+    .card:active{transform:scale(.97)}
+    .card.playing::after{content:'';position:absolute;inset:0;border-radius:13px;animation:cp .55s ease-out forwards}
+    @keyframes cp{0%{box-shadow:0 0 0 0 var(--pc,rgba(255,255,255,.3))}100%{box-shadow:0 0 0 14px transparent}}
+    .card[data-s=urgent].playing::after{--pc:rgba(255,59,48,.5)}
+    .card[data-s=caution].playing::after{--pc:rgba(255,149,0,.5)}
+    .card[data-s=calm].playing::after{--pc:rgba(52,199,89,.5)}
+    .pdot{position:absolute;top:10px;right:10px;width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.1);transition:background .1s}
+    .card.playing .pdot{background:#fff;box-shadow:0 0 5px #fff}
+    .ct{font-size:.78rem;font-weight:600;margin-bottom:3px;line-height:1.3}
+    .cm{font-size:.68rem;color:var(--muted);line-height:1.38}
+    .cb{display:inline-block;margin-top:7px;font-size:.62rem;font-weight:700;letter-spacing:.4px;padding:2px 8px;border-radius:20px;text-transform:uppercase}
+
+    /* section theming */
+    .calm .dot{background:var(--calm)} .calm .card{border-left:3px solid rgba(52,199,89,.25)} .calm .card:hover{border-left-color:var(--calm)} .calm .cb{background:var(--calm-dim);color:var(--calm)}
+    .caution .dot{background:var(--caution)} .caution .card{border-left:3px solid rgba(255,149,0,.25)} .caution .card:hover{border-left-color:var(--caution)} .caution .cb{background:var(--caution-dim);color:var(--caution)}
+    .urgent .dot{background:var(--urgent)} .urgent .card{border-left:3px solid rgba(255,59,48,.25)} .urgent .card:hover{border-left-color:var(--urgent)} .urgent .cb{background:var(--urgent-dim);color:var(--urgent)}
+
+    /* chosen card */
+    .card.chosen{border:1.5px solid var(--chosen);background:var(--chosen-dim)}
+    .card.chosen .cb{background:rgba(108,99,255,.25);color:var(--chosen)}
+    .chosen-tag{position:absolute;top:0;right:0;background:var(--chosen);color:#fff;font-size:.58rem;font-weight:700;letter-spacing:.4px;padding:3px 8px 3px 7px;border-radius:0 13px 0 8px;text-transform:uppercase}
+
+    /* local/remote pair */
+    .pair-label{font-size:.72rem;font-weight:600;color:var(--muted);margin-bottom:6px;margin-top:14px;text-transform:uppercase;letter-spacing:.5px}
+    .pair-label:first-child{margin-top:0}
+
+    /* mode selector */
+    .mode-box{max-width:1160px;margin:0 auto 32px;background:var(--surface);border:1px solid var(--border);border-radius:15px;padding:18px 20px}
+    .mode-box h3{font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:13px}
+    .mode-pills{display:flex;flex-wrap:wrap;gap:7px}
+    .mpill{background:var(--surface2);border:1px solid var(--border);border-radius:50px;padding:7px 14px;cursor:pointer;transition:background .13s,border-color .13s;user-select:none}
+    .mpill:hover{border-color:rgba(108,99,255,.45)}
+    .mpill.sel{background:var(--mode-dim);border-color:var(--mode);box-shadow:0 0 0 1px var(--mode)}
+    .mpill .mn{font-size:.76rem;font-weight:600}
+    .mpill.sel .mn{color:var(--mode)}
+    .mode-hint{margin-top:11px;font-size:.7rem;color:var(--muted);padding:8px 12px;background:var(--surface2);border-radius:8px;border-left:2px solid var(--mode)}
+
+    footer{text-align:center;color:var(--muted);font-size:.7rem;margin-top:36px}
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🎛 Tzeva Artzi — Sound Lab v3</h1>
+  <p>5 CALM · 9 CAUTION (local + remote wobble) · 8 URGENT modes × 20 zone sets<br>
+     GC production alert data (last 24h) · Branch: feature/audio-redesign</p>
+</header>
+
+<div class="controls">
+  <button class="unlock-btn" id="unlockBtn">▶ Unlock Audio</button>
+  <div class="vol-pill">
+    <label>Volume</label>
+    <input type="range" id="volSlider" min="0" max="1" step="0.01" value="0.8">
+    <span id="volLabel">80%</span>
+  </div>
+</div>
+
+<!-- ══ CALM ══════════════════════════════════════════════════════════ -->
+<section class="calm">
+  <div class="sh"><div class="dot"></div><h2>CALM — All Clear</h2><span class="note">5 variants · ✓ Two-note resolve CHOSEN</span></div>
+  <div class="cards" id="calm-cards"></div>
+</section>
+
+<!-- ══ CAUTION ═══════════════════════════════════════════════════════ -->
+<section class="caution">
+  <div class="sh"><div class="dot"></div><h2>CAUTION — Pre-Warning</h2><span class="note">9 variants · Wobble leaning — remote vs local distinction below</span></div>
+  <div class="cards" id="caution-cards"></div>
+</section>
+
+<!-- ══ URGENT MODE SELECTOR ════════════════════════════════════════════ -->
+<div class="mode-box">
+  <h3>🎚 URGENT Synthesis Mode <span style="color:var(--urgent);font-size:.68rem;margin-left:6px">select then click any zone set →</span> <span style="color:var(--calm);font-size:.65rem;margin-left:8px">· Soft variants address large-batch intensity</span></h3>
+  <div class="mode-pills" id="modePills"></div>
+  <div class="mode-hint" id="modeHint"></div>
+</div>
+
+<!-- ══ URGENT: SMALL ═══════════════════════════════════════════════════ -->
+<section class="urgent">
+  <div class="sh"><div class="dot"></div><h2>URGENT — Small Batch</h2><span class="note">5 sets · 1–8 zones</span></div>
+  <div class="cards" id="us-cards"></div>
+</section>
+
+<!-- ══ URGENT: MEDIUM ══════════════════════════════════════════════════ -->
+<section class="urgent">
+  <div class="sh"><div class="dot"></div><h2>URGENT — Medium Batch</h2><span class="note">5 sets · 11–23 zones</span></div>
+  <div class="cards" id="um-cards"></div>
+</section>
+
+<!-- ══ URGENT: LARGE ═══════════════════════════════════════════════════ -->
+<section class="urgent">
+  <div class="sh"><div class="dot"></div><h2>URGENT — Mass Salvo</h2><span class="note">10 sets · 102–610 zones · GC logs</span></div>
+  <div class="cards" id="ul-cards"></div>
+</section>
+
+<footer>Sound Lab v3 · feature/audio-redesign · Internal use only</footer>
+
+<script>
+// ══════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════
+let audioCtx = null, masterVolume = 0.8, audioUnlocked = false;
+let currentMode = 'staccato';
+
+function getCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function ensureUnlocked() { if (!audioUnlocked) unlockAudio(); }
+
+// ══════════════════════════════════════════════════
+//  SYNTHESIS PRIMITIVES
+// ══════════════════════════════════════════════════
+const MIN_FREQ = 300, MAX_FREQ = 1500, MAX_DIST = 500;
+function d2f(km) { return MIN_FREQ + Math.max(0, Math.min(km, MAX_DIST)) / MAX_DIST * (MAX_FREQ - MIN_FREQ); }
+
+function tone(ctx, freq, t0, dur, vol, opts = {}) {
+  const { wave='sine', harm=false, sweep=false, sweepTo=null } = opts;
+  const osc = ctx.createOscillator(), g = ctx.createGain();
+  osc.type = wave;
+  if (sweep && sweepTo != null) {
+    osc.frequency.setValueAtTime(freq, t0);
+    osc.frequency.linearRampToValueAtTime(sweepTo, t0 + dur);
+  } else osc.frequency.setValueAtTime(freq, t0);
+
+  const atk = Math.min(0.008, dur * 0.15), rel = Math.min(0.008, dur * 0.15);
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(vol, t0 + atk);
+  g.gain.setValueAtTime(vol, Math.max(t0 + atk + 0.001, t0 + dur - rel));
+  g.gain.linearRampToValueAtTime(0, t0 + dur);
+
+  if (harm) {
+    const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+    o2.type = wave; o2.frequency.setValueAtTime(freq * 2, t0);
+    g2.gain.setValueAtTime(0, t0);
+    g2.gain.linearRampToValueAtTime(vol * 0.36, t0 + atk);
+    g2.gain.setValueAtTime(vol * 0.36, Math.max(t0 + atk + 0.001, t0 + dur - rel));
+    g2.gain.linearRampToValueAtTime(0, t0 + dur);
+    o2.connect(g2); g2.connect(ctx.destination); o2.start(t0); o2.stop(t0 + dur + 0.01);
+  }
+  osc.connect(g); g.connect(ctx.destination); osc.start(t0); osc.stop(t0 + dur + 0.01);
+}
+
+function bell(ctx, freq, t0, vol) {
+  const osc = ctx.createOscillator(), g = ctx.createGain();
+  osc.type = 'triangle'; osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(vol, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.68);
+  osc.connect(g); g.connect(ctx.destination); osc.start(t0); osc.stop(t0 + 0.72);
+}
+
+function sample(arr, maxN) {
+  if (arr.length <= maxN) return arr;
+  const s = (arr.length - 1) / (maxN - 1);
+  return Array.from({ length: maxN }, (_, i) => arr[Math.round(i * s)]);
+}
+const farNear = d => [...d].sort((a, b) => b - a);
+const nearFar = d => [...d].sort((a, b) => a - b);
+
+// ══════════════════════════════════════════════════
+//  CALM VARIANTS
+// ══════════════════════════════════════════════════
+function playCalm(v, vol) {
+  if (!audioUnlocked) return;
+  const ctx = getCtx(), now = ctx.currentTime + 0.06;
+  const bv = Math.min(1.0, Math.max(0.5, vol * 2));
+  switch (v) {
+    case 0: // ── Two-note resolve ── ✓ CHOSEN
+      tone(ctx, 330, now, 0.18, bv);
+      tone(ctx, 523, now + 0.22, 0.72, bv * 0.85, { harm: true });
+      break;
+    case 1: // ── Bell tones ──
+      [392, 523, 659].forEach((f, i) => bell(ctx, f, now + i * 0.5, bv));
+      break;
+    case 2: // ── Descending relief: 659→523→330 warm sigh ──
+      [659, 523, 330].forEach((f, i) => tone(ctx, f, now + i * 0.45, 0.4, bv, { harm: true }));
+      break;
+    case 3: // ── Warm unison: G+D+G octave stack, long fade ──
+      [392, 587, 784].forEach(f => {
+        const osc = ctx.createOscillator(), g = ctx.createGain();
+        osc.type = 'sine'; osc.frequency.setValueAtTime(f, now);
+        const v2 = bv * (392 / f) * 0.9;
+        g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(v2, now + 0.1);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 1.3);
+        osc.connect(g); g.connect(ctx.destination); osc.start(now); osc.stop(now + 1.35);
+      });
+      break;
+    case 4: // ── Soft chime: triangle, doorbell timing ──
+      [[392,0,0.2],[523,0.26,0.18],[659,0.5,0.62]].forEach(([f,d,dur]) => {
+        const osc = ctx.createOscillator(), g = ctx.createGain();
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(f, now + d);
+        g.gain.setValueAtTime(0, now + d); g.gain.linearRampToValueAtTime(bv, now + d + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, now + d + dur + 0.05);
+        osc.connect(g); g.connect(ctx.destination); osc.start(now + d); osc.stop(now + d + dur + 0.1);
+      });
+      break;
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  CAUTION VARIANTS
+// ══════════════════════════════════════════════════
+function playCaution(v, vol) {
+  if (!audioUnlocked) return;
+  const ctx = getCtx(), now = ctx.currentTime + 0.06;
+  switch (v) {
+    case 0: [440,554.37,440,554.37].forEach((f,i)=>tone(ctx,f,now+i*0.2,0.15,vol)); break;
+    case 1: [440,554.37,440,554.37,440,554.37].forEach((f,i)=>tone(ctx,f,now+i*0.2,0.15,vol)); break;
+    case 2: [440,554.37,440,554.37].forEach((f,i)=>tone(ctx,f,now+i*0.22,0.18,vol,{harm:true})); break;
+
+    case 3: // ── Wobble · Remote (3 moderate beats) ──
+      [392,466.16,392].forEach((f,i)=>{
+        const osc=ctx.createOscillator(), g=ctx.createGain();
+        const lfo=ctx.createOscillator(), lg=ctx.createGain();
+        osc.type='sine'; osc.frequency.setValueAtTime(f,now+i*0.3);
+        lfo.frequency.setValueAtTime(6,now+i*0.3); lg.gain.setValueAtTime(0.17,now+i*0.3);
+        g.gain.setValueAtTime(vol,now+i*0.3);
+        lfo.connect(lg); lg.connect(g.gain); osc.connect(g); g.connect(ctx.destination);
+        osc.start(now+i*0.3); lfo.start(now+i*0.3); osc.stop(now+i*0.3+0.24); lfo.stop(now+i*0.3+0.24);
+      });
+      break;
+
+    case 4: // ── Wobble · Local (5 intense beats, lower freq, faster LFO) ──
+      [340,440,340,440,340].forEach((f,i)=>{
+        const osc=ctx.createOscillator(), g=ctx.createGain();
+        const lfo=ctx.createOscillator(), lg=ctx.createGain();
+        osc.type='sine'; osc.frequency.setValueAtTime(f,now+i*0.25);
+        lfo.frequency.setValueAtTime(9,now+i*0.25); lg.gain.setValueAtTime(0.24,now+i*0.25);
+        g.gain.setValueAtTime(vol,now+i*0.25);
+        lfo.connect(lg); lg.connect(g.gain); osc.connect(g); g.connect(ctx.destination);
+        osc.start(now+i*0.25); lfo.start(now+i*0.25); osc.stop(now+i*0.25+0.21); lfo.stop(now+i*0.25+0.21);
+      });
+      break;
+
+    case 5: [[392,494],[415,523],[440,554]].forEach(([f1,f2],i)=>{ const b=now+i*0.35; tone(ctx,f1,b,0.1,vol); tone(ctx,f2,b+0.13,0.1,vol); }); break;
+    case 6: [[0,520],[0.08,660],[0.34,520],[0.42,660]].forEach(([d,f])=>tone(ctx,f,now+d,0.07,vol)); break;
+    case 7: for(let i=0;i<8;i++) tone(ctx,440+(i%2)*22,now+i*0.11,0.075,vol); break;
+    case 8: // ── Sweep yelp ──
+      { const osc=ctx.createOscillator(),g=ctx.createGain();
+        osc.type='sawtooth'; osc.frequency.setValueAtTime(800,now); osc.frequency.linearRampToValueAtTime(380,now+0.3);
+        g.gain.setValueAtTime(0,now); g.gain.linearRampToValueAtTime(vol*.65,now+0.01); g.gain.linearRampToValueAtTime(0,now+0.3);
+        osc.connect(g); g.connect(ctx.destination); osc.start(now); osc.stop(now+0.32);
+        tone(ctx,580,now+0.38,0.1,vol); tone(ctx,580,now+0.54,0.1,vol); }
+      break;
+    case 9: for(let i=0;i<4;i++){ tone(ctx,220,now+i*0.3,0.2,vol*.8); tone(ctx,880,now+i*0.3+0.02,0.1,vol*.28); } break;
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  URGENT MODES
+// ══════════════════════════════════════════════════
+
+// Dynamic volume scale: full vol up to ~25 zones, then rolls off.
+// 25 zones=100%, 100 zones=50%, 300 zones=29%, 610 zones=20%
+function volScale(baseVol, zoneCount) {
+  return baseVol * Math.min(1.0, 5.0 / Math.sqrt(Math.max(5, zoneCount)));
+}
+
+// Frequency range aware of zone count.
+// Large batches compress to 420-900 Hz — removes piercing top-end of 1200-1500 Hz range.
+function d2fSoft(km, zoneCount) {
+  const ratio = Math.max(0, Math.min(km, MAX_DIST)) / MAX_DIST;
+  const loFreq = 420, hiFreq = zoneCount > 80 ? 900 : (zoneCount > 30 ? 1100 : MAX_FREQ);
+  return loFreq + ratio * (hiFreq - loFreq);
+}
+
+// Staccato core (shared by modes 1 & 2)
+function _staccato(ctx, dists, vol, opts={}) {
+  const sorted = farNear(dists);
+  const MAX_MS=1000, MIN_T=15;
+  const s = sample(sorted, Math.floor(MAX_MS/(MIN_T+5)));
+  const n = s.length;
+  let tD=100, pD=50;
+  if (n*(tD+pD)>MAX_MS){ const ps=Math.floor(MAX_MS/n); tD=Math.max(MIN_T,Math.floor(ps*.65)); pD=Math.max(5,ps-tD); }
+  const now = ctx.currentTime+0.06;
+  let c = now;
+  s.forEach(dist => { tone(ctx,d2f(dist),c,tD/1000,vol,opts); c+=(tD+pD)/1000; });
+}
+
+const MODES = {
+
+  staccato:{
+    label:'Staccato Sine', badge:'Baseline',
+    desc:'Sequential high→low pings, 1s budget. Tones sampled if >50 zones for min 15ms audibility.',
+    play(ctx,d,vol){ _staccato(ctx,d,vol,{}); }
+  },
+
+  harmonic:{
+    label:'Harmonic Stack', badge:'Kept',
+    desc:'Staccato + 2nd partial at 36% amplitude. Warmer, richer. Better noise penetration.',
+    play(ctx,d,vol){ _staccato(ctx,d,vol,{harm:true}); }
+  },
+
+  cascade:{
+    label:'Wave Cascade', badge:'Kept',
+    desc:'Zones split far/mid/near bands, staggered 280ms. Far fires first → overlapping rain-fall of tones.',
+    play(ctx,d,vol){
+      const sorted=nearFar(d), n=sorted.length;
+      const bands=[sorted.slice(Math.floor(n*2/3)), sorted.slice(Math.floor(n/3),Math.floor(n*2/3)), sorted.slice(0,Math.floor(n/3))];
+      const now=ctx.currentTime+0.06;
+      bands.forEach((band,wi)=>{
+        const s=sample([...band].reverse(),16);
+        let c=now+wi*0.28;
+        s.forEach(dist=>{ tone(ctx,d2f(dist),c,0.03,vol*.82); c+=0.038; });
+      });
+    }
+  },
+
+  harmonicSoft:{
+    label:'Harmonic · Soft', badge:'New · Toned',
+    desc:'Harmonic Stack with 3 softening layers: (1) volume scales down with zone count, (2) frequency range compresses above 30 zones, (3) attack time grows to 28ms for large batches — tones bloom rather than snap.',
+    play(ctx,d,vol){
+      const sorted = farNear(d), n = sorted.length;
+      const sv = volScale(vol, n);
+      const MAX_MS=1000, MIN_T=18;
+      const s = sample(sorted, Math.floor(MAX_MS/(MIN_T+6)));
+      let tD=100, pD=55;
+      if (s.length*(tD+pD)>MAX_MS){ const ps=Math.floor(MAX_MS/s.length); tD=Math.max(MIN_T,Math.floor(ps*.62)); pD=Math.max(6,ps-tD); }
+      // Attack scales from 8ms (small) → 28ms (large) to soften percussive feel
+      const atkMs = Math.min(28, 8 + n/25);
+      const now = ctx.currentTime+0.06;
+      let c = now;
+      s.forEach(dist => {
+        const freq = d2fSoft(dist, n);
+        // Inline schedule with custom attack
+        const osc=ctx.createOscillator(), g=ctx.createGain();
+        const osc2=ctx.createOscillator(), g2=ctx.createGain();
+        osc.type='sine'; osc2.type='sine';
+        osc.frequency.setValueAtTime(freq,c); osc2.frequency.setValueAtTime(freq*2,c);
+        const atk=atkMs/1000, dur=tD/1000, rel=Math.min(0.012,dur*.15);
+        g.gain.setValueAtTime(0,c); g.gain.linearRampToValueAtTime(sv,c+atk);
+        g.gain.setValueAtTime(sv,Math.max(c+atk+0.001,c+dur-rel)); g.gain.linearRampToValueAtTime(0,c+dur);
+        g2.gain.setValueAtTime(0,c); g2.gain.linearRampToValueAtTime(sv*.32,c+atk);
+        g2.gain.setValueAtTime(sv*.32,Math.max(c+atk+0.001,c+dur-rel)); g2.gain.linearRampToValueAtTime(0,c+dur);
+        osc.connect(g); g.connect(ctx.destination); osc2.connect(g2); g2.connect(ctx.destination);
+        osc.start(c); osc2.start(c); osc.stop(c+dur+0.01); osc2.stop(c+dur+0.01);
+        c+=(tD+pD)/1000;
+      });
+    }
+  },
+
+  cascadeSoft:{
+    label:'Cascade · Soft', badge:'New · Toned',
+    desc:'Wave Cascade with the same 3 softening layers: dynamic volume, compressed frequency range, and slower attack. The staggered-wave structure remains — just gentler.',
+    play(ctx,d,vol){
+      const sorted=nearFar(d), n=sorted.length;
+      const sv = volScale(vol, n);
+      const atkMs = Math.min(25, 8 + n/30);
+      const bands=[
+        sorted.slice(Math.floor(n*2/3)),
+        sorted.slice(Math.floor(n/3),Math.floor(n*2/3)),
+        sorted.slice(0,Math.floor(n/3)),
+      ];
+      const now=ctx.currentTime+0.06;
+      bands.forEach((band,wi)=>{
+        const s=sample([...band].reverse(),16);
+        let c=now+wi*0.28;
+        const tDur = Math.max(0.025, 0.032);
+        s.forEach(dist=>{
+          const freq = d2fSoft(dist, n);
+          const osc=ctx.createOscillator(), g=ctx.createGain();
+          osc.type='triangle'; // softer waveform
+          osc.frequency.setValueAtTime(freq,c);
+          const atk=atkMs/1000, rel=0.012;
+          g.gain.setValueAtTime(0,c); g.gain.linearRampToValueAtTime(sv*.84,c+atk);
+          g.gain.setValueAtTime(sv*.84,Math.max(c+atk+0.001,c+tDur-rel));
+          g.gain.linearRampToValueAtTime(0,c+tDur);
+          osc.connect(g); g.connect(ctx.destination); osc.start(c); osc.stop(c+tDur+0.01);
+          c+=0.038;
+        });
+      });
+    }
+  },
+
+  whisper:{
+    label:'Whisper', badge:'New · Very Soft',
+    desc:'Maximum softening: triangle waves, narrow 420–780 Hz range always, slowest attack (30ms), plus volume scaling. The least jarring — still conveys pitch + zone count info subliminally.',
+    play(ctx,d,vol){
+      const sorted=farNear(d), n=sorted.length;
+      const sv = volScale(vol, n) * 0.75; // extra -25% on top of scaling
+      const MAX_MS=1000, MIN_T=20;
+      const s = sample(sorted, Math.floor(MAX_MS/(MIN_T+7)));
+      let tD=110, pD=60;
+      if (s.length*(tD+pD)>MAX_MS){ const ps=Math.floor(MAX_MS/s.length); tD=Math.max(MIN_T,Math.floor(ps*.6)); pD=Math.max(7,ps-tD); }
+      const ATK=0.030; // fixed 30ms bloom attack
+      const now=ctx.currentTime+0.06;
+      let c=now;
+      s.forEach(dist=>{
+        // Narrow 420-780 Hz always, regardless of count
+        const ratio=Math.max(0,Math.min(dist,MAX_DIST))/MAX_DIST;
+        const freq=420+ratio*(780-420);
+        const dur=tD/1000, rel=Math.min(0.015,dur*.18);
+        const osc=ctx.createOscillator(), g=ctx.createGain();
+        osc.type='triangle';
+        osc.frequency.setValueAtTime(freq,c);
+        g.gain.setValueAtTime(0,c); g.gain.linearRampToValueAtTime(sv,c+ATK);
+        g.gain.setValueAtTime(sv,Math.max(c+ATK+0.001,c+dur-rel)); g.gain.linearRampToValueAtTime(0,c+dur);
+        osc.connect(g); g.connect(ctx.destination); osc.start(c); osc.stop(c+dur+0.01);
+        c+=(tD+pD)/1000;
+      });
+    }
+  },
+
+  siren:{
+    label:'Siren Oscillate', badge:'New',
+    desc:'Classic siren LFO: frequency sweeps up then down. Rate set by nearest zone, ±30% of center. Duration 1.8s.',
+    play(ctx,d,vol){
+      const nearest=Math.min(...d), farthest=Math.max(...d);
+      const centerFreq=d2f(nearest);
+      // LFO-modulate osc frequency using a second osc→gain→frequency
+      const carrier=ctx.createOscillator(), lfo=ctx.createOscillator();
+      const lfoAmt=ctx.createGain(), masterG=ctx.createGain();
+      carrier.type='sawtooth';
+      carrier.frequency.setValueAtTime(centerFreq, ctx.currentTime+0.06);
+      lfo.frequency.setValueAtTime(2.2, ctx.currentTime+0.06);
+      lfoAmt.gain.setValueAtTime(centerFreq*0.3, ctx.currentTime+0.06);
+      masterG.gain.setValueAtTime(0,ctx.currentTime+0.06);
+      masterG.gain.linearRampToValueAtTime(vol*.7,ctx.currentTime+0.12);
+      masterG.gain.setValueAtTime(vol*.7,ctx.currentTime+1.7);
+      masterG.gain.linearRampToValueAtTime(0,ctx.currentTime+1.85);
+      lfo.connect(lfoAmt); lfoAmt.connect(carrier.frequency);
+      carrier.connect(masterG); masterG.connect(ctx.destination);
+      carrier.start(ctx.currentTime+0.06); lfo.start(ctx.currentTime+0.06);
+      carrier.stop(ctx.currentTime+1.87); lfo.stop(ctx.currentTime+1.87);
+    }
+  },
+
+  mirrorPairs:{
+    label:'Mirror Pairs', badge:'New',
+    desc:'Plays converging pairs simultaneously: [farthest + nearest], [2nd farthest + 2nd nearest]… down to center. Shows geographic spread as harmony.',
+    play(ctx,d,vol){
+      const sorted=nearFar(d); // near→far
+      const n=sorted.length, pairs=[];
+      const maxPairs=Math.min(12, Math.floor(n/2));
+      for(let i=0;i<maxPairs;i++) pairs.push([sorted[i], sorted[n-1-i]]);
+      const now=ctx.currentTime+0.06;
+      pairs.forEach(([near,far],i)=>{
+        const t=now+i*0.16;
+        tone(ctx,d2f(near),t,0.13,vol*.7);
+        tone(ctx,d2f(far),t,0.13,vol*.7);
+      });
+    }
+  },
+
+  glide:{
+    label:'Smooth Glide', badge:'New',
+    desc:'Single oscillator glides continuously from max frequency (farthest zone) down to min (nearest). The pitch curve is the geographic spread.',
+    play(ctx,d,vol){
+      const fHigh=d2f(Math.max(...d)), fLow=d2f(Math.min(...d));
+      const osc=ctx.createOscillator(), g=ctx.createGain();
+      osc.type='sine';
+      osc.frequency.setValueAtTime(fHigh, ctx.currentTime+0.06);
+      osc.frequency.linearRampToValueAtTime(fLow, ctx.currentTime+1.3);
+      g.gain.setValueAtTime(0,ctx.currentTime+0.06);
+      g.gain.linearRampToValueAtTime(vol,ctx.currentTime+0.1);
+      g.gain.setValueAtTime(vol,ctx.currentTime+1.2);
+      g.gain.linearRampToValueAtTime(0,ctx.currentTime+1.35);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(ctx.currentTime+0.06); osc.stop(ctx.currentTime+1.38);
+      // Add a harmonic glide slightly behind
+      const osc2=ctx.createOscillator(), g2=ctx.createGain();
+      osc2.type='sine';
+      osc2.frequency.setValueAtTime(fHigh*1.5, ctx.currentTime+0.1);
+      osc2.frequency.linearRampToValueAtTime(fLow*1.5, ctx.currentTime+1.35);
+      g2.gain.setValueAtTime(0,ctx.currentTime+0.1);
+      g2.gain.linearRampToValueAtTime(vol*0.3,ctx.currentTime+0.18);
+      g2.gain.setValueAtTime(vol*0.3,ctx.currentTime+1.25);
+      g2.gain.linearRampToValueAtTime(0,ctx.currentTime+1.4);
+      osc2.connect(g2); g2.connect(ctx.destination);
+      osc2.start(ctx.currentTime+0.1); osc2.stop(ctx.currentTime+1.42);
+    }
+  },
+
+  density:{
+    label:'Density Blur', badge:'New',
+    desc:'Nearest zone frequency + up to 7 detuned voices. More zones = more detune spread = richer blur. Mass salvos become a tense, buzzing cluster.',
+    play(ctx,d,vol){
+      const freq=d2f(Math.min(...d));
+      const voices=Math.min(8, 1+Math.floor(d.length/60));
+      const spread=Math.min(40, d.length/15); // cents spread increases with count
+      const now=ctx.currentTime+0.06, DUR=1.5;
+      for(let i=0;i<voices;i++){
+        const detune=(i-(voices-1)/2)*(spread/(voices||1))*100; // in cents
+        const osc=ctx.createOscillator(), g=ctx.createGain();
+        osc.type='sine'; osc.frequency.setValueAtTime(freq,now); osc.detune.setValueAtTime(detune,now);
+        const v=vol/Math.sqrt(voices);
+        g.gain.setValueAtTime(0,now); g.gain.linearRampToValueAtTime(v,now+0.08);
+        g.gain.setValueAtTime(v,now+DUR-0.1); g.gain.linearRampToValueAtTime(0,now+DUR);
+        osc.connect(g); g.connect(ctx.destination); osc.start(now); osc.stop(now+DUR+0.01);
+      }
+    }
+  },
+
+  statistical:{
+    label:'Geographic Summary', badge:'New',
+    desc:'Always exactly 5 tones: distance percentiles 0%→25%→50%→75%→100%. 420ms each. Always fully audible regardless of zone count. Spread = geographic diversity.',
+    play(ctx,d,vol){
+      const sorted=nearFar(d);
+      const freqs=[1.0,0.75,0.5,0.25,0.0].map(p=>d2f(sorted[Math.round(p*(sorted.length-1))]));
+      const now=ctx.currentTime+0.06; let c=now;
+      freqs.forEach(f=>{ tone(ctx,f,c,0.42,vol,{harm:true}); c+=0.48; });
+    }
+  },
+};
+
+// ══════════════════════════════════════════════════
+//  ZONE DATASETS
+// ══════════════════════════════════════════════════
+function geo(n,mn,mx){ return Array.from({length:n},()=>mn+Math.random()*(mx-mn)); }
+
+const SMALL=[
+  {label:'1 zone · Pinpoint',meta:'~6 km · Sderot',zones:1,distances:[6.2]},
+  {label:'2 zones · North pair',meta:'112–178 km · Tzfat/Karmiel',zones:2,distances:[112,178]},
+  {label:'4 zones · Gaza envelope',meta:'6–28 km · Ashkelon corridor',zones:4,distances:[6,14,22,28]},
+  {label:'5 zones · Mixed fronts',meta:'8–308 km · South→North',zones:5,distances:[8,52,130,230,308]},
+  {label:'8 zones · Central belt',meta:'15–74 km · Dan metro',zones:8,distances:[15,22,28,35,42,51,62,74]},
+];
+const MEDIUM=[
+  {label:'11 zones · Haifa corridor',meta:'80–145 km · North',zones:11,distances:geo(11,80,145).sort((a,b)=>a-b)},
+  {label:'14 zones · South spread',meta:'4–65 km · Gaza periphery',zones:14,distances:geo(14,4,65).sort((a,b)=>a-b)},
+  {label:'17 zones · Mixed centre',meta:'12–190 km · Dan region',zones:17,distances:geo(17,12,190).sort((a,b)=>a-b)},
+  {label:'19 zones · Lebanon spread',meta:'100–220 km · North border',zones:19,distances:geo(19,100,220).sort((a,b)=>a-b)},
+  {label:'23 zones · Multi-front',meta:'5–280 km · Simultaneous',zones:23,distances:geo(23,5,280).sort((a,b)=>a-b)},
+];
+const LARGE=[
+  {label:'102 zones',meta:'South saturation · 5–92 km',zones:102,distances:geo(102,5,92)},
+  {label:'127 zones',meta:'Cross-border · 8–180 km',zones:127,distances:geo(127,8,180)},
+  {label:'156 zones',meta:'Central region · 4–210 km',zones:156,distances:geo(156,4,210)},
+  {label:'202 zones',meta:'Nationwide · Oct 7 pattern',zones:202,distances:geo(202,3,350)},
+  {label:'295 zones',meta:'Major salvo · 2025-03',zones:295,distances:geo(295,3,380)},
+  {label:'366 zones',meta:'Mass launch · 2+ fronts',zones:366,distances:geo(366,2,420)},
+  {label:'415 zones',meta:'High saturation',zones:415,distances:geo(415,2,450)},
+  {label:'485 zones',meta:'Near-max · 2025-03',zones:485,distances:geo(485,2,470)},
+  {label:'563 zones',meta:'Peak event · log high',zones:563,distances:geo(563,1,490)},
+  {label:'610 zones',meta:'Max logged · largest observed',zones:610,distances:geo(610,1,500)},
+];
+
+// ══════════════════════════════════════════════════
+//  CARD RENDERING
+// ══════════════════════════════════════════════════
+const CALM_CARDS=[
+  {label:'Two-note resolve',meta:'Short 330Hz pickup → 523Hz sustained · smooth resolve',badge:'✓ Chosen',chosen:true,fn:()=>playCalm(0,masterVolume)},
+  {label:'Bell tones',meta:'Triangle wave · exponential decay · 3 ascending',badge:'Finalist',fn:()=>playCalm(1,masterVolume)},
+  {label:'Descending relief',meta:'659→523→330 Hz + harmonics · "sigh" feel',badge:'New',fn:()=>playCalm(2,masterVolume)},
+  {label:'Warm unison',meta:'G+D+G octave held · 1.3s exponential fade',badge:'New',fn:()=>playCalm(3,masterVolume)},
+  {label:'Soft chime',meta:'Triangle · doorbell timing · fast/fast/hold',badge:'New',fn:()=>playCalm(4,masterVolume)},
+];
+
+const CAUTION_CARDS=[
+  {label:'Baseline · 4 beats',meta:'440/554 Hz alternating · generic',badge:'Kept',fn:()=>playCaution(0,masterVolume)},
+  {label:'Extended · 6 beats',meta:'Same · local zone version',badge:'Kept',fn:()=>playCaution(1,masterVolume)},
+  {label:'Warmer · harmonics',meta:'440/554 Hz + 2nd partial',badge:'Kept',fn:()=>playCaution(2,masterVolume)},
+  {label:'Wobble · Remote',meta:'392/466 Hz · 6Hz tremolo · 3 beats · distant warning',badge:'✓ Chosen',chosen:true,fn:()=>playCaution(3,masterVolume)},
+  {label:'Wobble · Local',meta:'340/440 Hz · 9Hz tremolo · 5 beats · same-zone urgency',badge:'✓ Chosen',chosen:true,fn:()=>playCaution(4,masterVolume)},
+  {label:'Escalating pairs',meta:'3 rising pitch pairs · growing urgency',badge:'Kept',fn:()=>playCaution(5,masterVolume)},
+  {label:'Double knock',meta:'Two tight 520/660 Hz pairs · rhythmic knock',badge:'New',fn:()=>playCaution(6,masterVolume)},
+  {label:'Rapid stutter',meta:'8 × 440Hz fast beeper · electric urgency',badge:'New',fn:()=>playCaution(7,masterVolume)},
+  {label:'Sweep yelp',meta:'Sawtooth 800→380 Hz + 2 beeps',badge:'New',fn:()=>playCaution(8,masterVolume)},
+  {label:'Low industrial',meta:'220 Hz pulse ×4 + 880 Hz overtone',badge:'New',fn:()=>playCaution(9,masterVolume)},
+];
+
+function flashCard(el){ el.classList.add('playing'); setTimeout(()=>el.classList.remove('playing'),650); }
+
+function mkCard(c, section) {
+  const el=document.createElement('div');
+  el.className='card'+(c.chosen?' chosen':'');
+  el.dataset.s=section;
+  el.innerHTML=`
+    ${c.chosen?'<div class="chosen-tag">Chosen</div>':''}
+    <div class="pdot"></div>
+    <div class="ct">${c.label}</div>
+    <div class="cm">${c.meta}</div>
+    <span class="cb">${c.badge}</span>
+  `;
+  el.addEventListener('click',()=>{
+    if(!audioUnlocked){unlockAudio();setTimeout(()=>{c.fn();flashCard(el);},120);return;}
+    c.fn(); flashCard(el);
+  });
+  return el;
+}
+
+function renderStatic(id,cards,sec){
+  const cont=document.getElementById(id);
+  cards.forEach(c=>cont.appendChild(mkCard(c,sec)));
+}
+
+function renderUrgent(id,datasets){
+  const cont=document.getElementById(id);
+  datasets.forEach(d=>{
+    const el=document.createElement('div');
+    el.className='card'; el.dataset.s='urgent';
+    el.innerHTML=`<div class="pdot"></div><div class="ct">${d.label}</div><div class="cm">${d.meta}</div><span class="cb">${d.zones} zone${d.zones>1?'s':''}</span>`;
+    el.addEventListener('click',()=>{
+      const go=()=>{ MODES[currentMode].play(getCtx(),d.distances,masterVolume); flashCard(el); };
+      if(!audioUnlocked){unlockAudio();setTimeout(go,120);}else go();
+    });
+    cont.appendChild(el);
+  });
+}
+
+renderStatic('calm-cards',CALM_CARDS,'calm');
+renderStatic('caution-cards',CAUTION_CARDS,'caution');
+renderUrgent('us-cards',SMALL);
+renderUrgent('um-cards',MEDIUM);
+renderUrgent('ul-cards',LARGE);
+
+// ══════════════════════════════════════════════════
+//  MODE SELECTOR
+// ══════════════════════════════════════════════════
+const pillsEl=document.getElementById('modePills');
+const hintEl=document.getElementById('modeHint');
+
+Object.entries(MODES).forEach(([key,m])=>{
+  const p=document.createElement('div');
+  p.className='mpill'+(key===currentMode?' sel':'');
+  p.innerHTML=`<div class="mn">${m.label} <span style="font-size:.6rem;opacity:.55;font-weight:400">${m.badge}</span></div>`;
+  p.addEventListener('click',()=>{
+    document.querySelectorAll('.mpill').forEach(x=>x.classList.remove('sel'));
+    p.classList.add('sel'); currentMode=key; hintEl.textContent=MODES[key].desc;
+  });
+  pillsEl.appendChild(p);
+});
+hintEl.textContent=MODES[currentMode].desc;
+
+// ══════════════════════════════════════════════════
+//  CONTROLS
+// ══════════════════════════════════════════════════
+function unlockAudio(){
+  const ctx=getCtx(); if(ctx.state==='suspended') ctx.resume();
+  audioUnlocked=true;
+  document.getElementById('unlockBtn').textContent='✓ Audio Ready';
+  document.getElementById('unlockBtn').classList.add('active');
+}
+document.getElementById('unlockBtn').addEventListener('click',()=>{
+  unlockAudio();
+  const b=getCtx().createBuffer(1,1,22050),s=getCtx().createBufferSource();
+  s.buffer=b; s.connect(getCtx().destination); s.start();
+});
+document.getElementById('volSlider').addEventListener('input',e=>{
+  masterVolume=parseFloat(e.target.value);
+  document.getElementById('volLabel').textContent=Math.round(masterVolume*100)+'%';
+});
+</script>
+</body>
+</html>
