@@ -387,7 +387,13 @@ class MainActivity : AppCompatActivity() {
         
         if (zones != null && time > 0) {
             cardLastAlert.visibility = android.view.View.VISIBLE
-            val localizedZones = zones.split(", ").joinToString("\n") { distanceCalculator.getLocalizedName(it, true) }
+            val zoneList = zones.split(", ")
+            val localizedZones = if (zoneList.size > 5) {
+                val firstFive = zoneList.take(5).joinToString("\n") { distanceCalculator.getLocalizedName(it, true) }
+                "$firstFive\n... (+${zoneList.size - 5} more)"
+            } else {
+                zoneList.joinToString("\n") { distanceCalculator.getLocalizedName(it, true) }
+            }
             tvLastAlertZones.text = localizedZones
             
             val diffMs = System.currentTimeMillis() - time
