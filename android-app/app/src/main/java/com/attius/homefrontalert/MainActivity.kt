@@ -387,14 +387,54 @@ class MainActivity : AppCompatActivity() {
         
         if (zones != null && time > 0) {
             cardLastAlert.visibility = android.view.View.VISIBLE
-            val zoneList = zones.split(", ")
-            val localizedZones = if (zoneList.size > 5) {
-                val firstFive = zoneList.take(5).joinToString("\n") { distanceCalculator.getLocalizedName(it, true) }
-                "$firstFive\n... (+${zoneList.size - 5} more)"
-            } else {
-                zoneList.joinToString("\n") { distanceCalculator.getLocalizedName(it, true) }
+            val rawZoneList = zones.split(", ")
+            
+            val top10CitiesHe = listOf("ירושלים", "תל אביב", "חיפה", "ראשון לציון", "פתח תקווה", "אשדוד", "נתניה", "בני ברק", "באר שבע", "חולון")
+            val res = locationManager.resolveCurrentLocation()
+            val sortedByDistance = rawZoneList.sortedBy { z -> distanceCalculator.getDistanceToZone(res.lat, res.lng, z) ?: Double.MAX_VALUE }
+            
+            val topCitiesInPayload = rawZoneList.filter { z -> top10CitiesHe.any { city -> z.contains(city) } }.toSet()
+            val nearest5 = sortedByDistance.take(5).toSet()
+            
+            val prioritySet = mutableSetOf<String>().apply {
+                addAll(topCitiesInPayload)
+                addAll(nearest5)
             }
-            tvLastAlertZones.text = localizedZones
+            
+            val remainingSorted = sortedByDistance.filter { !prioritySet.contains(it) }
+            val finalPriorityList = prioritySet.toMutableList()
+            var fillIndex = 0
+            while (finalPriorityList.size < 10 && fillIndex < remainingSorted.size) {
+                finalPriorityList.add(remainingSorted[fillIndex])
+                fillIndex++
+            }
+            
+            val tail = remainingSorted.drop(fillIndex)
+            val displayList = finalPriorityList.map { distanceCalculator.getLocalizedName(it, true) }.toMutableList()
+            
+            var collapsedTail = ""
+            var expandedTail = ""
+            
+            if (tail.size <= 5) {
+                tail.forEach { displayList.add(distanceCalculator.getLocalizedName(it, true)) }
+            } else {
+                val tailLoc = tail.map { distanceCalculator.getLocalizedName(it, true) }
+                val moreText = if (LocaleHelper.getLanguage(this) == "iw" || LocaleHelper.getLanguage(this) == "he") "עוד" else "more"
+                collapsedTail = "... (+${tail.size} $moreText)"
+                expandedTail = "... ${tailLoc.joinToString(", ")}"
+            }
+            
+            val collapsedText = if (collapsedTail.isEmpty()) displayList.joinToString("\n") else displayList.joinToString("\n") + "\n" + collapsedTail
+            val expandedText = if (expandedTail.isEmpty()) displayList.joinToString("\n") else displayList.joinToString("\n") + "\n" + expandedTail
+            
+            tvLastAlertZones.text = collapsedText
+            var isExpanded = false
+            tvLastAlertZones.setOnClickListener {
+                if (expandedTail.isNotEmpty()) {
+                    isExpanded = !isExpanded
+                    tvLastAlertZones.text = if (isExpanded) expandedText else collapsedText
+                }
+            }
             
             val diffMs = System.currentTimeMillis() - time
             val diffMin = diffMs / 60000

@@ -56,6 +56,17 @@ class ZoneDistanceCalculator(private val context: Context) {
     }
 
     /**
+     * Given the user's current GPS location and a single zone name, 
+     * returns the distance in kilometers, or null if unknown.
+     */
+    fun getDistanceToZone(userLat: Double, userLng: Double, zoneName: String): Double? {
+        val zoneLocation = zoneCache[zoneName] ?: normalizedCache[normalize(zoneName)]
+        return if (zoneLocation != null) {
+            haversineDistanceKm(userLat, userLng, zoneLocation.lat, zoneLocation.lng)
+        } else null
+    }
+
+    /**
      * Given the user's current GPS location and a list of alerted zones, 
      * this returns a list of distances in kilometers to those zones.
      */
