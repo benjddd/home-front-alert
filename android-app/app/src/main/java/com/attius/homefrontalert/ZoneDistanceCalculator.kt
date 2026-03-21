@@ -101,11 +101,15 @@ class ZoneDistanceCalculator(private val context: Context) {
     /**
      * Returns the localized name for a given Hebrew zone name.
      */
-    fun getLocalizedName(hebrewName: String): String {
+    fun getLocalizedName(hebrewName: String, isThreatPayload: Boolean = false): String {
         val loc = zoneCache[hebrewName] ?: normalizedCache[normalize(hebrewName)]
         if (loc != null) {
             val lang = LocaleHelper.getLanguage(context)
             return if (lang == "iw" || lang == "he") loc.nameHe else loc.nameEn
+        }
+        if (isThreatPayload) {
+            val lang = LocaleHelper.getLanguage(context)
+            return if (lang == "iw" || lang == "he") "לא מדויק (דיווח פיקוד העורף: $hebrewName)" else "Location unknown (HFC reported: $hebrewName)"
         }
         return hebrewName
     }

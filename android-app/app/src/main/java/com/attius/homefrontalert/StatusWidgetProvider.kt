@@ -99,10 +99,12 @@ class StatusWidgetProvider : AppWidgetProvider() {
                 
                 val logLines = mutableListOf<String>()
                 val sortedZones = snapshot.recentZones.sortedByDescending { it.second }
+                val calc = ZoneDistanceCalculator(context)
                 
                 for (threat in sortedZones.take(3)) {
                     val timeFmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(threat.second))
-                    logLines.add("• $timeFmt: ${threat.first}")
+                    val locName = calc.getLocalizedName(threat.first, true)
+                    logLines.add("• $timeFmt: $locName")
                 }
                 
                 val title = if (snapshot.active10mCount > 0) "Recent Threats (${snapshot.active10mCount} Active):" else "Recent Threats (0 Active):"
