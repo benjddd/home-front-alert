@@ -93,25 +93,20 @@ class StatusWidgetProvider : AppWidgetProvider() {
         }
         
         private fun buildRecentLog(context: Context): String {
-            val prefs = context.getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
-            val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
-            if (threatsStr == "{}" || threatsStr.isEmpty()) return "Recent Threats:\nSystem clear."
-            
             try {
-                val threats = org.json.JSONObject(threatsStr)
-                if (threats.length() == 0) return "Recent Threats:\nSystem clear."
+                val snapshot = StatusManager.getActiveThreatsSnapshot(context)
+                if (snapshot.recentZones.isEmpty()) return "Recent Threats (0 Active):\nSystem clear."
                 
-                val iter = threats.keys()
                 val logLines = mutableListOf<String>()
-                while(iter.hasNext() && logLines.size < 3) {
-                    val z = iter.next()
-                    val obj = threats.getJSONObject(z)
-                    val name = obj.optString("name", z)
-                    val t = obj.optLong("t", 0L)
-                    val timeFmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(t))
-                    logLines.add("• $timeFmt: $name")
+                val sortedZones = snapshot.recentZones.sortedByDescending { it.second }
+                
+                for (threat in sortedZones.take(3)) {
+                    val timeFmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(threat.second))
+                    logLines.add("• $timeFmt: ${threat.first}")
                 }
-                return "Recent Threats:\n" + logLines.joinToString("\n")
+                
+                val title = if (snapshot.active10mCount > 0) "Recent Threats (${snapshot.active10mCount} Active):" else "Recent Threats (0 Active):"
+                return title + "\n" + logLines.joinToString("\n")
             } catch (e: Exception) {
                 return "Recent Threats:\nData unavailable."
             }

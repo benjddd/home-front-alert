@@ -56,7 +56,11 @@ class LocalPollingService : Service() {
         }
         
         isRunning = true
-        getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE).edit().putBoolean("shield_active", true).apply()
+        getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE).edit().apply {
+            putBoolean("shield_active", true)
+            putLong("shield_start_ms", System.currentTimeMillis())
+            apply()
+        }
         pollingThread = kotlin.concurrent.thread(start = true) {
             while (isRunning) {
                 try {
@@ -137,15 +141,20 @@ class LocalPollingService : Service() {
     }
 
     private fun createStatusNotification(content: String, status: String): Notification {
+        val prefs = getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
+        val startTime = prefs.getLong("shield_start_ms", System.currentTimeMillis())
         val intent = Intent(this, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK }
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
         
         return NotificationCompat.Builder(this, SHIELD_CHANNEL_ID)
-            .setContentTitle("Tzeva Artzi Shield")
+            .setContentTitle("Active Protection")
             .setContentText(content)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setColor(Color.parseColor("#34C759")) // Greenish tint
             .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setColorized(false) // Don't make the background notification a giant colored block
+            .setUsesChronometer(true)
+            .setWhen(startTime)
+            .setColorized(false) 
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .build()

@@ -21,6 +21,65 @@ object StatusManager {
         val source: String
     )
 
+    data class ActiveThreatsSnapshot(
+        val active10mCount: Int,
+        val closestDist10m: Double,
+        val localRemaining: Long,
+        val homeThreatObj: org.json.JSONObject?,
+        val recentZones: List<Pair<String, Long>>
+    )
+
+    fun getActiveThreatsSnapshot(context: Context): ActiveThreatsSnapshot {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
+        
+        var active10mCount = 0
+        var closestDist10m = Double.MAX_VALUE
+        var localRemaining = -1L
+        var homeThreatObj: org.json.JSONObject? = null
+        val recentZones = mutableListOf<Pair<String, Long>>()
+
+        try {
+            val threats = org.json.JSONObject(threatsStr)
+            val res = AppLocationManager.getInstance(context).resolveCurrentLocation()
+            val homeZone = normalizeCity(res.zoneNameHe)
+            
+            val iter = threats.keys()
+            val tenMinsMs = 10 * 60 * 1000L
+            val now = System.currentTimeMillis()
+            
+            while(iter.hasNext()) {
+                val z = iter.next()
+                val obj = threats.getJSONObject(z)
+                val t = obj.optLong("t", 0L)
+                val isHome = normalizeCity(z) == homeZone
+                
+                if (isHome) {
+                    homeThreatObj = obj
+                    val duration = obj.optInt("c", 0)
+                    if (t > 0 && duration > 0 && obj.optString("s", "URGENT") == "URGENT") {
+                        val rem = duration - (now - t) / 1000
+                        if (rem > 0) localRemaining = rem
+                    }
+                }
+                
+                if (now - t <= tenMinsMs) {
+                    active10mCount++
+                    recentZones.add(Pair(obj.optString("name", z), t))
+                }
+            }
+            
+            if (recentZones.isNotEmpty()) {
+                val calc = ZoneDistanceCalculator(context)
+                val justNames = recentZones.map { it.first }
+                val dists = calc.calculateDistancesToAlerts(res.lat, res.lng, justNames)
+                if (dists.isNotEmpty()) closestDist10m = dists.min()
+            }
+        } catch(e: Exception) {}
+
+        return ActiveThreatsSnapshot(active10mCount, closestDist10m, localRemaining, homeThreatObj, recentZones)
+    }
+
     fun updateStatus(context: Context, newStatus: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val oldStatus = prefs.getString("dash_status", "GREEN")
@@ -139,7 +198,96 @@ object StatusManager {
                 Log.e("HomeFrontAlerts", "UI Sync failed", e)
             }
         }
+        
+        updateActiveAlertNotification(context)
     }
+    
+    // Handler to flip RED state notifications from Countdown to Count-up
+    private val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var flipRunnable: Runnable? = null
+
+    private fun updateActiveAlertNotification(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val status = prefs.getString("dash_status", "GREEN") ?: "GREEN"
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        
+        if (status == "GREEN") {
+            manager.cancel(LocalPollingService.ALERT_NOTIFICATION_ID)
+            flipRunnable?.let { uiHandler.removeCallbacks(it) }
+            return
+        }
+
+        val intent = android.content.Intent(context, MainActivity::class.java).apply { 
+            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK 
+        }
+        val pendingIntent = android.app.PendingIntent.getActivity(context, 0, intent, 
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) android.app.PendingIntent.FLAG_IMMUTABLE else 0)
+
+        val snapshot = getActiveThreatsSnapshot(context)
+        val distStr = if (snapshot.closestDist10m != Double.MAX_VALUE) String.format("%.1f km", snapshot.closestDist10m) else "Remote"
+        
+        val builder = androidx.core.app.NotificationCompat.Builder(context, LocalPollingService.ALERT_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentIntent(pendingIntent)
+            .setOnlyAlertOnce(true) // Crucial: Only ding the very first time it pops or escalates
+            .setUsesChronometer(true)
+            .setAutoCancel(true)
+
+        flipRunnable?.let { uiHandler.removeCallbacks(it) }
+
+        when (status) {
+            "YELLOW" -> {
+                builder.setContentTitle("Remote Threat Active")
+                builder.setContentText("Closest: $distStr | Total Active: ${snapshot.active10mCount}")
+                builder.setColor(android.graphics.Color.parseColor("#FFD60A"))
+                builder.setPriority(androidx.core.app.NotificationCompat.PRIORITY_LOW) // Swipeable, silent in some OS
+                builder.setWhen(prefs.getLong("dash_status_start_ms", System.currentTimeMillis()))
+            }
+            "ORANGE" -> {
+                builder.setContentTitle("⚠️ Local Pre-Warning")
+                builder.setContentText("Alerts are expected in a few minutes in your area.")
+                builder.setColor(android.graphics.Color.parseColor("#FF9500"))
+                builder.setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH) // Lock screen visible
+                builder.setWhen(snapshot.homeThreatObj?.optLong("t", System.currentTimeMillis()) ?: System.currentTimeMillis())
+            }
+            "RED" -> {
+                builder.setContentTitle("🚨 URGENT: SEEK SHELTER")
+                builder.setColor(android.graphics.Color.RED)
+                builder.setPriority(androidx.core.app.NotificationCompat.PRIORITY_MAX)
+                builder.setOngoing(true) // Non-swipeable
+                
+                val t = snapshot.homeThreatObj?.optLong("t", System.currentTimeMillis()) ?: System.currentTimeMillis()
+                val c = snapshot.homeThreatObj?.optInt("c", 0) ?: 0
+                val endTime = t + (c * 1000L)
+                val remSeconds = (endTime - System.currentTimeMillis()) / 1000L
+                
+                if (remSeconds > 0) {
+                    // Stage 1: Countdown
+                    if (android.os.Build.VERSION.SDK_INT >= 24) {
+                        builder.setChronometerCountDown(true)
+                    }
+                    builder.setWhen(endTime)
+                    builder.setContentText("Local Alert! Time to shelter:")
+                    builder.setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText("Local Alert! Time to shelter.\nTotal Zones Affected: ${snapshot.active10mCount}"))
+                    
+                    // Schedule flip to count-up when countdown hits zero
+                    flipRunnable = Runnable { updateActiveAlertNotification(context) }
+                    uiHandler.postDelayed(flipRunnable!!, (remSeconds * 1000) + 500)
+                } else {
+                    // Stage 2: Count-up since alert
+                    if (android.os.Build.VERSION.SDK_INT >= 24) {
+                        builder.setChronometerCountDown(false)
+                    }
+                    builder.setWhen(t)
+                    builder.setContentText("Local Alert Active for:")
+                    builder.setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText("Local Alert Active for:\nTotal Zones Affected: ${snapshot.active10mCount}"))
+                }
+            }
+        }
+        
+        manager.notify(LocalPollingService.ALERT_NOTIFICATION_ID, builder.build())
+    }
+
 
     /**
      * Unified Polling Engine: Can be called by Service or Activity.
@@ -341,35 +489,6 @@ object StatusManager {
                 .putLong("last_alert_time", System.currentTimeMillis())
                 .putString("last_alert_type", alertTypeStr)
                 .apply()
-                
-            // Trigger Heads-Up Notification for the new alert chunk
-            if (newCitiesForAudio.isNotEmpty()) {
-                val intent = android.content.Intent(context, MainActivity::class.java).apply { 
-                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK 
-                }
-                val pendingIntent = android.app.PendingIntent.getActivity(context, 0, intent, 
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) android.app.PendingIntent.FLAG_IMMUTABLE else 0)
-                
-                val titleStr = if (type == AlertType.URGENT) "🚨 URGENT THREAT" else "⚠️ CAUTION"
-                val distStr = if (minDistance != -1.0) String.format("%.1f km", minDistance) else "Remote"
-                val citySummary = newCitiesForAudio.take(3).joinToString(", ") + if (newCitiesForAudio.size > 3) "..." else ""
-                val bodyStr = "Alert at $distStr ($citySummary)"
-                
-                val notif = androidx.core.app.NotificationCompat.Builder(context, LocalPollingService.ALERT_CHANNEL_ID)
-                    .setContentTitle(titleStr)
-                    .setContentText(bodyStr)
-                    .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText("$bodyStr\n\nTotal Zones Affected: ${cities.size}"))
-                    .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                    .setColor(android.graphics.Color.RED)
-                    .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
-                    .setAutoCancel(true)
-                    .setContentIntent(pendingIntent)
-                    .build()
-                    
-                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-                // Use a slightly varied ID based on the alert string hash so multiple distinct attacks don't entirely overwrite each other if they happen simultaneously
-                manager.notify(LocalPollingService.ALERT_NOTIFICATION_ID + kotlin.math.abs(id.hashCode() % 100), notif)
-            }
         }
 
         // 6. Trigger Audio (Only if Delta exists or All-Clear)
