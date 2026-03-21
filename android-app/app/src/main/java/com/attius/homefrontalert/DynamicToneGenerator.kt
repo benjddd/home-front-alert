@@ -198,34 +198,42 @@ class DynamicToneGenerator(private val context: Context) {
         val zoneCount = playSequence.size
         val scaledVolume = volume * calculateVolumeScale(zoneCount)
 
-        // 1. Calculate time per zone to fit 1000ms exactly
-        val totalMs = 1000
-        val perZoneMs = totalMs.toDouble() / zoneCount
+        // 1. Calculate EXACT samples per zone.
+        // Cap overall length for low counts (e.g. 1 zone = 250ms) to avoid long piercing single tones.
+        val targetDurationMs = min(1000, zoneCount * 250)
+        val totalBufferSamples = sampleRate * targetDurationMs / 1000
+        val samplesPerZone = totalBufferSamples.toDouble() / zoneCount
 
-        // 2. Pre-generate the entire 1s buffer to ensure zero jitter and perfect timing
-        val totalSamples = (sampleRate * totalMs / 1000)
-        val fullBuffer = ByteArray(totalSamples * 2)
+        // 2. Pre-render the entire buffer with sample-level precision
+        val fullBuffer = ByteArray(totalBufferSamples * 2)
+        var samplesAccumulator = 0.0
 
-        var currentSampleOffset = 0
         for (dist in playSequence) {
             val freq = calculateWhisperFrequency(dist)
-            val zoneSamples = (sampleRate * perZoneMs / 1000.0).toInt()
             
-            // Allocate 80% to tone, 20% to silence (or 100% tone if very dense)
-            val toneSamples = if (zoneCount > 100) zoneSamples else (zoneSamples * 0.8).toInt()
-            val attack = min(whisperAttackMs * sampleRate / 1000, toneSamples / 2)
+            val zoneStart = samplesAccumulator.toInt()
+            samplesAccumulator += samplesPerZone
+            val zoneEnd = samplesAccumulator.toInt()
+            val zoneSamples = zoneEnd - zoneStart
             
-            val toneBuf = generateBuffer(freq, (toneSamples * 1000.0 / sampleRate).toInt(), WaveType.TRIANGLE, (attack * 1000.0 / sampleRate).toInt())
+            if (zoneSamples <= 0) continue
+
+            // Allocate 80% to tone, 20% to silence (shimmer texture)
+            // For >100 zones, go 100% tone for maximum "grit" density
+            val toneSamplesCount = if (zoneCount > 100) zoneSamples else (zoneSamples * 0.8).toInt()
+            val attack = min(whisperAttackMs * sampleRate / 1000, toneSamplesCount / 2)
             
-            val bytesToCopy = min(toneBuf.size, (fullBuffer.size - currentSampleOffset))
+            val toneBuf = generateBufferFromSamples(freq, toneSamplesCount, WaveType.TRIANGLE, attack)
+            
+            val byteOffset = zoneStart * 2
+            val bytesToCopy = min(toneBuf.size, (fullBuffer.size - byteOffset))
             if (bytesToCopy > 0) {
-                System.arraycopy(toneBuf, 0, fullBuffer, currentSampleOffset, bytesToCopy)
-                currentSampleOffset += zoneSamples * 2 // Jump to next zone start (leaving silence if requested)
+                System.arraycopy(toneBuf, 0, fullBuffer, byteOffset, bytesToCopy)
             }
         }
 
         // 3. Play the pre-rendered cloud
-        playBufferDirect(fullBuffer, scaledVolume, 1000 + (if (isLocal) 1000 else 0))
+        playBufferDirect(fullBuffer, scaledVolume, targetDurationMs + (if (isLocal) 1000 else 0))
     }
 
     private fun playBufferDirect(buffer: ByteArray, volume: Float, totalDurationMs: Int) {
@@ -401,6 +409,43 @@ class DynamicToneGenerator(private val context: Context) {
                 android.util.Log.e("HomeFrontAlerts", "Vibration failed", e)
             }
         }
+    }
+
+    /**
+     * High-precision sample-exact buffer generator.
+     */
+    private fun generateBufferFromSamples(
+        frequency: Double,
+        numSamples: Int,
+        waveType: WaveType = WaveType.SINE,
+        attackSamples: Int = 0
+    ): ByteArray {
+        val generatedSnd = ByteArray(2 * numSamples)
+        val releaseSamples = attackSamples
+
+        var idx = 0
+        for (i in 0 until numSamples) {
+            val raw = when (waveType) {
+                WaveType.SINE -> sin(2 * PI * i / (sampleRate / frequency))
+                WaveType.TRIANGLE -> {
+                    val t = (i.toDouble() * frequency / sampleRate) % 1.0
+                    if (t < 0.5) (4.0 * t - 1.0) else (3.0 - 4.0 * t)
+                }
+            }
+
+            val env = when {
+                attackSamples > 0 && i < attackSamples ->
+                    i.toDouble() / attackSamples
+                releaseSamples > 0 && i > numSamples - releaseSamples ->
+                    (numSamples - i).toDouble() / releaseSamples
+                else -> 1.0
+            }
+
+            val pcm = (raw * 32767.0 * env).toInt().coerceIn(-32767, 32767).toShort()
+            generatedSnd[idx++] = (pcm.toInt() and 0x00ff).toByte()
+            generatedSnd[idx++] = (pcm.toInt() and 0xff00 ushr 8).toByte()
+        }
+        return generatedSnd
     }
 
     // ── Core Playback ─────────────────────────────────────────────────────────
