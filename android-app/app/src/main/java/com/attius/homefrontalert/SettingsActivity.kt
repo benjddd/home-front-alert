@@ -390,7 +390,7 @@ class SettingsActivity : AppCompatActivity() {
             toneGenerator.playTonesForDistances(urgentMed, vol(), AlertType.URGENT)
         }
         // URGENT — Whisper · Large (600 zones — tests 1s shimmer texture)
-        val urgentLarge = (1..600).map { it * (5.0 / 600) + it * 0.1 } // Mix of distance ranges 
+        val urgentLarge = (1..600).map { it * (500.0 / 600.0) } 
         findViewById<android.widget.Button>(R.id.btnTestUrgentLarge).setOnClickListener {
             toneGenerator.playTonesForDistances(urgentLarge, vol(), AlertType.URGENT)
         }

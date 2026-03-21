@@ -199,8 +199,8 @@ class DynamicToneGenerator(private val context: Context) {
         val scaledVolume = volume * calculateVolumeScale(zoneCount)
 
         // 1. Calculate EXACT samples per zone.
-        // Cap overall length for low counts (e.g. 1 zone = 250ms) to avoid long piercing single tones.
-        val targetDurationMs = min(1000, zoneCount * 250)
+        // Cap overall length for low counts (e.g. 1 zone = 125ms) to avoid long piercing single tones.
+        val targetDurationMs = min(1000, zoneCount * 125)
         val totalBufferSamples = sampleRate * targetDurationMs / 1000
         val samplesPerZone = totalBufferSamples.toDouble() / zoneCount
 
