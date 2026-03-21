@@ -45,6 +45,7 @@ class MainActivity : AppCompatActivity() {
 
     private val uiHandler = Handler(Looper.getMainLooper())
     private var isResolvingLocation = false
+    private var isLastAlertZonesExpanded = false
     
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "shield_active") {
@@ -427,12 +428,11 @@ class MainActivity : AppCompatActivity() {
             val collapsedText = if (collapsedTail.isEmpty()) displayList.joinToString("\n") else displayList.joinToString("\n") + "\n" + collapsedTail
             val expandedText = if (expandedTail.isEmpty()) displayList.joinToString("\n") else displayList.joinToString("\n") + "\n" + expandedTail
             
-            tvLastAlertZones.text = collapsedText
-            var isExpanded = false
+            tvLastAlertZones.text = if (isLastAlertZonesExpanded) expandedText else collapsedText
             tvLastAlertZones.setOnClickListener {
                 if (expandedTail.isNotEmpty()) {
-                    isExpanded = !isExpanded
-                    tvLastAlertZones.text = if (isExpanded) expandedText else collapsedText
+                    isLastAlertZonesExpanded = !isLastAlertZonesExpanded
+                    tvLastAlertZones.text = if (isLastAlertZonesExpanded) expandedText else collapsedText
                 }
             }
             
