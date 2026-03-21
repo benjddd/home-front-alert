@@ -225,20 +225,21 @@ class DynamicToneGenerator(private val context: Context) {
         }
 
         // 3. Play the pre-rendered cloud
-        playBufferDirect(fullBuffer, scaledVolume, if (isLocal) 1000 else 0)
+        playBufferDirect(fullBuffer, scaledVolume, 1000 + (if (isLocal) 1000 else 0))
     }
 
-    private fun playBufferDirect(buffer: ByteArray, volume: Float, trailingSilenceMs: Int = 0) {
+    private fun playBufferDirect(buffer: ByteArray, volume: Float, totalDurationMs: Int) {
         val bufferSize = max(buffer.size, AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT))
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
             .build()
 
+        val track: AudioTrack
         synchronized(audioLock) {
             currentAudioTrack?.stop()
             currentAudioTrack?.release()
-            currentAudioTrack = AudioTrack.Builder()
+            track = AudioTrack.Builder()
                 .setAudioAttributes(audioAttributes)
                 .setAudioFormat(AudioFormat.Builder()
                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
@@ -248,19 +249,23 @@ class DynamicToneGenerator(private val context: Context) {
                 .setBufferSizeInBytes(bufferSize)
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .build()
-            currentAudioTrack?.setVolume(volume)
-            currentAudioTrack?.play()
-            
-            currentAudioTrack?.write(buffer, 0, buffer.size)
-            
-            if (trailingSilenceMs > 0) {
-                val silence = ByteArray(sampleRate * 2 * trailingSilenceMs / 1000)
-                currentAudioTrack?.write(silence, 0, silence.size)
+            track.setVolume(volume)
+            track.play()
+            currentAudioTrack = track
+        }
+
+        try {
+            track.write(buffer, 0, buffer.size)
+            // Wait for playback to finish outside the lock to allow live volume updates
+            Thread.sleep(totalDurationMs.toLong())
+        } catch (e: Exception) { /* ignore */ }
+
+        synchronized(audioLock) {
+            if (currentAudioTrack == track) {
+                track.stop()
+                track.release()
+                currentAudioTrack = null
             }
-            
-            currentAudioTrack?.stop()
-            currentAudioTrack?.release()
-            currentAudioTrack = null
         }
         deactivateMediaSession()
     }
