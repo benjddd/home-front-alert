@@ -341,6 +341,35 @@ object StatusManager {
                 .putLong("last_alert_time", System.currentTimeMillis())
                 .putString("last_alert_type", alertTypeStr)
                 .apply()
+                
+            // Trigger Heads-Up Notification for the new alert chunk
+            if (newCitiesForAudio.isNotEmpty()) {
+                val intent = android.content.Intent(context, MainActivity::class.java).apply { 
+                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK 
+                }
+                val pendingIntent = android.app.PendingIntent.getActivity(context, 0, intent, 
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) android.app.PendingIntent.FLAG_IMMUTABLE else 0)
+                
+                val titleStr = if (type == AlertType.URGENT) "🚨 URGENT THREAT" else "⚠️ CAUTION"
+                val distStr = if (minDistance != -1.0) String.format("%.1f km", minDistance) else "Remote"
+                val citySummary = newCitiesForAudio.take(3).joinToString(", ") + if (newCitiesForAudio.size > 3) "..." else ""
+                val bodyStr = "Alert at $distStr ($citySummary)"
+                
+                val notif = androidx.core.app.NotificationCompat.Builder(context, LocalPollingService.ALERT_CHANNEL_ID)
+                    .setContentTitle(titleStr)
+                    .setContentText(bodyStr)
+                    .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText("$bodyStr\n\nTotal Zones Affected: ${cities.size}"))
+                    .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                    .setColor(android.graphics.Color.RED)
+                    .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                    .setAutoCancel(true)
+                    .setContentIntent(pendingIntent)
+                    .build()
+                    
+                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+                // Use a slightly varied ID based on the alert string hash so multiple distinct attacks don't entirely overwrite each other if they happen simultaneously
+                manager.notify(LocalPollingService.ALERT_NOTIFICATION_ID + kotlin.math.abs(id.hashCode() % 100), notif)
+            }
         }
 
         // 6. Trigger Audio (Only if Delta exists or All-Clear)
