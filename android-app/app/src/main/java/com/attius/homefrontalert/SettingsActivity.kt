@@ -384,13 +384,13 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<android.widget.Button>(R.id.btnTestUrgentSmall).setOnClickListener {
             toneGenerator.playTonesForDistances(urgentSmall, vol(), AlertType.URGENT)
         }
-        // URGENT — Whisper · Medium (17 zones, Dan region)
-        val urgentMed = (1..17).map { it * 11.0 }
+        // URGENT — Whisper · Medium (100 zones — tests high density)
+        val urgentMed = (1..100).map { it * 4.0 }
         findViewById<android.widget.Button>(R.id.btnTestUrgentMed).setOnClickListener {
             toneGenerator.playTonesForDistances(urgentMed, vol(), AlertType.URGENT)
         }
-        // URGENT — Whisper · Large (202 zones, nationwide — tests volume scaling)
-        val urgentLarge = (1..202).map { it * (490.0 / 202) }
+        // URGENT — Whisper · Large (600 zones — tests 1s shimmer texture)
+        val urgentLarge = (1..600).map { it * (5.0 / 600) + it * 0.1 } // Mix of distance ranges 
         findViewById<android.widget.Button>(R.id.btnTestUrgentLarge).setOnClickListener {
             toneGenerator.playTonesForDistances(urgentLarge, vol(), AlertType.URGENT)
         }

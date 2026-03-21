@@ -47,6 +47,7 @@ class DynamicToneGenerator(private val context: Context) {
     // Whisper frequency range — narrower than full 300–1500 Hz, avoids piercing top end
     private val whisperMinFreq = 420.0
     private val whisperMaxFreq = 780.0
+    private val whisperAttackMs = 30
 
     private var mediaSession: MediaSession? = null
 
@@ -193,33 +194,75 @@ class DynamicToneGenerator(private val context: Context) {
     private fun playUrgentSequence(distancesKm: List<Double>, volume: Float, isLocal: Boolean) {
         if (distancesKm.isEmpty()) return
 
-        val sortedDistances = distancesKm.sortedDescending()  // Far→Near (high→low pitch)
-        val zoneCount = sortedDistances.size
-
-        // Whisper: volume scales down for large batches
+        val playSequence = distancesKm.sortedDescending() // Far -> Near (High -> Low)
+        val zoneCount = playSequence.size
         val scaledVolume = volume * calculateVolumeScale(zoneCount)
 
-        // Whisper: narrow 420–780 Hz range
-        val frequencies = sortedDistances.map { calculateWhisperFrequency(it) }
+        // 1. Calculate time per zone to fit 1000ms exactly
+        val totalMs = 1000
+        val perZoneMs = totalMs.toDouble() / zoneCount
 
-        // Fit all tones within 1s budget
-        val maxCycleMs = 1000
-        val count = frequencies.size
-        var toneDur = 110
-        var pauseDur = 60
-        if (count * (toneDur + pauseDur) > maxCycleMs) {
-            val perSlot = maxCycleMs / count
-            toneDur = max(20, (perSlot * 0.62).toInt())
-            pauseDur = max(7, perSlot - toneDur)
+        // 2. Pre-generate the entire 1s buffer to ensure zero jitter and perfect timing
+        val totalSamples = (sampleRate * totalMs / 1000)
+        val fullBuffer = ByteArray(totalSamples * 2)
+
+        var currentSampleOffset = 0
+        for (dist in playSequence) {
+            val freq = calculateWhisperFrequency(dist)
+            val zoneSamples = (sampleRate * perZoneMs / 1000.0).toInt()
+            
+            // Allocate 80% to tone, 20% to silence (or 100% tone if very dense)
+            val toneSamples = if (zoneCount > 100) zoneSamples else (zoneSamples * 0.8).toInt()
+            val attack = min(whisperAttackMs * sampleRate / 1000, toneSamples / 2)
+            
+            val toneBuf = generateBuffer(freq, (toneSamples * 1000.0 / sampleRate).toInt(), WaveType.TRIANGLE, (attack * 1000.0 / sampleRate).toInt())
+            
+            val bytesToCopy = min(toneBuf.size, (fullBuffer.size - currentSampleOffset))
+            if (bytesToCopy > 0) {
+                System.arraycopy(toneBuf, 0, fullBuffer, currentSampleOffset, bytesToCopy)
+                currentSampleOffset += zoneSamples * 2 // Jump to next zone start (leaving silence if requested)
+            }
         }
 
-        // Whisper: triangle waveform, 30ms attack so tones bloom rather than snap
-        playToneSequence(
-            frequencies, toneDur, pauseDur, scaledVolume,
-            finalToneOverrideMs = if (isLocal) 1000 else null,
-            attackMs = 30,
-            waveType = WaveType.TRIANGLE
-        )
+        // 3. Play the pre-rendered cloud
+        playBufferDirect(fullBuffer, scaledVolume, if (isLocal) 1000 else 0)
+    }
+
+    private fun playBufferDirect(buffer: ByteArray, volume: Float, trailingSilenceMs: Int = 0) {
+        val bufferSize = max(buffer.size, AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT))
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .build()
+
+        synchronized(audioLock) {
+            currentAudioTrack?.stop()
+            currentAudioTrack?.release()
+            currentAudioTrack = AudioTrack.Builder()
+                .setAudioAttributes(audioAttributes)
+                .setAudioFormat(AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build())
+                .setBufferSizeInBytes(bufferSize)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build()
+            currentAudioTrack?.setVolume(volume)
+            currentAudioTrack?.play()
+            
+            currentAudioTrack?.write(buffer, 0, buffer.size)
+            
+            if (trailingSilenceMs > 0) {
+                val silence = ByteArray(sampleRate * 2 * trailingSilenceMs / 1000)
+                currentAudioTrack?.write(silence, 0, silence.size)
+            }
+            
+            currentAudioTrack?.stop()
+            currentAudioTrack?.release()
+            currentAudioTrack = null
+        }
+        deactivateMediaSession()
     }
 
     // ── CAUTION: Wobble (Tremolo LFO) ────────────────────────────────────────
