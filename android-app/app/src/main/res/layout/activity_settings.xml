@@ -299,6 +299,116 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
+            <!-- ── SOUND TEST ── -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/cardSoundTest"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:backgroundTint="#1A1A1A"
+                android:elevation="4dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="16dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Sound Test"
+                        android:textStyle="bold"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        android:layout_marginBottom="2dp" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Preview all alert sounds at current volume"
+                        android:textColor="#555566"
+                        android:textSize="11sp"
+                        android:layout_marginBottom="14dp" />
+
+                    <!-- CALM -->
+                    <Button
+                        android:id="@+id/btnTestCalm"
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:text="🟢  All Clear"
+                        android:textColor="#CCFFD0"
+                        android:textSize="12sp"
+                        android:backgroundTint="#0E3020"
+                        android:layout_marginBottom="8dp" />
+
+                    <!-- CAUTION pair -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="8dp">
+                        <Button
+                            android:id="@+id/btnTestCautionRemote"
+                            android:layout_width="0dp"
+                            android:layout_height="40dp"
+                            android:layout_weight="1"
+                            android:text="🟡 Pre-Warning · Remote"
+                            android:textColor="#FFE5A0"
+                            android:textSize="10sp"
+                            android:backgroundTint="#2E2000"
+                            android:layout_marginEnd="5dp" />
+                        <Button
+                            android:id="@+id/btnTestCautionLocal"
+                            android:layout_width="0dp"
+                            android:layout_height="40dp"
+                            android:layout_weight="1"
+                            android:text="🟠 Pre-Warning · Local"
+                            android:textColor="#FFD0A0"
+                            android:textSize="10sp"
+                            android:backgroundTint="#2E1200"
+                            android:layout_marginStart="5dp" />
+                    </LinearLayout>
+
+                    <!-- URGENT trio -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <Button
+                            android:id="@+id/btnTestUrgentSmall"
+                            android:layout_width="0dp"
+                            android:layout_height="40dp"
+                            android:layout_weight="1"
+                            android:text="🔴 4 zones"
+                            android:textColor="#FFB0B0"
+                            android:textSize="10sp"
+                            android:backgroundTint="#2A0800"
+                            android:layout_marginEnd="3dp" />
+                        <Button
+                            android:id="@+id/btnTestUrgentMed"
+                            android:layout_width="0dp"
+                            android:layout_height="40dp"
+                            android:layout_weight="1"
+                            android:text="🔴 17 zones"
+                            android:textColor="#FFB0B0"
+                            android:textSize="10sp"
+                            android:backgroundTint="#2A0800"
+                            android:layout_marginStart="3dp"
+                            android:layout_marginEnd="3dp" />
+                        <Button
+                            android:id="@+id/btnTestUrgentLarge"
+                            android:layout_width="0dp"
+                            android:layout_height="40dp"
+                            android:layout_weight="1"
+                            android:text="🔴 202 zones"
+                            android:textColor="#FFB0B0"
+                            android:textSize="10sp"
+                            android:backgroundTint="#2A0800"
+                            android:layout_marginStart="3dp" />
+                    </LinearLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <!-- ── ADVANCED TOGGLE ── -->
             <LinearLayout
                 android:layout_width="match_parent"

@@ -314,6 +314,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         logHandler.post(logUpdater)
 
+        setupSoundTestSection()
         setupLanguageSwitch()
     }
 
@@ -361,6 +362,38 @@ class SettingsActivity : AppCompatActivity() {
         } catch (e: Exception) {}
 
         return "$backendResult\n$hfcResult$lastAlertProof"
+    }
+
+    private fun setupSoundTestSection() {
+        val vol get() = sharedPrefs.getFloat("alert_volume", 0.8f)
+
+        // CALM — Two-note resolve
+        findViewById<android.widget.Button>(R.id.btnTestCalm).setOnClickListener {
+            toneGenerator.playTonesForDistances(emptyList(), vol, AlertType.CALM)
+        }
+        // CAUTION — Wobble Remote (isLocal = false)
+        findViewById<android.widget.Button>(R.id.btnTestCautionRemote).setOnClickListener {
+            toneGenerator.playTonesForDistances(emptyList(), vol, AlertType.CAUTION, isLocal = false)
+        }
+        // CAUTION — Wobble Local (isLocal = true)
+        findViewById<android.widget.Button>(R.id.btnTestCautionLocal).setOnClickListener {
+            toneGenerator.playTonesForDistances(emptyList(), vol, AlertType.CAUTION, isLocal = true)
+        }
+        // URGENT — Whisper · Small (4 zones, Ashkelon corridor)
+        val urgentSmall = listOf(6.0, 14.0, 22.0, 28.0)
+        findViewById<android.widget.Button>(R.id.btnTestUrgentSmall).setOnClickListener {
+            toneGenerator.playTonesForDistances(urgentSmall, vol, AlertType.URGENT)
+        }
+        // URGENT — Whisper · Medium (17 zones, Dan region)
+        val urgentMed = (1..17).map { it * 11.0 }
+        findViewById<android.widget.Button>(R.id.btnTestUrgentMed).setOnClickListener {
+            toneGenerator.playTonesForDistances(urgentMed, vol, AlertType.URGENT)
+        }
+        // URGENT — Whisper · Large (202 zones, nationwide — tests volume scaling)
+        val urgentLarge = (1..202).map { it * (490.0 / 202) }
+        findViewById<android.widget.Button>(R.id.btnTestUrgentLarge).setOnClickListener {
+            toneGenerator.playTonesForDistances(urgentLarge, vol, AlertType.URGENT)
+        }
     }
 
     private fun setupLanguageSwitch() {
