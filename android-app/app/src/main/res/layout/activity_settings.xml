@@ -327,6 +327,115 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
+                <!-- ── SOUND TEST (moved to diagnostics) ── -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardSoundTest"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:backgroundTint="#1A1A1A"
+                    android:elevation="4dp">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="16dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Sound Lab Diagnostics"
+                            android:textStyle="bold"
+                            android:textColor="#FFFFFF"
+                            android:textSize="13sp"
+                            android:layout_marginBottom="2dp" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Test alert synthesis density and timing"
+                            android:textColor="#555566"
+                            android:textSize="10sp"
+                            android:layout_marginBottom="14dp" />
+
+                        <!-- CALM -->
+                        <Button
+                            android:id="@+id/btnTestCalm"
+                            android:layout_width="match_parent"
+                            android:layout_height="40dp"
+                            android:text="🟢 All Clear"
+                            android:textColor="#CCFFD0"
+                            android:textSize="11sp"
+                            android:backgroundTint="#0E3020"
+                            android:layout_marginBottom="8dp" />
+
+                        <!-- CAUTION pair -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="8dp">
+                            <Button
+                                android:id="@+id/btnTestCautionRemote"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:text="🟡 Caution Remote"
+                                android:textColor="#FFE5A0"
+                                android:textSize="9sp"
+                                android:backgroundTint="#2E2000"
+                                android:layout_marginEnd="4dp" />
+                            <Button
+                                android:id="@+id/btnTestCautionLocal"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:text="🟠 Caution Local"
+                                android:textColor="#FFD0A0"
+                                android:textSize="9sp"
+                                android:backgroundTint="#2E1200"
+                                android:layout_marginStart="4dp" />
+                        </LinearLayout>
+
+                        <!-- URGENT trio -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+                            <Button
+                                android:id="@+id/btnTestUrgentSmall"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:text="🔴 4 zones"
+                                android:textColor="#FFB0B0"
+                                android:textSize="9sp"
+                                android:backgroundTint="#2A0800"
+                                android:layout_marginEnd="2dp" />
+                            <Button
+                                android:id="@+id/btnTestUrgentMed"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:text="🔴 100 zones"
+                                android:textColor="#FFB0B0"
+                                android:textSize="9sp"
+                                android:backgroundTint="#2A0800"
+                                android:layout_marginStart="2dp"
+                                android:layout_marginEnd="2dp" />
+                            <Button
+                                android:id="@+id/btnTestUrgentLarge"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:text="🔴 600 zones"
+                                android:textColor="#FFB0B0"
+                                android:textSize="9sp"
+                                android:backgroundTint="#2A0800"
+                                android:layout_marginStart="2dp" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
 
 
                 <!-- CARD B: SYSTEM DIAGNOSTICS (unified) -->

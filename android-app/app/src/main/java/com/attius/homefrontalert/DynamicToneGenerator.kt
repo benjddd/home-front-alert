@@ -13,36 +13,45 @@ import kotlin.math.PI
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.media.VolumeProvider
 
 enum class AlertType {
-    URGENT,      // Rocket / UAV
-    CAUTION,     // Pre-warning (Approximate alerts)
-    CALM         // All Clear (Incident finished)
+    URGENT,   // Rocket / UAV
+    CAUTION,  // Pre-warning (approximate alerts)
+    CALM      // All Clear (incident finished)
 }
+
+enum class WaveType { SINE, TRIANGLE }
 
 /**
  * Dynamically synthesizes audio tones based on distance and alert category.
+ *
+ * Audio decisions (branch: feature/audio-redesign):
+ *   CALM    → Two-note resolve: 330 Hz pickup (180ms) → 523 Hz sustained (720ms)
+ *   CAUTION → Wobble (tremolo LFO): Remote = 3 beats 392/466 Hz @ 6 Hz; Local = 5 beats 340/440 Hz @ 9 Hz
+ *   URGENT  → Whisper: triangle wave, 420–780 Hz range, dynamic volume scaling, 30ms attack bloom
  */
 class DynamicToneGenerator(private val context: Context) {
 
     private val sampleRate = 44100
     private var currentAudioTrack: AudioTrack? = null
     private val audioLock = Any()
-    
-    // Configurable distances in kilometers
+
+    // Distance bounds (km)
     private val maxDistanceMapKm = 500.0
     private val minDistanceMapKm = 0.0
 
-    // Configurable frequencies in Hz
-    // Near = Low Pitch (e.g., heavily noticeable, deep alert tone) = 300 Hz
-    private val minFreqHz = 300.0 
-    // Far = High Pitch (e.g., sharp, distant ping) = 1500 Hz
-    private val maxFreqHz = 1500.0
+    // Whisper frequency range — narrower than full 300–1500 Hz, avoids piercing top end
+    private val whisperMinFreq = 420.0
+    private val whisperMaxFreq = 780.0
+    private val whisperAttackMs = 30
 
     private var mediaSession: MediaSession? = null
+
+    // ── Volume Provider ───────────────────────────────────────────────────────
 
     private fun setupVolumeProvider() {
         val prefs = context.getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
@@ -60,7 +69,6 @@ class DynamicToneGenerator(private val context: Context) {
                 var newFloat = currentFloat
                 if (direction > 0) newFloat += 0.05f
                 else if (direction < 0) newFloat -= 0.05f
-                
                 newFloat = max(0.0f, min(1.0f, newFloat))
                 val newInt = (newFloat * 100).toInt()
                 setCurrentVolume(newInt)
@@ -102,42 +110,61 @@ class DynamicToneGenerator(private val context: Context) {
                 mediaSession?.setPlaybackState(state)
                 mediaSession?.isActive = false
             }
-        } catch (e: Exception) {}
+        } catch (e: Exception) { /* ignore */ }
     }
 
+    // ── Frequency Calculations ────────────────────────────────────────────────
+
     /**
-     * Calculates the frequency based on distance
+     * Full 300–1500 Hz mapping — preserved for future use / diagnostics.
      */
     fun calculateFrequency(distanceKm: Double): Double {
-        val clampedDistance = max(minDistanceMapKm, min(distanceKm, maxDistanceMapKm))
-        val distanceRatio = (clampedDistance - minDistanceMapKm) / (maxDistanceMapKm - minDistanceMapKm)
-        
-        // Linear interpolation from minFreqHz to maxFreqHz
-        return minFreqHz + (distanceRatio * (maxFreqHz - minFreqHz))
+        val clamped = max(minDistanceMapKm, min(distanceKm, maxDistanceMapKm))
+        val ratio = (clamped - minDistanceMapKm) / (maxDistanceMapKm - minDistanceMapKm)
+        return 300.0 + ratio * (1500.0 - 300.0)
     }
 
     /**
-     * Synthesizes and plays a sequence of distances in a single go.
-     * Tones are dynamically shortened if there are many locations to ensure we fit
-     * within the ~2 second polling cycle.
+     * Whisper frequency mapping: 420–780 Hz.
+     * Narrower range reduces perceptual harshness for rapid staccato sequences.
      */
-    fun playTonesForDistances(distancesKm: List<Double>, volume: Float = 1.0f, type: AlertType = AlertType.URGENT, isLocal: Boolean = false) {
-        // Only URGENT requires a distance array to calculate frequencies. CAUTION and CALM have fixed tones.
+    private fun calculateWhisperFrequency(distanceKm: Double): Double {
+        val clamped = max(minDistanceMapKm, min(distanceKm, maxDistanceMapKm))
+        val ratio = (clamped - minDistanceMapKm) / (maxDistanceMapKm - minDistanceMapKm)
+        return whisperMinFreq + ratio * (whisperMaxFreq - whisperMinFreq)
+    }
+
+    /**
+     * Dynamic volume scale for large zone batches.
+     * Formula: min(1.0, 5 / sqrt(max(5, zoneCount)))
+     * Result: ~25 zones = 100%, 100 zones = 50%, 300 zones = 29%, 610 zones = 20%
+     */
+    private fun calculateVolumeScale(zoneCount: Int): Float {
+        return min(1.0f, 5.0f / sqrt(max(5, zoneCount).toFloat()))
+    }
+
+    // ── Public Entry Point ────────────────────────────────────────────────────
+
+    fun playTonesForDistances(
+        distancesKm: List<Double>,
+        volume: Float = 1.0f,
+        type: AlertType = AlertType.URGENT,
+        isLocal: Boolean = false
+    ) {
         if (distancesKm.isEmpty() && type == AlertType.URGENT) return
-        
+
         activateMediaSession()
-        
-        // Safety Logic for CALM: Twice master volume, min 50%
+
+        // CALM gets a safety boost: doubled, minimum 50%
         val effectiveMaster = if (type == AlertType.CALM) {
             max(0.5f, min(1.0f, volume * 2.0f))
         } else {
             volume
         }
 
-        // Quadratic volume curve (v^2)
-        // Provides better low-end control than linear while avoiding the extreme quietness of v^4.
+        // Quadratic volume curve for better low-end slider feel
         val finalVolume = effectiveMaster * effectiveMaster
-        
+
         if (finalVolume <= 0.0001f) {
             triggerVibrationFallback(max(1, if (distancesKm.isEmpty()) 3 else distancesKm.size))
             return
@@ -145,83 +172,215 @@ class DynamicToneGenerator(private val context: Context) {
 
         thread {
             when (type) {
-                AlertType.URGENT -> playUrgentSequence(distancesKm, finalVolume, isLocal)
+                AlertType.URGENT  -> playUrgentSequence(distancesKm, finalVolume, isLocal)
                 AlertType.CAUTION -> playCautionSequence(finalVolume, isLocal)
-                AlertType.CALM -> playCalmTone(finalVolume)
+                AlertType.CALM    -> playCalmTone(finalVolume)
             }
         }
     }
 
     private fun thread(block: () -> Unit) {
-        kotlin.concurrent.thread(start = true) {
-            block()
+        kotlin.concurrent.thread(start = true) { block() }
+    }
+
+    fun updateLiveVolume(volume: Float) {
+        synchronized(audioLock) {
+            currentAudioTrack?.setVolume(volume * volume)
         }
     }
 
-    /**
-     * Updates the volume of the currently playing track in real-time.
-     */
-    fun updateLiveVolume(volume: Float) {
-        synchronized(audioLock) {
-            val finalVolume = volume * volume
-            currentAudioTrack?.setVolume(finalVolume)
-        }
-    }
+    // ── URGENT: Whisper Mode ──────────────────────────────────────────────────
 
     private fun playUrgentSequence(distancesKm: List<Double>, volume: Float, isLocal: Boolean) {
         if (distancesKm.isEmpty()) return
 
-        // 1. Sort distances: Far to Near (High pitch to Low pitch)
-        val sortedDistances = distancesKm.sortedDescending()
-        
-        // 2. Map distances to exact frequencies
-        val frequencies = sortedDistances.map { calculateFrequency(it) }
+        val playSequence = distancesKm.sortedDescending() // Far -> Near (High -> Low)
+        val zoneCount = playSequence.size
+        val scaledVolume = volume * calculateVolumeScale(zoneCount)
 
-        // 3. Dynamic Duration Calculation
-        // Goal: Fit the entire sequence into ~800ms (to leave 1s for sustain/pause)
-        val maxCycleMs = 800
-        val count = frequencies.size
-        
-        // Default: 150ms per location (100 tone + 50 pause)
-        // If count > 12, we must shorten them.
-        var toneDur = 100
-        var pauseDur = 50
-        
-        if (count * (toneDur + pauseDur) > maxCycleMs) {
-            val totalAvailablePerTone = maxCycleMs / count
-            toneDur = (totalAvailablePerTone * 0.7).toInt()
-            pauseDur = totalAvailablePerTone - toneDur
+        // 1. Calculate EXACT samples per zone.
+        // Cap overall length for low counts (e.g. 1 zone = 125ms) to avoid long piercing single tones.
+        val targetDurationMs = min(1000, zoneCount * 125)
+        val totalBufferSamples = sampleRate * targetDurationMs / 1000
+        val samplesPerZone = totalBufferSamples.toDouble() / zoneCount
+
+        // 2. Pre-render the entire buffer with sample-level precision
+        val fullBuffer = ByteArray(totalBufferSamples * 2)
+        var samplesAccumulator = 0.0
+
+        for (dist in playSequence) {
+            val freq = calculateWhisperFrequency(dist)
             
-            // Floor limits to keep it audible
-            toneDur = max(20, toneDur)
+            val zoneStart = samplesAccumulator.toInt()
+            samplesAccumulator += samplesPerZone
+            val zoneEnd = samplesAccumulator.toInt()
+            val zoneSamples = zoneEnd - zoneStart
+            
+            if (zoneSamples <= 0) continue
+
+            // Allocate 80% to tone, 20% to silence (shimmer texture)
+            // For >100 zones, go 100% tone for maximum "grit" density
+            val toneSamplesCount = if (zoneCount > 100) zoneSamples else (zoneSamples * 0.8).toInt()
+            val attack = min(whisperAttackMs * sampleRate / 1000, toneSamplesCount / 2)
+            
+            val toneBuf = generateBufferFromSamples(freq, toneSamplesCount, WaveType.TRIANGLE, attack)
+            
+            val byteOffset = zoneStart * 2
+            val bytesToCopy = min(toneBuf.size, (fullBuffer.size - byteOffset))
+            if (bytesToCopy > 0) {
+                System.arraycopy(toneBuf, 0, fullBuffer, byteOffset, bytesToCopy)
+            }
         }
 
-        // 2-second polling cycle: we use 1st second for staccato, 2nd second for local sustain.
-        playToneSequence(frequencies, toneDur, pauseDur, volume, finalToneOverrideMs = if (isLocal) 1000 else null)
+        // 3. Play the pre-rendered cloud
+        playBufferDirect(fullBuffer, scaledVolume, targetDurationMs + (if (isLocal) 1000 else 0))
     }
+
+    private fun playBufferDirect(buffer: ByteArray, volume: Float, totalDurationMs: Int) {
+        val bufferSize = max(buffer.size, AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT))
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .build()
+
+        val track: AudioTrack
+        synchronized(audioLock) {
+            currentAudioTrack?.stop()
+            currentAudioTrack?.release()
+            track = AudioTrack.Builder()
+                .setAudioAttributes(audioAttributes)
+                .setAudioFormat(AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build())
+                .setBufferSizeInBytes(bufferSize)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build()
+            track.setVolume(volume)
+            track.play()
+            currentAudioTrack = track
+        }
+
+        try {
+            track.write(buffer, 0, buffer.size)
+            // Wait for playback to finish outside the lock to allow live volume updates
+            Thread.sleep(totalDurationMs.toLong())
+        } catch (e: Exception) { /* ignore */ }
+
+        synchronized(audioLock) {
+            if (currentAudioTrack == track) {
+                track.stop()
+                track.release()
+                currentAudioTrack = null
+            }
+        }
+        deactivateMediaSession()
+    }
+
+    // ── CAUTION: Wobble (Tremolo LFO) ────────────────────────────────────────
 
     private fun playCautionSequence(volume: Float, isLocal: Boolean) {
-        // Pattern 1212...
-        // Generic: 4 tones. Local (same zone): 6 tones.
-        val count = if (isLocal) 6 else 4
-        val frequencies = mutableListOf<Double>()
-        for (i in 0 until count) {
-            frequencies.add(if (i % 2 == 0) 440.0 else 554.37)
+        if (isLocal) {
+            // Local / same-zone: 5 beats, lower register, faster LFO — more intense
+            playWobbleSequence(
+                frequencies  = listOf(340.0, 440.0, 340.0, 440.0, 340.0),
+                toneDurationMs  = 210,
+                pauseDurationMs = 40,
+                volume          = volume,
+                lfoHz           = 9.0,
+                lfoDepth        = 0.24
+            )
+        } else {
+            // Remote: 3 beats, moderate LFO
+            playWobbleSequence(
+                frequencies  = listOf(392.0, 466.16, 392.0),
+                toneDurationMs  = 240,
+                pauseDurationMs = 50,
+                volume          = volume,
+                lfoHz           = 6.0,
+                lfoDepth        = 0.17
+            )
         }
-        playToneSequence(frequencies, 150, 50, volume)
     }
 
+    // ── CALM: Two-Note Resolve ────────────────────────────────────────────────
+
     private fun playCalmTone(volume: Float) {
-        // Gentle ascending "All Clear"
-        val frequencies = listOf(300.0, 400.0, 600.0)
-        playToneSequence(frequencies, 400, 50, volume)
+        // Short 330 Hz pickup, then long 523 Hz sustained resolve
+        playToneSequence(
+            frequencies     = listOf(330.0, 523.0),
+            toneDurationMs  = 180,
+            pauseDurationMs = 50,
+            volume          = volume,
+            finalToneOverrideMs = 720,
+            attackMs        = 8
+        )
     }
+
+    // ── Wobble Playback (CAUTION-specific) ────────────────────────────────────
+
+    private fun playWobbleSequence(
+        frequencies: List<Double>,
+        toneDurationMs: Int,
+        pauseDurationMs: Int,
+        volume: Float,
+        lfoHz: Double,
+        lfoDepth: Double
+    ) {
+        val bufferSize = AudioTrack.getMinBufferSize(
+            sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT
+        )
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .build()
+
+        synchronized(audioLock) {
+            currentAudioTrack?.stop()
+            currentAudioTrack?.release()
+            currentAudioTrack = AudioTrack.Builder()
+                .setAudioAttributes(audioAttributes)
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build()
+                )
+                .setBufferSizeInBytes(bufferSize)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build()
+            currentAudioTrack?.setVolume(volume)
+            currentAudioTrack?.play()
+        }
+
+        try {
+            frequencies.forEach { freq ->
+                val toneBuffer = generateWobbleBuffer(freq, toneDurationMs, lfoHz, lfoDepth)
+                synchronized(audioLock) { currentAudioTrack?.write(toneBuffer, 0, toneBuffer.size) }
+                val pauseBuffer = ByteArray(sampleRate * 2 * pauseDurationMs / 1000)
+                synchronized(audioLock) { currentAudioTrack?.write(pauseBuffer, 0, pauseBuffer.size) }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("HomeFrontAlerts", "Error during wobble playback", e)
+        } finally {
+            synchronized(audioLock) {
+                currentAudioTrack?.stop()
+                currentAudioTrack?.release()
+                currentAudioTrack = null
+            }
+            deactivateMediaSession()
+        }
+    }
+
+    // ── Vibration Fallback ────────────────────────────────────────────────────
 
     private fun triggerVibrationFallback(count: Int) {
         val vibrator = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-                vibratorManager?.defaultVibrator
+                val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vm?.defaultVibrator
             } else {
                 @Suppress("DEPRECATION")
                 context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
@@ -230,16 +389,14 @@ class DynamicToneGenerator(private val context: Context) {
             android.util.Log.e("HomeFrontAlerts", "Failed to access vibrator", e)
             null
         }
-        
+
         if (vibrator != null && vibrator.hasVibrator()) {
-            val validCount = max(1, count)
-            val timings = LongArray(validCount * 2)
-            val amplitudes = IntArray(validCount * 2)
-            for (i in 0 until validCount) {
-                timings[i * 2] = 0L           // wait
-                timings[i * 2 + 1] = 500L     // vibrate for 500ms
-                amplitudes[i * 2] = 0
-                amplitudes[i * 2 + 1] = VibrationEffect.DEFAULT_AMPLITUDE
+            val valid = max(1, count)
+            val timings = LongArray(valid * 2)
+            val amplitudes = IntArray(valid * 2)
+            for (i in 0 until valid) {
+                timings[i * 2] = 0L; timings[i * 2 + 1] = 500L
+                amplitudes[i * 2] = 0; amplitudes[i * 2 + 1] = VibrationEffect.DEFAULT_AMPLITUDE
             }
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -254,23 +411,65 @@ class DynamicToneGenerator(private val context: Context) {
         }
     }
 
-    private fun playToneSequence(frequencies: List<Double>, toneDurationMs: Int, pauseDurationMs: Int, volume: Float, finalToneOverrideMs: Int? = null) {
-        val bufferSize = AudioTrack.getMinBufferSize(
-            sampleRate,
-            AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_16BIT
-        )
+    /**
+     * High-precision sample-exact buffer generator.
+     */
+    private fun generateBufferFromSamples(
+        frequency: Double,
+        numSamples: Int,
+        waveType: WaveType = WaveType.SINE,
+        attackSamples: Int = 0
+    ): ByteArray {
+        val generatedSnd = ByteArray(2 * numSamples)
+        val releaseSamples = attackSamples
 
+        var idx = 0
+        for (i in 0 until numSamples) {
+            val raw = when (waveType) {
+                WaveType.SINE -> sin(2 * PI * i / (sampleRate / frequency))
+                WaveType.TRIANGLE -> {
+                    val t = (i.toDouble() * frequency / sampleRate) % 1.0
+                    if (t < 0.5) (4.0 * t - 1.0) else (3.0 - 4.0 * t)
+                }
+            }
+
+            val env = when {
+                attackSamples > 0 && i < attackSamples ->
+                    i.toDouble() / attackSamples
+                releaseSamples > 0 && i > numSamples - releaseSamples ->
+                    (numSamples - i).toDouble() / releaseSamples
+                else -> 1.0
+            }
+
+            val pcm = (raw * 32767.0 * env).toInt().coerceIn(-32767, 32767).toShort()
+            generatedSnd[idx++] = (pcm.toInt() and 0x00ff).toByte()
+            generatedSnd[idx++] = (pcm.toInt() and 0xff00 ushr 8).toByte()
+        }
+        return generatedSnd
+    }
+
+    // ── Core Playback ─────────────────────────────────────────────────────────
+
+    private fun playToneSequence(
+        frequencies: List<Double>,
+        toneDurationMs: Int,
+        pauseDurationMs: Int,
+        volume: Float,
+        finalToneOverrideMs: Int? = null,
+        attackMs: Int = 8,
+        waveType: WaveType = WaveType.SINE
+    ) {
+        val bufferSize = AudioTrack.getMinBufferSize(
+            sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT
+        )
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
             .build()
 
         synchronized(audioLock) {
-            // Stop and release any existing track to prevent overlaps/races
             currentAudioTrack?.stop()
             currentAudioTrack?.release()
-
             currentAudioTrack = AudioTrack.Builder()
                 .setAudioAttributes(audioAttributes)
                 .setAudioFormat(
@@ -283,7 +482,6 @@ class DynamicToneGenerator(private val context: Context) {
                 .setBufferSizeInBytes(bufferSize)
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .build()
-
             currentAudioTrack?.setVolume(volume)
             currentAudioTrack?.play()
         }
@@ -291,19 +489,12 @@ class DynamicToneGenerator(private val context: Context) {
         try {
             for (i in frequencies.indices) {
                 val freq = frequencies[i]
-                val actualDuration = if (i == frequencies.size - 1 && finalToneOverrideMs != null) finalToneOverrideMs else toneDurationMs
-                
-                val toneBuffer = generateSineWave(freq, actualDuration, volume)
-                
-                synchronized(audioLock) {
-                    currentAudioTrack?.write(toneBuffer, 0, toneBuffer.size)
-                }
-                
-                // Generate a silent buffer for pauses
+                val dur = if (i == frequencies.size - 1 && finalToneOverrideMs != null)
+                    finalToneOverrideMs else toneDurationMs
+                val toneBuffer = generateBuffer(freq, dur, waveType, attackMs)
+                synchronized(audioLock) { currentAudioTrack?.write(toneBuffer, 0, toneBuffer.size) }
                 val pauseBuffer = ByteArray(sampleRate * 2 * pauseDurationMs / 1000)
-                synchronized(audioLock) {
-                    currentAudioTrack?.write(pauseBuffer, 0, pauseBuffer.size)
-                }
+                synchronized(audioLock) { currentAudioTrack?.write(pauseBuffer, 0, pauseBuffer.size) }
             }
         } catch (e: Exception) {
             android.util.Log.e("HomeFrontAlerts", "Error during tone playback", e)
@@ -317,49 +508,80 @@ class DynamicToneGenerator(private val context: Context) {
         }
     }
 
-    // Assuming this block is part of a different class/function, e.g., StatusManager.recalculateStatus
-    // This code is placed here as per the user's provided "Code Edit" snippet,
-    // but it is syntactically incorrect in this context without 'threats', 'now', 'threatTimeoutMs'
-    // and the closing brace for the synchronized block.
-    // To make it syntactically correct and follow the instruction, I'm assuming it's a new function
-    // or part of an existing one not shown in the provided document.
-    // For the purpose of this exercise, I'm placing it as a new private function.
-    // In a real scenario, this would be placed within the correct class/function (e.g., StatusManager).
-    private fun recalculateStatusPlaceholder() {
-        // Placeholder for 'threats', 'now', 'threatTimeoutMs'
-        // In a real implementation, these would be defined or passed in.
-        val threats = org.json.JSONObject() // Example placeholder
-        val now = System.currentTimeMillis()
-        val threatTimeoutMs = 30 * 60 * 1000L // 30 minutes
+    // ── PCM Buffer Generators ─────────────────────────────────────────────────
 
-        val iter = threats.keys()
-        while(iter.hasNext()) {
-            val z = iter.next()
-            val obj = threats.getJSONObject(z)
-            // Remove threat if it's past the 30-min window
-            if (now - obj.optLong("t", now) > threatTimeoutMs) { 
-                iter.remove()
-            }
-        }
-    }
-
-    private fun generateSineWave(frequency: Double, durationMs: Int, volume: Float): ByteArray {
+    /**
+     * Generates a PCM buffer for sine or triangle wave with attack/release envelope.
+     * AudioTrack.setVolume() controls amplitude — max PCM level is used here.
+     */
+    private fun generateBuffer(
+        frequency: Double,
+        durationMs: Int,
+        waveType: WaveType = WaveType.SINE,
+        attackMs: Int = 8
+    ): ByteArray {
         val numSamples = Math.round(durationMs * sampleRate / 1000.0).toInt()
-        val sample = DoubleArray(numSamples)
         val generatedSnd = ByteArray(2 * numSamples)
 
-        for (i in 0 until numSamples) {
-            // Standard generic formula for generating a sine wave tone
-            sample[i] = sin(2 * PI * i / (sampleRate / frequency))
-        }
+        val attackSamples = min(attackMs * sampleRate / 1000, numSamples / 3)
+        val releaseSamples = min(attackSamples, numSamples / 3)
 
-        // Convert double samples to 16 bit pcm sound array
         var idx = 0
-        for (dVal in sample) {
-            // Use maximum amplitude (32767) - let audioTrack.setVolume() handle the slider value
-            val normalizedVal = (dVal * 32767).toInt().toShort()
-            generatedSnd[idx++] = (normalizedVal.toInt() and 0x00ff).toByte()
-            generatedSnd[idx++] = (normalizedVal.toInt() and 0xff00 ushr 8).toByte()
+        for (i in 0 until numSamples) {
+            val raw = when (waveType) {
+                WaveType.SINE -> sin(2 * PI * i / (sampleRate / frequency))
+                WaveType.TRIANGLE -> {
+                    // Triangle: -1 at 0, +1 at half-period, -1 at period
+                    val t = (i.toDouble() * frequency / sampleRate) % 1.0
+                    if (t < 0.5) (4.0 * t - 1.0) else (3.0 - 4.0 * t)
+                }
+            }
+
+            val env = when {
+                attackSamples > 0 && i < attackSamples ->
+                    i.toDouble() / attackSamples
+                releaseSamples > 0 && i > numSamples - releaseSamples ->
+                    (numSamples - i).toDouble() / releaseSamples
+                else -> 1.0
+            }
+
+            val pcm = (raw * 32767.0 * env).toInt().coerceIn(-32767, 32767).toShort()
+            generatedSnd[idx++] = (pcm.toInt() and 0x00ff).toByte()
+            generatedSnd[idx++] = (pcm.toInt() and 0xff00 ushr 8).toByte()
+        }
+        return generatedSnd
+    }
+
+    /**
+     * Generates a sine wave with LFO amplitude modulation (tremolo/wobble) and attack/release.
+     * Used for CAUTION alerts.
+     */
+    private fun generateWobbleBuffer(
+        frequency: Double,
+        durationMs: Int,
+        lfoHz: Double,
+        lfoDepth: Double
+    ): ByteArray {
+        val numSamples = Math.round(durationMs * sampleRate / 1000.0).toInt()
+        val generatedSnd = ByteArray(2 * numSamples)
+        val attackSamples = min(8 * sampleRate / 1000, numSamples / 3)
+        val releaseSamples = attackSamples
+
+        var idx = 0
+        for (i in 0 until numSamples) {
+            val carrier = sin(2 * PI * i / (sampleRate / frequency))
+            val lfo = lfoDepth * sin(2 * PI * lfoHz * i / sampleRate)
+            val raw = carrier * (1.0 + lfo)
+
+            val env = when {
+                i < attackSamples -> i.toDouble() / attackSamples.coerceAtLeast(1)
+                i > numSamples - releaseSamples -> (numSamples - i).toDouble() / releaseSamples.coerceAtLeast(1)
+                else -> 1.0
+            }
+
+            val pcm = (raw * 32767.0 * env).coerceIn(-32767.0, 32767.0).toInt().toShort()
+            generatedSnd[idx++] = (pcm.toInt() and 0x00ff).toByte()
+            generatedSnd[idx++] = (pcm.toInt() and 0xff00 ushr 8).toByte()
         }
         return generatedSnd
     }

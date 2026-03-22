@@ -36,7 +36,9 @@ class LocalPollingService : Service() {
 
     companion object {
         const val NOTIFICATION_ID = 991
-        const val CHANNEL_ID = "LocalShieldChannel"
+        const val ALERT_NOTIFICATION_ID = 992
+        const val SHIELD_CHANNEL_ID = "LocalShieldStatusChannel"
+        const val ALERT_CHANNEL_ID = "ActiveAlertChannel"
     }
 
     override fun onCreate() {
@@ -54,7 +56,11 @@ class LocalPollingService : Service() {
         }
         
         isRunning = true
-        getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE).edit().putBoolean("shield_active", true).apply()
+        getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE).edit().apply {
+            putBoolean("shield_active", true)
+            putLong("shield_start_ms", System.currentTimeMillis())
+            apply()
+        }
         pollingThread = kotlin.concurrent.thread(start = true) {
             while (isRunning) {
                 try {
@@ -93,85 +99,62 @@ class LocalPollingService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val serviceChannel = NotificationChannel(
-                CHANNEL_ID,
-                "Direct Connectivity Shield",
-                NotificationManager.IMPORTANCE_HIGH
-            )
             val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(serviceChannel)
+
+            // 1. Quiet Background Status Channel (The "App is running" notification)
+            val shieldChannel = NotificationChannel(
+                SHIELD_CHANNEL_ID,
+                "Connectivity Shield (Background Status)",
+                NotificationManager.IMPORTANCE_MIN // MIN means it hides at the very bottom of the shade
+            ).apply {
+                description = "Shows that the app is actively monitoring in the background."
+                setShowBadge(false)
+            }
+            manager.createNotificationChannel(shieldChannel)
+
+            // 2. High-Priority Active Alert Channel (The "Red Siren" popup)
+            val alertChannel = NotificationChannel(
+                ALERT_CHANNEL_ID,
+                "Active Emergency Alerts",
+                NotificationManager.IMPORTANCE_HIGH // HIGH forces head-up display drop-down
+            ).apply {
+                description = "Critical alerts when threats are detected."
+                enableVibration(true)
+                enableLights(true)
+                lightColor = Color.RED
+            }
+            manager.createNotificationChannel(alertChannel)
         }
     }
 
     private fun updateForegroundNotification(status: String) {
         val sharedPrefs = getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
-        val zone = sharedPrefs.getString("current_home_zone", "Jerusalem")
-        val vol = (sharedPrefs.getFloat("alert_volume", 1.0f) * 100).toInt()
+        val zone = sharedPrefs.getString("current_home_zone", "Detecting...")
         
-        val statusText = when(status) {
-            "RED" -> getString(R.string.notif_critical)
-            "ORANGE" -> getString(R.string.notif_warning)
-            "YELLOW" -> getString(R.string.notif_threat)
-            else -> getString(R.string.notif_ok)
-        }
+        // This is purely the background status text now. No flashing threat data here.
+        val statusText = if (status == "GREEN") "Monitoring Network" else "Threat Activity Detected"
+        val content = "Zone: $zone | Status: $statusText"
         
-        // 10-Minute Summary Logic
-        val threatsStr = sharedPrefs.getString("active_threat_map", "{}") ?: "{}"
-        val tenMinsMs = 10 * 60 * 1000L
-        var alertsCount10m = 0
-        var closestDist10m = Double.MAX_VALUE
-        try {
-            val threats = org.json.JSONObject(threatsStr)
-            val iter = threats.keys()
-            val res = locationManager.resolveCurrentLocation()
-            val recentZones = mutableListOf<String>()
-            while(iter.hasNext()) {
-                val z = iter.next()
-                val obj = threats.getJSONObject(z)
-                val t = obj.optLong("t", 0L)
-                val rawName = obj.optString("name", z)
-                if (System.currentTimeMillis() - t <= tenMinsMs) {
-                    alertsCount10m++
-                    recentZones.add(rawName)
-                }
-            }
-            if (recentZones.isNotEmpty()) {
-                val dists = distanceCalculator.calculateDistancesToAlerts(res.lat, res.lng, recentZones)
-                if (dists.isNotEmpty()) {
-                    closestDist10m = dists.minOrNull() ?: Double.MAX_VALUE
-                }
-            }
-        } catch(e: Exception) {}
-
-        var recentText = ""
-        if (alertsCount10m > 0) {
-            val distText = if (closestDist10m == Double.MAX_VALUE) getString(R.string.remote_alert) else String.format("%.1f km", closestDist10m)
-            recentText = "\n📍 " + getString(R.string.recent_alerts_summary, alertsCount10m, distText)
-        }
-
-        val content = "Zone: $zone | Vol: $vol%\n$statusText$recentText"
         val notification = createStatusNotification(content, status)
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
     }
 
     private fun createStatusNotification(content: String, status: String): Notification {
+        val prefs = getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
+        val startTime = prefs.getLong("shield_start_ms", System.currentTimeMillis())
         val intent = Intent(this, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK }
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
-        val color = when(status) {
-            "RED" -> Color.RED
-            "ORANGE" -> Color.parseColor("#FF9500")
-            "YELLOW" -> Color.YELLOW
-            else -> Color.GREEN
-        }
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.notif_title))
+        
+        return NotificationCompat.Builder(this, SHIELD_CHANNEL_ID)
+            .setContentTitle("Active Protection")
             .setContentText(content)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(content))
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setColor(color)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setColorized(true)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setColor(Color.parseColor("#34C759")) // Greenish tint
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setUsesChronometer(true)
+            .setWhen(startTime)
+            .setColorized(false) 
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .build()

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tzeva Artzi — Sound Lab v4</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --urgent:#ff3b30; --urgent-dim:rgba(255,59,48,.12);
+      --caution:#ff9500; --caution-dim:rgba(255,149,0,.12);
+      --calm:#34c759; --calm-dim:rgba(52,199,89,.12);
+      --chosen:#6c63ff; --chosen-glow:rgba(108,99,255,.35);
+      --bg:#09090d; --surf:#111118; --surf2:#181824;
+      --border:rgba(255,255,255,.07); --text:#f0f0f5; --muted:#6a6a8a;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;padding:36px 20px 80px}
+
+    /* ── top bar ── */
+    .topbar{display:flex;align-items:center;justify-content:space-between;max-width:1160px;margin:0 auto 36px;flex-wrap:wrap;gap:12px}
+    .topbar h1{font-size:1.5rem;font-weight:700;background:linear-gradient(135deg,#fff,#aaa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .topbar-right{display:flex;align-items:center;gap:10px}
+    .unlock-btn{background:linear-gradient(135deg,#3a3aff,#8a2be2);color:#fff;border:none;padding:9px 22px;border-radius:50px;font-size:.82rem;font-weight:600;cursor:pointer;transition:opacity .2s,transform .15s;box-shadow:0 3px 16px rgba(58,58,255,.32)}
+    .unlock-btn:hover{opacity:.88;transform:scale(1.03)}
+    .unlock-btn.active{background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 3px 16px rgba(34,197,94,.32)}
+    .vol-pill{display:flex;align-items:center;gap:8px;background:var(--surf);border:1px solid var(--border);border-radius:50px;padding:7px 14px}
+    .vol-pill label{font-size:.73rem;color:var(--muted);white-space:nowrap}
+    .vol-pill input{width:96px;accent-color:#6c6cff}
+    .vol-pill span{font-size:.73rem;font-weight:600;min-width:28px;text-align:right}
+
+    /* ── active config banner ── */
+    .active-banner{max-width:1160px;margin:0 auto 44px}
+    .banner-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--chosen);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+    .banner-label::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--chosen);box-shadow:0 0 6px var(--chosen)}
+    .active-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+    .active-card{background:var(--surf);border:1.5px solid var(--chosen);border-radius:14px;padding:18px 16px;cursor:pointer;transition:transform .12s,box-shadow .12s;position:relative;overflow:hidden}
+    .active-card:hover{transform:translateY(-2px);box-shadow:0 6px 28px var(--chosen-glow)}
+    .active-card:active{transform:scale(.97)}
+    .active-card.playing::after{content:'';position:absolute;inset:0;border-radius:14px;animation:ap .6s ease-out forwards}
+    @keyframes ap{0%{box-shadow:0 0 0 0 var(--chosen-glow)}100%{box-shadow:0 0 0 16px transparent}}
+    .ac-tag{position:absolute;top:0;right:0;background:var(--chosen);color:#fff;font-size:.58rem;font-weight:700;letter-spacing:.4px;padding:3px 9px 3px 8px;border-radius:0 14px 0 9px;text-transform:uppercase}
+    .ac-icon{font-size:1.5rem;margin-bottom:9px}
+    .ac-title{font-size:.88rem;font-weight:700;margin-bottom:3px}
+    .ac-desc{font-size:.7rem;color:var(--muted);line-height:1.4}
+    .ac-badge{display:inline-block;margin-top:8px;font-size:.62rem;font-weight:700;letter-spacing:.4px;padding:2px 9px;border-radius:20px;text-transform:uppercase}
+    .active-card.calm .ac-badge{background:var(--calm-dim);color:var(--calm)}
+    .active-card.caution .ac-badge{background:var(--caution-dim);color:var(--caution)}
+    .active-card.urgent .ac-badge{background:var(--urgent-dim);color:var(--urgent)}
+
+    /* URGENT quick-play: inline zone selector */
+    .ac-zones{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+    .zb{background:var(--surf2);border:1px solid rgba(255,59,48,.3);color:var(--muted);border-radius:6px;padding:3px 9px;font-size:.68rem;font-weight:600;cursor:pointer;transition:background .12s,color .12s,border-color .12s}
+    .zb:hover{background:var(--urgent-dim);color:var(--urgent);border-color:var(--urgent)}
+
+    /* ── divider ── */
+    .divider{max-width:1160px;margin:44px auto 36px;display:flex;align-items:center;gap:14px}
+    .divider-line{flex:1;height:1px;background:var(--border)}
+    .divider span{font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
+
+    /* ── sections ── */
+    section{max-width:1160px;margin:0 auto 48px}
+    .sh{display:flex;align-items:center;gap:10px;margin-bottom:15px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+    .sh .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .sh h2{font-size:.95rem;font-weight:600}
+    .sh .note{margin-left:auto;color:var(--muted);font-size:.68rem}
+
+    /* ── cards ── */
+    .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:9px}
+    .card{background:var(--surf);border:1px solid var(--border);border-radius:12px;padding:13px 12px;cursor:pointer;transition:background .12s,border-color .12s,transform .1s;user-select:none;position:relative;overflow:hidden}
+    .card:hover{background:var(--surf2);transform:translateY(-1px)}
+    .card:active{transform:scale(.97)}
+    .card.playing::after{content:'';position:absolute;inset:0;border-radius:12px;animation:cp .55s ease-out forwards}
+    @keyframes cp{0%{box-shadow:0 0 0 0 var(--pc,rgba(255,255,255,.25))}100%{box-shadow:0 0 0 12px transparent}}
+    .card[data-s=urgent].playing::after{--pc:rgba(255,59,48,.45)}
+    .card[data-s=caution].playing::after{--pc:rgba(255,149,0,.45)}
+    .card[data-s=calm].playing::after{--pc:rgba(52,199,89,.45)}
+    .pdot{position:absolute;top:9px;right:9px;width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.1)}
+    .card.playing .pdot{background:#fff;box-shadow:0 0 4px #fff}
+    .card.chosen{border-color:var(--chosen);background:rgba(108,99,255,.07)}
+    .chosen-corner{position:absolute;top:0;right:0;background:var(--chosen);color:#fff;font-size:.55rem;font-weight:700;letter-spacing:.3px;padding:2px 7px 2px 6px;border-radius:0 12px 0 7px;text-transform:uppercase}
+    .ct{font-size:.76rem;font-weight:600;margin-bottom:3px;line-height:1.3}
+    .cm{font-size:.67rem;color:var(--muted);line-height:1.38}
+    .cb{display:inline-block;margin-top:6px;font-size:.61rem;font-weight:700;letter-spacing:.4px;padding:2px 7px;border-radius:20px;text-transform:uppercase}
+    .calm .dot{background:var(--calm)} .calm .card{border-left:3px solid rgba(52,199,89,.22)} .calm .card:hover{border-left-color:var(--calm)} .calm .cb{background:var(--calm-dim);color:var(--calm)}
+    .caution .dot{background:var(--caution)} .caution .card{border-left:3px solid rgba(255,149,0,.22)} .caution .card:hover{border-left-color:var(--caution)} .caution .cb{background:var(--caution-dim);color:var(--caution)}
+    .urgent .dot{background:var(--urgent)} .urgent .card{border-left:3px solid rgba(255,59,48,.22)} .urgent .card:hover{border-left-color:var(--urgent)} .urgent .cb{background:var(--urgent-dim);color:var(--urgent)}
+
+    /* ── mode selector ── */
+    .mode-box{max-width:1160px;margin:0 auto 28px;background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
+    .mode-box h3{font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+    .mpills{display:flex;flex-wrap:wrap;gap:6px}
+    .mpill{background:var(--surf2);border:1px solid var(--border);border-radius:50px;padding:6px 13px;cursor:pointer;transition:background .12s,border-color .12s;user-select:none}
+    .mpill:hover{border-color:rgba(108,99,255,.4)}
+    .mpill.sel{background:rgba(108,99,255,.13);border-color:#6c63ff;box-shadow:0 0 0 1px #6c63ff}
+    .mpill.chosen-mode{border-color:rgba(108,99,255,.5)}
+    .mn{font-size:.74rem;font-weight:600}
+    .mpill.sel .mn{color:#6c63ff}
+    .mode-hint{margin-top:10px;font-size:.69rem;color:var(--muted);padding:7px 11px;background:var(--surf2);border-radius:7px;border-left:2px solid #6c63ff}
+
+    footer{text-align:center;color:var(--muted);font-size:.68rem;margin-top:36px}
+  </style>
+</head>
+<body>
+
+<!-- ── Top Bar ──────────────────────────────────────────────────── -->
+<div class="topbar">
+  <h1>🎛 Tzeva Artzi — Sound Lab</h1>
+  <div class="topbar-right">
+    <button class="unlock-btn" id="unlockBtn">▶ Unlock Audio</button>
+    <div class="vol-pill">
+      <label>Vol</label>
+      <input type="range" id="volSlider" min="0" max="1" step="0.01" value="0.8">
+      <span id="volLabel">80%</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── Active Configuration ──────────────────────────────────────── -->
+<div class="active-banner">
+  <div class="banner-label">Active Configuration — branch: feature/audio-redesign</div>
+  <div class="active-grid" id="active-grid"></div>
+</div>
+
+<!-- ── Divider ────────────────────────────────────────────────────── -->
+<div class="divider">
+  <div class="divider-line"></div>
+  <span>Sound Lab — All Variants</span>
+  <div class="divider-line"></div>
+</div>
+
+<!-- ── CALM ──────────────────────────────────────────────────────── -->
+<section class="calm">
+  <div class="sh"><div class="dot"></div><h2>CALM — All Clear</h2><span class="note">5 variants</span></div>
+  <div class="cards" id="calm-cards"></div>
+</section>
+
+<!-- ── CAUTION ───────────────────────────────────────────────────── -->
+<section class="caution">
+  <div class="sh"><div class="dot"></div><h2>CAUTION — Pre-Warning</h2><span class="note">9 variants · Remote + Local wobble chosen</span></div>
+  <div class="cards" id="caution-cards"></div>
+</section>
+
+<!-- ── URGENT MODE SELECTOR ───────────────────────────────────────── -->
+<div class="mode-box">
+  <h3>🎚 URGENT mode <span style="color:#6c63ff;font-size:.65rem;margin-left:6px">· select → click any zone set</span></h3>
+  <div class="mpills" id="modePills"></div>
+  <div class="mode-hint" id="modeHint"></div>
+</div>
+
+<!-- ── URGENT ZONE SETS ───────────────────────────────────────────── -->
+<section class="urgent">
+  <div class="sh"><div class="dot"></div><h2>Small Batch</h2><span class="note">5 sets · 1–8 zones</span></div>
+  <div class="cards" id="us-cards"></div>
+</section>
+<section class="urgent">
+  <div class="sh"><div class="dot"></div><h2>Medium Batch</h2><span class="note">5 sets · 11–23 zones</span></div>
+  <div class="cards" id="um-cards"></div>
+</section>
+<section class="urgent">
+  <div class="sh"><div class="dot"></div><h2>Mass Salvo</h2><span class="note">10 sets · 102–610 zones · GC production logs</span></div>
+  <div class="cards" id="ul-cards"></div>
+</section>
+
+<footer>Sound Lab v4 · feature/audio-redesign · Internal use only</footer>
+
+<script>
+// ══ STATE ═════════════════════════════════════════════════════════
+let audioCtx=null, masterVolume=0.8, audioUnlocked=false, currentMode='whisper';
+const ctx=()=>{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+
+// ══ CORE SYNTHESIS ════════════════════════════════════════════════
+const MIN_FREQ=300,MAX_FREQ=1500,MAX_DIST=500;
+function d2f(km){return MIN_FREQ+Math.max(0,Math.min(km,MAX_DIST))/MAX_DIST*(MAX_FREQ-MIN_FREQ);}
+function d2fWhisper(km){return 420+Math.max(0,Math.min(km,MAX_DIST))/MAX_DIST*(780-420);}
+function volScale(n){return Math.min(1,5/Math.sqrt(Math.max(5,n)));}
+
+function tone(c,freq,t0,dur,vol,opts={}){
+  const{wave='sine',harm=false,sweep=false,sweepTo=null}=opts;
+  const osc=c.createOscillator(),g=c.createGain();
+  osc.type=wave;
+  if(sweep&&sweepTo!=null){osc.frequency.setValueAtTime(freq,t0);osc.frequency.linearRampToValueAtTime(sweepTo,t0+dur);}
+  else osc.frequency.setValueAtTime(freq,t0);
+  const atk=Math.min(0.008,dur*.15),rel=Math.min(0.008,dur*.15);
+  g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(vol,t0+atk);
+  g.gain.setValueAtTime(vol,Math.max(t0+atk+.001,t0+dur-rel));g.gain.linearRampToValueAtTime(0,t0+dur);
+  if(harm){
+    const o2=c.createOscillator(),g2=c.createGain();
+    o2.type=wave;o2.frequency.setValueAtTime(freq*2,t0);
+    g2.gain.setValueAtTime(0,t0);g2.gain.linearRampToValueAtTime(vol*.34,t0+atk);
+    g2.gain.setValueAtTime(vol*.34,Math.max(t0+atk+.001,t0+dur-rel));g2.gain.linearRampToValueAtTime(0,t0+dur);
+    o2.connect(g2);g2.connect(c.destination);o2.start(t0);o2.stop(t0+dur+.01);
+  }
+  osc.connect(g);g.connect(c.destination);osc.start(t0);osc.stop(t0+dur+.01);
+}
+
+function bell(c,freq,t0,vol){
+  const osc=c.createOscillator(),g=c.createGain();
+  osc.type='triangle';osc.frequency.setValueAtTime(freq,t0);
+  g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(vol,t0+.01);
+  g.gain.exponentialRampToValueAtTime(.001,t0+.68);
+  osc.connect(g);g.connect(c.destination);osc.start(t0);osc.stop(t0+.72);
+}
+
+function sam(arr,n){if(arr.length<=n)return arr;const s=(arr.length-1)/(n-1);return Array.from({length:n},(_,i)=>arr[Math.round(i*s)]);}
+const fnear=d=>[...d].sort((a,b)=>b-a);
+const nnear=d=>[...d].sort((a,b)=>a-b);
+
+// ══ CALM ══════════════════════════════════════════════════════════
+function playCalm(v,vol){
+  if(!audioUnlocked)return;
+  const c=ctx(),now=c.currentTime+.06,bv=Math.min(1,Math.max(.5,vol*2));
+  switch(v){
+    case 0:// Two-note resolve ✓ CHOSEN
+      tone(c,330,now,.18,bv);tone(c,523,now+.22,.72,bv*.85,{harm:true});break;
+    case 1:// Bell tones
+      [392,523,659].forEach((f,i)=>bell(c,f,now+i*.5,bv));break;
+    case 2:// Descending relief
+      [659,523,330].forEach((f,i)=>tone(c,f,now+i*.45,.4,bv,{harm:true}));break;
+    case 3:// Warm unison
+      [392,587,784].forEach(f=>{
+        const osc=c.createOscillator(),g=c.createGain();
+        osc.type='sine';osc.frequency.setValueAtTime(f,now);
+        const v2=bv*(392/f)*.9;
+        g.gain.setValueAtTime(0,now);g.gain.linearRampToValueAtTime(v2,now+.1);
+        g.gain.exponentialRampToValueAtTime(.001,now+1.3);
+        osc.connect(g);g.connect(c.destination);osc.start(now);osc.stop(now+1.35);
+      });break;
+    case 4:// Soft chime
+      [[392,0,.2],[523,.26,.18],[659,.5,.62]].forEach(([f,d,dur])=>{
+        const osc=c.createOscillator(),g=c.createGain();
+        osc.type='triangle';osc.frequency.setValueAtTime(f,now+d);
+        g.gain.setValueAtTime(0,now+d);g.gain.linearRampToValueAtTime(bv,now+d+.01);
+        g.gain.exponentialRampToValueAtTime(.001,now+d+dur+.05);
+        osc.connect(g);g.connect(c.destination);osc.start(now+d);osc.stop(now+d+dur+.1);
+      });break;
+  }
+}
+
+// ══ CAUTION ═══════════════════════════════════════════════════════
+function wobble(c,freq,t0,dur,lfoHz,depth,vol){
+  const osc=c.createOscillator(),g=c.createGain();
+  const lfo=c.createOscillator(),lg=c.createGain();
+  osc.type='sine';osc.frequency.setValueAtTime(freq,t0);
+  lfo.frequency.setValueAtTime(lfoHz,t0);lg.gain.setValueAtTime(depth,t0);
+  g.gain.setValueAtTime(vol,t0);
+  lfo.connect(lg);lg.connect(g.gain);osc.connect(g);g.connect(c.destination);
+  osc.start(t0);lfo.start(t0);osc.stop(t0+dur);lfo.stop(t0+dur);
+}
+
+function playCaution(v,vol){
+  if(!audioUnlocked)return;
+  const c=ctx(),now=c.currentTime+.06;
+  switch(v){
+    case 0:[440,554.37,440,554.37].forEach((f,i)=>tone(c,f,now+i*.2,.15,vol));break;
+    case 1:[440,554.37,440,554.37,440,554.37].forEach((f,i)=>tone(c,f,now+i*.2,.15,vol));break;
+    case 2:[440,554.37,440,554.37].forEach((f,i)=>tone(c,f,now+i*.22,.18,vol,{harm:true}));break;
+    case 3:// Wobble Remote ✓ CHOSEN
+      [392,466.16,392].forEach((f,i)=>wobble(c,f,now+i*.3,.24,6,.17,vol));break;
+    case 4:// Wobble Local ✓ CHOSEN
+      [340,440,340,440,340].forEach((f,i)=>wobble(c,f,now+i*.25,.21,9,.24,vol));break;
+    case 5:[[392,494],[415,523],[440,554]].forEach(([f1,f2],i)=>{wobble(c,f1,now+i*.35,.1,0,0,vol);wobble(c,f2,now+i*.35+.13,.1,0,0,vol);});break;
+    case 6:[[0,520],[.08,660],[.34,520],[.42,660]].forEach(([d,f])=>tone(c,f,now+d,.07,vol));break;
+    case 7:for(let i=0;i<8;i++)tone(c,440+(i%2)*22,now+i*.11,.075,vol);break;
+    case 8:{const osc=c.createOscillator(),g=c.createGain();
+      osc.type='sawtooth';osc.frequency.setValueAtTime(800,now);osc.frequency.linearRampToValueAtTime(380,now+.3);
+      g.gain.setValueAtTime(0,now);g.gain.linearRampToValueAtTime(vol*.65,now+.01);g.gain.linearRampToValueAtTime(0,now+.3);
+      osc.connect(g);g.connect(c.destination);osc.start(now);osc.stop(now+.32);
+      tone(c,580,now+.38,.1,vol);tone(c,580,now+.54,.1,vol);}break;
+    case 9:for(let i=0;i<4;i++){tone(c,220,now+i*.3,.2,vol*.8);tone(c,880,now+i*.3+.02,.1,vol*.28);}break;
+  }
+}
+
+// ══ URGENT MODES ══════════════════════════════════════════════════
+function _staccato(c,dists,vol,opts={}){
+  const s=sam(fnear(dists),Math.floor(1000/20)),n=s.length;
+  let tD=100,pD=50;
+  if(n*(tD+pD)>1000){const ps=Math.floor(1000/n);tD=Math.max(15,Math.floor(ps*.65));pD=Math.max(5,ps-tD);}
+  const now=c.currentTime+.06;let cur=now;
+  s.forEach(d=>{tone(c,d2f(d),cur,tD/1000,vol,opts);cur+=(tD+pD)/1000;});
+}
+
+const MODES={
+  whisper:{label:'Whisper',badge:'✓ Active',
+    desc:'Triangle wave · 420–780 Hz narrow range · volume scales with zone count (610 zones = 20%) · 30ms attack bloom. Chosen for production.',
+    play(c,dists,vol){
+      const sorted=fnear(dists),n=sorted.length,sv=vol*volScale(n);
+      let tD=110,pD=60;
+      if(n*(tD+pD)>1000){const ps=Math.floor(1000/n);tD=Math.max(20,Math.floor(ps*.62));pD=Math.max(7,ps-tD);}
+      const ATK=.030,now=c.currentTime+.06;let cur=now;
+      sam(sorted,Math.floor(1000/27)).forEach(dist=>{
+        const freq=d2fWhisper(dist),dur=tD/1000,rel=Math.min(.012,dur*.18);
+        const osc=c.createOscillator(),g=c.createGain();
+        osc.type='triangle';osc.frequency.setValueAtTime(freq,cur);
+        g.gain.setValueAtTime(0,cur);g.gain.linearRampToValueAtTime(sv,cur+ATK);
+        g.gain.setValueAtTime(sv,Math.max(cur+ATK+.001,cur+dur-rel));g.gain.linearRampToValueAtTime(0,cur+dur);
+        osc.connect(g);g.connect(c.destination);osc.start(cur);osc.stop(cur+dur+.01);
+        cur+=(tD+pD)/1000;
+      });
+    }
+  },
+  staccato:{label:'Staccato Sine',badge:'Baseline',
+    desc:'Sequential high→low pings · sine wave · 1s budget · full 300–1500 Hz range.',
+    play(c,d,vol){_staccato(c,d,vol,{});}
+  },
+  harmonic:{label:'Harmonic Stack',badge:'Alt',
+    desc:'Staccato + 2nd partial at 34% amplitude · warmer and richer, better noise penetration.',
+    play(c,d,vol){_staccato(c,d,vol,{harm:true});}
+  },
+  cascadeSoft:{label:'Cascade · Soft',badge:'Alt',
+    desc:'Far/mid/near bands staggered 280ms · triangle wave · dynamic volume · compressed freq range.',
+    play(c,dists,vol){
+      const sorted=nnear(dists),n=sorted.length,sv=vol*volScale(n);
+      const atkMs=Math.min(.025,.008+n/30000);
+      const bands=[sorted.slice(Math.floor(n*2/3)),sorted.slice(Math.floor(n/3),Math.floor(n*2/3)),sorted.slice(0,Math.floor(n/3))];
+      const now=c.currentTime+.06;
+      bands.forEach((band,wi)=>{
+        const s=sam([...band].reverse(),16);let cur=now+wi*.28;
+        s.forEach(d=>{
+          const freq=d2fWhisper(d),osc=c.createOscillator(),g=c.createGain();
+          osc.type='triangle';osc.frequency.setValueAtTime(freq,cur);
+          g.gain.setValueAtTime(0,cur);g.gain.linearRampToValueAtTime(sv*.84,cur+atkMs);
+          g.gain.setValueAtTime(sv*.84,Math.max(cur+atkMs+.001,cur+.028));g.gain.linearRampToValueAtTime(0,cur+.032);
+          osc.connect(g);g.connect(c.destination);osc.start(cur);osc.stop(cur+.04);
+          cur+=.038;
+        });
+      });
+    }
+  },
+  glide:{label:'Smooth Glide',badge:'Alt',
+    desc:'Single oscillator glides from max→min frequency over 1.2s. Pitch arc = geographic spread.',
+    play(c,dists,vol){
+      const fH=d2f(Math.max(...dists)),fL=d2f(Math.min(...dists));
+      const osc=c.createOscillator(),g=c.createGain();
+      osc.type='sine';osc.frequency.setValueAtTime(fH,c.currentTime+.06);
+      osc.frequency.linearRampToValueAtTime(fL,c.currentTime+1.3);
+      g.gain.setValueAtTime(0,c.currentTime+.06);g.gain.linearRampToValueAtTime(vol,c.currentTime+.12);
+      g.gain.setValueAtTime(vol,c.currentTime+1.2);g.gain.linearRampToValueAtTime(0,c.currentTime+1.35);
+      osc.connect(g);g.connect(c.destination);osc.start(c.currentTime+.06);osc.stop(c.currentTime+1.38);
+    }
+  },
+  statistical:{label:'Geographic Summary',badge:'Alt',
+    desc:'Always 5 tones: distance percentiles 0–25–50–75–100%. Always fully audible. Spread = geographic range.',
+    play(c,dists,vol){
+      const sorted=nnear(dists);
+      const freqs=[1,.75,.5,.25,0].map(p=>d2f(sorted[Math.round(p*(sorted.length-1))]));
+      const now=c.currentTime+.06;let cur=now;
+      freqs.forEach(f=>{tone(c,f,cur,.42,vol,{harm:true});cur+=.48;});
+    }
+  },
+};
+
+// ══ ZONE DATASETS ═════════════════════════════════════════════════
+function geo(n,mn,mx){return Array.from({length:n},()=>mn+Math.random()*(mx-mn));}
+const SMALL=[
+  {label:'1 zone · Pinpoint',meta:'~6 km · Sderot area',zones:1,distances:[6.2]},
+  {label:'2 zones · North pair',meta:'112–178 km · Galilee',zones:2,distances:[112,178]},
+  {label:'4 zones · Gaza envelope',meta:'6–28 km · Ashkelon corridor',zones:4,distances:[6,14,22,28]},
+  {label:'5 zones · Mixed fronts',meta:'8–308 km · South→North',zones:5,distances:[8,52,130,230,308]},
+  {label:'8 zones · Central belt',meta:'15–74 km · Dan metro',zones:8,distances:[15,22,28,35,42,51,62,74]},
+];
+const MEDIUM=[
+  {label:'11 zones · Haifa corridor',meta:'80–145 km · North',zones:11,distances:geo(11,80,145).sort((a,b)=>a-b)},
+  {label:'14 zones · South spread',meta:'4–65 km · Gaza periphery',zones:14,distances:geo(14,4,65).sort((a,b)=>a-b)},
+  {label:'17 zones · Mixed centre',meta:'12–190 km · Dan region',zones:17,distances:geo(17,12,190).sort((a,b)=>a-b)},
+  {label:'19 zones · Lebanon spread',meta:'100–220 km · North border',zones:19,distances:geo(19,100,220).sort((a,b)=>a-b)},
+  {label:'23 zones · Multi-front',meta:'5–280 km · Simultaneous',zones:23,distances:geo(23,5,280).sort((a,b)=>a-b)},
+];
+const LARGE=[
+  {label:'102 zones',meta:'South saturation · 5–92 km',zones:102,distances:geo(102,5,92)},
+  {label:'127 zones',meta:'Cross-border · 8–180 km',zones:127,distances:geo(127,8,180)},
+  {label:'156 zones',meta:'Central region · 4–210 km',zones:156,distances:geo(156,4,210)},
+  {label:'202 zones',meta:'Nationwide · Oct 7 pattern',zones:202,distances:geo(202,3,350)},
+  {label:'295 zones',meta:'Major salvo · 2025-03',zones:295,distances:geo(295,3,380)},
+  {label:'366 zones',meta:'Mass launch · 2+ fronts',zones:366,distances:geo(366,2,420)},
+  {label:'415 zones',meta:'High saturation',zones:415,distances:geo(415,2,450)},
+  {label:'485 zones',meta:'Near-max · 2025-03',zones:485,distances:geo(485,2,470)},
+  {label:'563 zones',meta:'Peak event',zones:563,distances:geo(563,1,490)},
+  {label:'610 zones',meta:'Max logged · largest observed',zones:610,distances:geo(610,1,500)},
+];
+
+// Representative demo zone sets for active config quick-play
+const DEMO_ZONES=[
+  {label:'Nearby (4)',d:[6,14,22,28]},
+  {label:'Mixed (8)',d:[15,35,62,130,230,52,42,74]},
+  {label:'Large (202)',d:geo(202,3,350)},
+  {label:'Max (610)',d:geo(610,1,500)},
+];
+
+// ══ CARD DATA ═════════════════════════════════════════════════════
+const CALM_CARDS=[
+  {label:'Two-note resolve',meta:'330 Hz pickup + 523 Hz sustained · smooth',badge:'✓ Chosen',chosen:true,fn:()=>playCalm(0,masterVolume)},
+  {label:'Bell tones',meta:'Triangle · exponential decay · 3 ascending',badge:'Finalist',fn:()=>playCalm(1,masterVolume)},
+  {label:'Descending relief',meta:'659→523→330 Hz + harmonics · sigh feel',badge:'Alt',fn:()=>playCalm(2,masterVolume)},
+  {label:'Warm unison',meta:'G+D+G octave · sine · 1.3s fade',badge:'Alt',fn:()=>playCalm(3,masterVolume)},
+  {label:'Soft chime',meta:'Triangle · doorbell timing · fast/fast/hold',badge:'Alt',fn:()=>playCalm(4,masterVolume)},
+];
+
+const CAUTION_CARDS=[
+  {label:'Baseline · 4 beats',meta:'440/554 Hz alternating',badge:'Legacy',fn:()=>playCaution(0,masterVolume)},
+  {label:'Extended · 6 beats',meta:'Same · local zone version',badge:'Legacy',fn:()=>playCaution(1,masterVolume)},
+  {label:'Warmer · harmonics',meta:'440/554 Hz + 2nd partial',badge:'Alt',fn:()=>playCaution(2,masterVolume)},
+  {label:'Wobble · Remote',meta:'392/466 Hz · 6Hz tremolo · 3 beats',badge:'✓ Chosen',chosen:true,fn:()=>playCaution(3,masterVolume)},
+  {label:'Wobble · Local',meta:'340/440 Hz · 9Hz tremolo · 5 beats',badge:'✓ Chosen',chosen:true,fn:()=>playCaution(4,masterVolume)},
+  {label:'Escalating pairs',meta:'3 rising pitch pairs',badge:'Alt',fn:()=>playCaution(5,masterVolume)},
+  {label:'Double knock',meta:'Two tight 520/660 Hz pairs',badge:'Alt',fn:()=>playCaution(6,masterVolume)},
+  {label:'Rapid stutter',meta:'8 × 440 Hz fast beeper',badge:'Alt',fn:()=>playCaution(7,masterVolume)},
+  {label:'Sweep yelp',meta:'Sawtooth 800→380 Hz + 2 beeps',badge:'Alt',fn:()=>playCaution(8,masterVolume)},
+  {label:'Low industrial',meta:'220 Hz pulse ×4 + 880 Hz overtone',badge:'Alt',fn:()=>playCaution(9,masterVolume)},
+];
+
+// ══ RENDER ════════════════════════════════════════════════════════
+function flash(el){el.classList.add('playing');setTimeout(()=>el.classList.remove('playing'),600);}
+function go(fn){if(!audioUnlocked){unlockAudio();setTimeout(fn,120);}else fn();}
+
+// Active configuration banner
+function buildActiveBanner(){
+  const grid=document.getElementById('active-grid');
+
+  // CALM
+  const cc=document.createElement('div');
+  cc.className='active-card calm';
+  cc.innerHTML=`<div class="ac-tag">Chosen</div><div class="ac-icon">🟢</div><div class="ac-title">CALM — Two-note Resolve</div><div class="ac-desc">330 Hz pickup (180ms) → 523 Hz sustained (720ms) with harmonic</div><span class="ac-badge">All Clear</span>`;
+  cc.addEventListener('click',()=>go(()=>{playCalm(0,masterVolume);flash(cc);}));
+  grid.appendChild(cc);
+
+  // CAUTION Remote
+  const cr=document.createElement('div');
+  cr.className='active-card caution';
+  cr.innerHTML=`<div class="ac-tag">Chosen</div><div class="ac-icon">🟡</div><div class="ac-title">CAUTION — Wobble Remote</div><div class="ac-desc">392/466 Hz alternating · 6 Hz LFO tremolo · 3 beats</div><span class="ac-badge">Remote / Generic</span>`;
+  cr.addEventListener('click',()=>go(()=>{playCaution(3,masterVolume);flash(cr);}));
+  grid.appendChild(cr);
+
+  // CAUTION Local
+  const cl=document.createElement('div');
+  cl.className='active-card caution';
+  cl.innerHTML=`<div class="ac-tag">Chosen</div><div class="ac-icon">🟠</div><div class="ac-title">CAUTION — Wobble Local</div><div class="ac-desc">340/440 Hz · 9 Hz LFO · 5 beats · same-zone urgency</div><span class="ac-badge">Local / Same Zone</span>`;
+  cl.addEventListener('click',()=>go(()=>{playCaution(4,masterVolume);flash(cl);}));
+  grid.appendChild(cl);
+
+  // URGENT — one card with zone quick-buttons
+  const uc=document.createElement('div');
+  uc.className='active-card urgent';
+  uc.innerHTML=`<div class="ac-tag">Chosen</div><div class="ac-icon">🔴</div><div class="ac-title">URGENT — Whisper</div><div class="ac-desc">Triangle · 420–780 Hz · vol scales with count · 30ms bloom</div><span class="ac-badge">All Batches</span><div class="ac-zones" id="active-zones"></div>`;
+  grid.appendChild(uc);
+  const zoneRow=document.getElementById('active-zones');
+  DEMO_ZONES.forEach(z=>{
+    const b=document.createElement('span');b.className='zb';b.textContent=z.label;
+    b.addEventListener('click',e=>{e.stopPropagation();go(()=>{MODES.whisper.play(ctx(),z.d,masterVolume);flash(uc);});});
+    zoneRow.appendChild(b);
+  });
+}
+
+function mkCard(c,section){
+  const el=document.createElement('div');
+  el.className='card'+(c.chosen?' chosen':'');
+  el.dataset.s=section;
+  el.innerHTML=`${c.chosen?'<div class="chosen-corner">Chosen</div>':''}<div class="pdot"></div><div class="ct">${c.label}</div><div class="cm">${c.meta}</div><span class="cb">${c.badge}</span>`;
+  el.addEventListener('click',()=>go(()=>{c.fn();flash(el);}));
+  return el;
+}
+
+function renderStatic(id,cards,sec){document.getElementById(id).replaceChildren(...cards.map(c=>mkCard(c,sec)));}
+
+function renderUrgent(id,dsets){
+  const cont=document.getElementById(id);
+  dsets.forEach(d=>{
+    const el=document.createElement('div');el.className='card';el.dataset.s='urgent';
+    el.innerHTML=`<div class="pdot"></div><div class="ct">${d.label}</div><div class="cm">${d.meta}</div><span class="cb">${d.zones} zone${d.zones>1?'s':''}</span>`;
+    el.addEventListener('click',()=>go(()=>{MODES[currentMode].play(ctx(),d.distances,masterVolume);flash(el);}));
+    cont.appendChild(el);
+  });
+}
+
+buildActiveBanner();
+renderStatic('calm-cards',CALM_CARDS,'calm');
+renderStatic('caution-cards',CAUTION_CARDS,'caution');
+renderUrgent('us-cards',SMALL);
+renderUrgent('um-cards',MEDIUM);
+renderUrgent('ul-cards',LARGE);
+
+// ══ MODE PILLS ════════════════════════════════════════════════════
+const hintEl=document.getElementById('modeHint');
+Object.entries(MODES).forEach(([key,m])=>{
+  const p=document.createElement('div');
+  p.className='mpill'+(key===currentMode?' sel':'')+(key==='whisper'?' chosen-mode':'');
+  p.innerHTML=`<span class="mn">${m.label}</span> <span style="font-size:.6rem;color:var(--muted);margin-left:4px">${m.badge}</span>`;
+  p.addEventListener('click',()=>{
+    document.querySelectorAll('.mpill').forEach(x=>x.classList.remove('sel'));
+    p.classList.add('sel');currentMode=key;hintEl.textContent=MODES[key].desc;
+  });
+  document.getElementById('modePills').appendChild(p);
+});
+hintEl.textContent=MODES[currentMode].desc;
+
+// ══ CONTROLS ══════════════════════════════════════════════════════
+function unlockAudio(){
+  const c=ctx();if(c.state==='suspended')c.resume();audioUnlocked=true;
+  const btn=document.getElementById('unlockBtn');btn.textContent='✓ Audio Ready';btn.classList.add('active');
+  const b=c.createBuffer(1,1,22050),s=c.createBufferSource();s.buffer=b;s.connect(c.destination);s.start();
+}
+document.getElementById('unlockBtn').addEventListener('click',unlockAudio);
+document.getElementById('volSlider').addEventListener('input',e=>{
+  masterVolume=parseFloat(e.target.value);
+  document.getElementById('volLabel').textContent=Math.round(masterVolume*100)+'%';
+});
+</script>
+</body>
+</html>

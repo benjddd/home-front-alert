@@ -18,7 +18,7 @@
     <string name="unit_minutes_short">m</string>
     <string name="unit_hours_short">h</string>
     <string name="remote_alert">Remote / Unknown</string>
-    <string name="settings_title">Home Front Control Panel</string>
+    <string name="settings_title">System Configuration</string>
     <string name="default_museum_he">מוזיאון ישראל, ירושלים</string>
     <string name="default_museum_en">The Israel Museum, Jerusalem</string>
     <string name="location_mode_title">Location Identity</string>
@@ -76,9 +76,9 @@
         &lt;b&gt;Situational Distinction&lt;/b&gt;: Each alert is audible country-wide, but the audio signature tells you the urgency and proximity without needing to look at the screen.&lt;br/&gt;&lt;br/&gt;
         &lt;b&gt;Less Intrusive&lt;/b&gt;: Provides a subtle but clear pulse of information, reducing the false-urgency fatigue of generic sirens.&lt;br/&gt;&lt;br/&gt;
         &lt;b&gt;Disclaimer&lt;/b&gt;: This is an unofficial tool. Always prioritize official instructions and sirens from the Home Front Command.&lt;br/&gt;&lt;br/&gt;
-        &lt;b&gt;Internal Alpha&lt;/b&gt;: You are using a development version for testing purposes. Please report any issues.
+        &lt;b&gt;Closed Testing&lt;/b&gt;: You are using a development version for testing purposes. Please report any issues.
     </string>
-    <string name="version_alpha_badge">INTERNAL ALPHA</string>
+    <string name="version_alpha_badge">CLOSED TESTING</string>
     <string name="current_status_label">CURRENT STATUS</string>
     <string name="last_detected_label">LAST DETECTED THREAT</string>
     <string name="footer_line1">Monitoring real-time emergency events.</string>

@@ -45,6 +45,7 @@ class MainActivity : AppCompatActivity() {
 
     private val uiHandler = Handler(Looper.getMainLooper())
     private var isResolvingLocation = false
+    private var isLastAlertZonesExpanded = false
     
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "shield_active") {
@@ -198,67 +199,11 @@ class MainActivity : AppCompatActivity() {
         val timerPrefix = if (status == "GREEN") getString(R.string.monitoring_for) else getString(R.string.active_for)
         tvDashTimer.text = "$timerPrefix $dispTimer"
 
-        // Local Countdown Logic
-        val threatsStr = sharedPrefs.getString("active_threat_map", "{}") ?: "{}"
-        var localRemaining = -1L
-        try {
-            val threats = org.json.JSONObject(threatsStr)
-            val res = locationManager.resolveCurrentLocation()
-            val homeZone = StatusManager.normalizeCity(res.zoneNameHe)
-            val iter = threats.keys()
-            while(iter.hasNext()) {
-                val z = iter.next()
-                if (StatusManager.normalizeCity(z) == homeZone) {
-                    val obj = threats.getJSONObject(z)
-                    val startTime = obj.optLong("t", 0)
-                    val duration = obj.optInt("c", 0)
-                    if (startTime > 0 && duration > 0) {
-                        val isUrgent = obj.optString("s", "URGENT") == "URGENT"
-                        if (isUrgent) {
-                            val rem = duration - (System.currentTimeMillis() - startTime) / 1000
-                            if (rem > 0) localRemaining = rem
-                        }
-                    }
-                }
-            }
-        } catch(e: Exception) {}
-
-        if (localRemaining > 0) {
-            tvDashCountdown.visibility = android.view.View.VISIBLE
-            tvDashCountdown.text = String.format("%02d:%02d", localRemaining / 60, localRemaining % 60)
-            tvDashTimer.visibility = android.view.View.GONE
-        } else {
-            tvDashCountdown.visibility = android.view.View.GONE
-            tvDashTimer.visibility = android.view.View.VISIBLE
-        }
-
-        // 10-Minute Summary Logic
-        val tenMinsMs = 10 * 60 * 1000L
-        var alertsCount10m = 0
-        var closestDist10m = Double.MAX_VALUE
-        try {
-            val threats = org.json.JSONObject(threatsStr)
-            val iter = threats.keys()
-            val res = locationManager.resolveCurrentLocation()
-            
-            val recentZones = mutableListOf<String>()
-            while(iter.hasNext()) {
-                val z = iter.next()
-                val obj = threats.getJSONObject(z)
-                val t = obj.optLong("t", 0L)
-                val rawName = obj.optString("name", z)
-                if (System.currentTimeMillis() - t <= tenMinsMs) {
-                    alertsCount10m++
-                    recentZones.add(rawName)
-                }
-            }
-            if (recentZones.isNotEmpty()) {
-                val dists = distanceCalculator.calculateDistancesToAlerts(res.lat, res.lng, recentZones)
-                if (dists.isNotEmpty()) {
-                    closestDist10m = dists.minOrNull() ?: Double.MAX_VALUE
-                }
-            }
-        } catch(e: Exception) {}
+        // Centralized SSOT parsing
+        val snapshot = StatusManager.getActiveThreatsSnapshot(this)
+        val localRemaining = snapshot.localRemaining
+        val alertsCount10m = snapshot.active10mCount
+        val closestDist10m = snapshot.closestDist10m
 
         val tvRecentAlertsSummary = findViewById<TextView>(R.id.tvRecentAlertsSummary)
         if (alertsCount10m > 0) {
@@ -443,8 +388,53 @@ class MainActivity : AppCompatActivity() {
         
         if (zones != null && time > 0) {
             cardLastAlert.visibility = android.view.View.VISIBLE
-            val localizedZones = zones.split(", ").joinToString(", ") { distanceCalculator.getLocalizedName(it) }
-            tvLastAlertZones.text = localizedZones
+            val rawZoneList = zones.split(", ")
+            
+            val top10CitiesHe = listOf("ירושלים", "תל אביב", "חיפה", "ראשון לציון", "פתח תקווה", "אשדוד", "נתניה", "בני ברק", "באר שבע", "חולון")
+            val res = locationManager.resolveCurrentLocation()
+            val sortedByDistance = rawZoneList.sortedBy { z -> distanceCalculator.getDistanceToZone(res.lat, res.lng, z) ?: Double.MAX_VALUE }
+            
+            val topCitiesInPayload = rawZoneList.filter { z -> top10CitiesHe.any { city -> z.contains(city) } }.toSet()
+            val nearest5 = sortedByDistance.take(5).toSet()
+            
+            val prioritySet = mutableSetOf<String>().apply {
+                addAll(topCitiesInPayload)
+                addAll(nearest5)
+            }
+            
+            val remainingSorted = sortedByDistance.filter { !prioritySet.contains(it) }
+            val finalPriorityList = prioritySet.toMutableList()
+            var fillIndex = 0
+            while (finalPriorityList.size < 10 && fillIndex < remainingSorted.size) {
+                finalPriorityList.add(remainingSorted[fillIndex])
+                fillIndex++
+            }
+            
+            val tail = remainingSorted.drop(fillIndex)
+            val displayList = finalPriorityList.map { distanceCalculator.getLocalizedName(it, true) }.toMutableList()
+            
+            var collapsedTail = ""
+            var expandedTail = ""
+            
+            if (tail.size <= 5) {
+                tail.forEach { displayList.add(distanceCalculator.getLocalizedName(it, true)) }
+            } else {
+                val tailLoc = tail.map { distanceCalculator.getLocalizedName(it, true) }
+                val moreText = if (LocaleHelper.getLanguage(this) == "iw" || LocaleHelper.getLanguage(this) == "he") "עוד" else "more"
+                collapsedTail = "... (+${tail.size} $moreText)"
+                expandedTail = "... ${tailLoc.joinToString(", ")}"
+            }
+            
+            val collapsedText = if (collapsedTail.isEmpty()) displayList.joinToString("\n") else displayList.joinToString("\n") + "\n" + collapsedTail
+            val expandedText = if (expandedTail.isEmpty()) displayList.joinToString("\n") else displayList.joinToString("\n") + "\n" + expandedTail
+            
+            tvLastAlertZones.text = if (isLastAlertZonesExpanded) expandedText else collapsedText
+            tvLastAlertZones.setOnClickListener {
+                if (expandedTail.isNotEmpty()) {
+                    isLastAlertZonesExpanded = !isLastAlertZonesExpanded
+                    tvLastAlertZones.text = if (isLastAlertZonesExpanded) expandedText else collapsedText
+                }
+            }
             
             val diffMs = System.currentTimeMillis() - time
             val diffMin = diffMs / 60000
