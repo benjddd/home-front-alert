@@ -44,6 +44,11 @@
 - Distance-based audio urgency system (pitch-mapped, 300–1500 Hz)
 - PreferenceMigration for safe upgrades
 
+## v1.7.6 (2026-03-26) — Closed Testing Promo
+- **Closed Testing Transition**: Updated Play Store status from Internal to Closed Testing.
+- **Join Instructions**: Added prominent instructions and links for Google Group and Play Store join flow.
+- **Version alignment**: Unified versioning across documentation and build files.
+
 ---
 
 ## v1.7.5 (2026-03-20) — Play Store Automation & Resilience

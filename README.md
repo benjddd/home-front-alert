@@ -1,7 +1,8 @@
 # Tzeva Artzi 🚨
 
-[![Release](https://img.shields.io/github/v/release/Attius-Digital-Art/home-front-alert)](https://github.com/Attius-Digital-Art/home-front-alert/releases)
-[![Internal Testing](https://img.shields.io/badge/Play%20Store-Internal%20Testing-blue)](https://play.google.com/console)
+[![Release](https://img.shields.io/github/v/release/Attius-Digital-Art/home-front-alert?label=version)](https://github.com/Attius-Digital-Art/home-front-alert/releases)
+[![Closed Testing](https://img.shields.io/badge/Play%20Store-Closed%20Testing-blue)](https://play.google.com/store/apps/details?id=com.attius.homefrontalert)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 > **Home Front Command alerts for Android — pitch and pattern tell you everything, eyes-free.**  
@@ -49,7 +50,18 @@ Frequencies: 300 Hz = 0 km away, 1500 Hz = 500 km away. Linear interpolation per
 - **Failover Resilience**: Uses a 10-minute "Heartbeat" (KEEPALIVE) to monitor connectivity.
 - **Automatic Shield**: If the heartbeat is missed for 20+ minutes, the app automatically activates **Direct HFC Shield** (polling) to ensure safety until the connection recovers.
 - **Auto-Recovery**: If a valid FCM message is received while in failover, the app automatically switches back to cloud mode to save battery.
-- Default for Pro flavor.
+---
+
+## Join the Testing Program (Closed Beta) 🚀
+
+Help us test the app before its public release! Follow these steps to join:
+
+1.  **Join the Google Group**: [https://groups.google.com/g/tzeva-artzi](https://groups.google.com/g/tzeva-artzi)
+    *   *Alternatively, send an empty email to:* `tzeva-artzi+subscribe@googlegroups.com`
+2.  **Download on Android**: [Play Store Link](https://play.google.com/store/apps/details?id=com.attius.homefrontalert)
+    *   *Note: The Store link will only work AFTER you have joined the Google Group.*
+
+---
 - Manual override available in Settings → Connectivity Mode.
 
 ---
