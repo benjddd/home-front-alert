@@ -52,6 +52,33 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 Log.d("HomeFrontAlerts", "FCM Keepalive received. Heartbeat registered.")
                 return 
             }
+
+            if (alertType == "CLEAR") {
+                Log.i("HomeFrontAlerts", "FCM All-Clear received. Clearing active threat zones via processAlert(CALM).")
+                // Read all currently active zones from the threat map and clear them properly.
+                // This goes through the same code path as a real HFC all-clear message:
+                // it removes zones from the map, plays the all-clear sound if the user's zone
+                // was affected, and updates the UI correctly.
+                val prefs = getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
+                val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
+                val threats = org.json.JSONObject(threatsStr)
+                val activeZones = mutableListOf<String>()
+                val iter = threats.keys()
+                while (iter.hasNext()) {
+                    val z = iter.next()
+                    val rawName = threats.optJSONObject(z)?.optString("name", z) ?: z
+                    activeZones.add(rawName)
+                }
+                if (activeZones.isNotEmpty()) {
+                    val clearId = "fcm-clear-${System.currentTimeMillis()}"
+                    StatusManager.processAlert(this, clearId, AlertType.CALM, activeZones, "[FCM-CLEAR]", toneGenerator, null)
+                } else {
+                    // No active zones to process — just ensure status is green
+                    StatusManager.updateStatus(this, "GREEN")
+                }
+                chunkBuffers.clear()
+                return
+            }
             
             val citiesJsonStr = alertData["cities"]
             val alertId = alertData["alertId"] ?: System.currentTimeMillis().toString()
