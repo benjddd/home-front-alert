@@ -2,7 +2,7 @@
 <resources>
     <string name="launcher_name">Tzeva Artzi</string>
     <string name="app_name">Tzeva Artzi - Home Front Alerts</string>
-    <string name="monitoring_title">Tzeva Artzi - Home Front Alerts</string>
+    <string name="monitoring_title">Tzeva Artzi</string>
     <string name="current_status">CURRENT STATUS</string>
     <string name="no_alerts">NO ALERTS</string>
     <string name="critical_status">CRITICAL</string>

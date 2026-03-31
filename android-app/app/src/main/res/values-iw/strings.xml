@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">צבע ארצי - התראות צבע אדום קוליות</string>
-    <string name="monitoring_title">צבע ארצי - התראות צבע אדום קוליות</string>
+    <string name="monitoring_title">צבע ארצי</string>
     <string name="current_status">מצב נוכחי</string>
     <string name="no_alerts">אין התרעות</string>
     <string name="critical_status">קריטי</string>

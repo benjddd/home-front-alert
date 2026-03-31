@@ -18,11 +18,14 @@ class ThanksActivity : AppCompatActivity() {
         }
 
         val content = """
-            <b>Inspiration and Testing</b>
-            Special thanks to Amit (amitfin/oref_alert) for providing the foundational scripts and polygon data used to render the geographical map boundaries accurately.
+            <b>Polygon Data</b>
+            Thanks to Amit Finkelstein (amitfin/oref_alert) for providing the foundational polygon data used to render geographical map boundaries accurately.
 
             <b>Historical Data</b>
             Thanks to Dedy Leshem (dleshem/israel-alerts-data) for the comprehensive archive of historical Home Front Command alerts, which was invaluable for calibrating the alert map clustering algorithms.
+
+            <b>Inspiration</b>
+            Thanks to Maor Cohen (maorcc/oref-map) whose live alert map was the key inspiration for building the map feature in this app.
 
             <b>Dependencies</b>
             - MapLibre GL JS for map rendering

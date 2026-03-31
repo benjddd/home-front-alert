@@ -151,4 +151,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.1.0")
 }
 
+
+// Build output goes to temp to avoid Google Drive File Stream injecting desktop.ini files
+// which break the Android resource merger. APKs are at:
+// C:\Users\user\AppData\Local\Temp\homefrontalert\app\build\outputs\apk\
 project.layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/homefrontalert/app/build"))
