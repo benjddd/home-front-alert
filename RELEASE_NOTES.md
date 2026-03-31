@@ -1,5 +1,12 @@
 # Release Notes — Tzeva Artzi 🚨
 
+## v1.7.7 (2026-03-31) — High-Precision Alert Map & Clustering
+- **Live Alert Map**: New MapLibre GL JS integration rendering a real-time dark-themed threat map directly in the app.
+- **Architectural Split**: Map rendering offset to a new `homefront-map` Cloud Run microservice to protect the critical alert relay path from computation spikes.
+- **Clustering Calibrated**: Utilizing March 2026 real-world data (DBSCAN 22km) to perfectly bucket multi-front salvos without overlap.
+- **Dynamic Unification**: Intelligent concave hull and lightweight unions dependent on the number of zones in the salvo.
+- **Attributions**: New "Thanks / Credits" page to explicitly credit `amitfin` for polygons and `dleshem` for data insights.
+- **UI Architecture**: Shifted the main navigation to a ViewPager2 with tabs.
 ## v1.6.0 (2026-03-16) — FCM Fix + Infrastructure Consolidation
 
 ### Critical Fix

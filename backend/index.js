@@ -11,6 +11,9 @@ const play = google.androidpublisher('v3');
 const app = express();
 app.set('trust proxy', 1); // Trust Cloud Run Load Balancer
 
+const MAP_SERVICE_URL = process.env.MAP_SERVICE_URL; // Optional. Set via GCP Console after deploying map service
+const MAP_SHARED_SECRET = process.env.MAP_SHARED_SECRET || '';
+
 // Security Hardening — custom CSP needed for dashboard iframes / inline scripts
 app.use(helmet({
     contentSecurityPolicy: {
@@ -399,6 +402,7 @@ function handleSuccessfulConnection(data, source) {
         if (currentAlert) {
             console.log("Alert state cleared: API is now empty.");
             currentAlert = null;
+            notifyMapServiceClearAll();
         }
         if (Math.random() < 0.02) { // Periodic heartbeat log (2% of polls = ~every 50s)
             console.log(`[${new Date().toLocaleTimeString()}] Heartbeat: Watching via ${source}`);
@@ -446,6 +450,7 @@ function handleAlertDispatch(alert) {
     };
     console.log('Pushing Notification for:', alert.cities.join(', '));
     sendFCMAlert(alert);
+    notifyMapServiceAlert(alert);
 }
 
 function sendFCMAlert(alertData) {
@@ -480,6 +485,27 @@ function sendFCMAlert(alertData) {
             .then(res => console.log(`🚀 FCM Broadcast Success (Chunk ${chunkIndex}/${totalChunks}):`, res))
             .catch(err => console.error(`❌ FCM Broadcast Error (Chunk ${chunkIndex}/${totalChunks}):`, err.message));
     }
+}
+
+// --- Map Service Notification ---
+function notifyMapServiceAlert(alertData) {
+    if (!MAP_SERVICE_URL) return;
+    const payload = {
+        zones: alertData.cities || [],
+        categoryDesc: alertData.type || '',
+    };
+    axios.post(`${MAP_SERVICE_URL}/internal/alert`, payload, {
+        headers: { 'x-map-secret': MAP_SHARED_SECRET },
+        timeout: 2000
+    }).catch(e => console.error("Map service notify error:", e.message));
+}
+
+function notifyMapServiceClearAll() {
+    if (!MAP_SERVICE_URL) return;
+    axios.post(`${MAP_SERVICE_URL}/internal/alert`, { action: 'clear_all' }, {
+        headers: { 'x-map-secret': MAP_SHARED_SECRET },
+        timeout: 2000
+    }).catch(e => console.error("Map service clear error:", e.message));
 }
 
 // Global crash handler — surface unhandled promise rejections to GC logs
