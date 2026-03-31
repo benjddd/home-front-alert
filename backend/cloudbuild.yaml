@@ -19,6 +19,7 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--min-instances=1'
+      - '--max-instances=10'
       - '--no-cpu-throttling'
       - '--update-env-vars=NODE_ENV=production'
 

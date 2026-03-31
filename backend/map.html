@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>מפת התרעות – פיקוד העורף</title>
+  <meta name="description" content="מפת התרעות חיה של פיקוד העורף" />
+
+  <!-- MapLibre GL JS (BSD-2) -->
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #map { width: 100%; height: 100%; background: #1a1a2e; }
+
+    /* Attribution — minimal, bottom-left */
+    .maplibregl-ctrl-attrib {
+      font-size: 9px;
+      background: rgba(0,0,0,0.55) !important;
+      color: #aaa !important;
+      border-radius: 4px;
+      padding: 2px 5px !important;
+    }
+
+    /* Zone tooltip on tap/click */
+    #tooltip {
+      position: absolute;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10, 10, 26, 0.92);
+      color: #fff;
+      border-radius: 12px;
+      padding: 10px 18px;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 14px;
+      direction: rtl;
+      text-align: center;
+      pointer-events: none;
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,0.12);
+      display: none;
+      max-width: 80vw;
+      z-index: 10;
+    }
+    #tooltip .zone-name { font-weight: 700; font-size: 16px; margin-bottom: 2px; }
+    #tooltip .alert-type { opacity: 0.75; font-size: 12px; }
+
+    /* Status badge — top-right */
+    #status {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      background: rgba(10,10,26,0.85);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 12px;
+      backdrop-filter: blur(6px);
+      z-index: 10;
+    }
+    #status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #4caf50;
+      box-shadow: 0 0 6px #4caf50;
+      flex-shrink: 0;
+    }
+    #status-dot.alert { background: #e53935; box-shadow: 0 0 8px #e53935; animation: pulse 1.2s infinite; }
+    #status-dot.offline { background: #757575; box-shadow: none; animation: none; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(1.4); }
+    }
+
+    /* User location dot */
+    .user-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #2196f3;
+      border: 2.5px solid #fff;
+      box-shadow: 0 0 0 3px rgba(33,150,243,0.3);
+    }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<div id="status">
+  <div id="status-dot"></div>
+  <span id="status-text">טוען…</span>
+</div>
+<div id="tooltip">
+  <div class="zone-name" id="tt-zone"></div>
+  <div class="alert-type" id="tt-type"></div>
+</div>
+
+<script>
+'use strict';
+
+// ── Config ────────────────────────────────────────────────────────────────
+const MAP_DATA_URL  = '/api/map-data';   // relative — same Cloud Run service
+const POLL_INTERVAL = 5000;             // 5 seconds
+
+const ALERT_LABELS = {
+  ROCKET:       'ירי רקטות וטילים',
+  UAV:          'חדירת כלי טיס עוין',
+  INFILTRATION: 'חדירת מחבלים',
+  PRE_WARNING:  'התרעה מוקדמת',
+  OTHER:        'אירוע ביטחוני',
+};
+
+// ── Map setup ─────────────────────────────────────────────────────────────
+const map = new maplibregl.Map({
+  container: 'map',
+  style: {
+    version: 8,
+    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+    sources: {
+      carto: {
+        type: 'raster',
+        tiles: [
+          'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+          'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+          'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+        ],
+        tileSize: 256,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/">CARTO</a>',
+        maxzoom: 19,
+      },
+    },
+    layers: [{ id: 'bg', type: 'raster', source: 'carto' }],
+  },
+  center: [34.85, 31.5],   // Israel centre
+  zoom: 7,
+  minZoom: 5,
+  maxZoom: 17,
+  attributionControl: true,
+  logoPosition: 'bottom-left',
+});
+
+// Disable rotation (irrelevant for alert map)
+map.dragRotate.disable();
+map.touchZoomRotate.disableRotation();
+
+// ── User location ─────────────────────────────────────────────────────────
+let userMarker = null;
+
+function setUserLocation(lat, lng) {
+  if (!lat || !lng) return;
+  const el = document.createElement('div');
+  el.className = 'user-dot';
+  if (userMarker) userMarker.remove();
+  userMarker = new maplibregl.Marker({ element: el })
+    .setLngLat([lng, lat])
+    .addTo(map);
+}
+
+// Android JS bridge injection point
+window.onLocationUpdate = setUserLocation;
+
+// Fallback: browser geolocation
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    (p) => setUserLocation(p.coords.latitude, p.coords.longitude),
+    () => {},
+    { timeout: 8000, maximumAge: 60000 }
+  );
+}
+
+// ── Layer management ──────────────────────────────────────────────────────
+const managedLayers  = new Set();
+const managedSources = new Set();
+
+function clearAlertLayers() {
+  for (const id of managedLayers)  { try { map.removeLayer(id);  } catch {} }
+  for (const id of managedSources) { try { map.removeSource(id); } catch {} }
+  managedLayers.clear();
+  managedSources.clear();
+}
+
+/**
+ * Add a GeoJSON source + fill + border layers for one cluster.
+ * Applies an inward opacity gradient using two fill layers:
+ *   outer = 45% opacity (safety-margin zone near border)
+ *   inner = drawn via same layer with no offset — the "certain" interior
+ *           is implied by the solid border anchoring the eye.
+ */
+function addClusterLayers(cluster) {
+  const sid = `src-${cluster.id}`;
+  const fillId   = `fill-${cluster.id}`;
+  const borderId = `border-${cluster.id}`;
+  const glowId   = `glow-${cluster.id}`;
+
+  const geojson = {
+    type: 'Feature',
+    properties: { name: cluster.zones.join(', '), alertType: cluster.alertType },
+    geometry: cluster.geometry,
+  };
+
+  map.addSource(sid, { type: 'geojson', data: geojson });
+  managedSources.add(sid);
+
+  // Outer glow (wide blur illusion via pattern)
+  map.addLayer({
+    id: glowId,
+    type: 'fill',
+    source: sid,
+    paint: {
+      'fill-color':   cluster.color,
+      'fill-opacity': 0.18,
+    },
+  });
+
+  // Main fill — inward gradient effect via opacity
+  map.addLayer({
+    id: fillId,
+    type: 'fill',
+    source: sid,
+    paint: {
+      'fill-color':   cluster.color,
+      'fill-opacity': 0.42,
+    },
+  });
+
+  // Crisp border — visually anchors the zone edge
+  map.addLayer({
+    id: borderId,
+    type: 'line',
+    source: sid,
+    paint: {
+      'line-color': cluster.border,
+      'line-width': 2.2,
+      'line-opacity': 0.92,
+    },
+  });
+
+  managedLayers.add(glowId);
+  managedLayers.add(fillId);
+  managedLayers.add(borderId);
+
+  // Click/tap → show tooltip
+  map.on('click', fillId, (e) => {
+    const props = e.features?.[0]?.properties ?? {};
+    showTooltip(props.name, props.alertType);
+  });
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────
+let tooltipTimer;
+function showTooltip(zones, alertType) {
+  const tt = document.getElementById('tooltip');
+  document.getElementById('tt-zone').textContent = zones || '';
+  document.getElementById('tt-type').textContent = ALERT_LABELS[alertType] ?? alertType;
+  tt.style.display = 'block';
+  clearTimeout(tooltipTimer);
+  tooltipTimer = setTimeout(() => { tt.style.display = 'none'; }, 4000);
+}
+
+// Tap outside → hide
+map.on('click', () => {
+  setTimeout(() => { document.getElementById('tooltip').style.display = 'none'; }, 50);
+});
+
+// ── Data polling ──────────────────────────────────────────────────────────
+const dot  = document.getElementById('status-dot');
+const text = document.getElementById('status-text');
+
+async function fetchAndRender() {
+  try {
+    const res  = await fetch(MAP_DATA_URL, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    clearAlertLayers();
+
+    if (!data.clusters || data.clusters.length === 0) {
+      dot.className  = 'status-dot';
+      text.textContent = 'שקט';
+      return;
+    }
+
+    // Render clusters sorted by priority (lower first = behind higher-priority)
+    for (const cluster of data.clusters) {
+      addClusterLayers(cluster);
+    }
+
+    const hasUrgent = data.clusters.some(c =>
+      c.alertType === 'ROCKET' || c.alertType === 'UAV' || c.alertType === 'INFILTRATION');
+
+    dot.className    = hasUrgent ? 'status-dot alert' : 'status-dot';
+    text.textContent = hasUrgent
+      ? `${data.clusters.length} אזו${data.clusters.length > 1 ? 'רים' : 'ר'} בהתרעה`
+      : 'התרעה מוקדמת';
+
+  } catch (err) {
+    dot.className    = 'status-dot offline';
+    text.textContent = 'אין חיבור';
+    console.warn('[map] poll error:', err.message);
+  }
+}
+
+map.on('load', () => {
+  fetchAndRender();
+  setInterval(fetchAndRender, POLL_INTERVAL);
+});
+</script>
+</body>
+</html>
