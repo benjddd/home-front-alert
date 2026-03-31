@@ -21,7 +21,7 @@ steps:
       - '--min-instances=1'
       - '--max-instances=10'
       - '--no-cpu-throttling'
-      - '--update-env-vars=NODE_ENV=production'
+      - '--update-env-vars=NODE_ENV=production,MAP_SERVICE_URL=https://homefront-map-cjnpwpm63q-zf.a.run.app,RELAY_SERVICE_ACCOUNT=344391280523-compute@developer.gserviceaccount.com'
 
 images:
   - '$_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest'

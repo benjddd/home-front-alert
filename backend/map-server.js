@@ -14,9 +14,12 @@
 const express   = require('express');
 const path      = require('path');
 const helmet    = require('helmet');
+const { OAuth2Client } = require('google-auth-library');
 
 const polygonCache = require('./polygonCache');
 const mapState     = require('./mapState');
+
+const client = new OAuth2Client();
 
 const app  = express();
 const PORT = parseInt(process.env.PORT ?? '8080', 10);
@@ -70,15 +73,39 @@ app.get('/health', (_req, res) => {
 
 // ── Alert ingestion endpoint ─────────────────────────────────────────────
 // Called by the homefront-backend relay via an internal HTTP POST
-// whenever a new HFC alert fires. Protected by shared secret.
+// whenever a new HFC alert fires. Protected by Google-signed OIDC ID Token.
 app.use(express.json());
 
-const MAP_SHARED_SECRET = process.env.MAP_SHARED_SECRET;
-
-app.post('/internal/alert', (req, res) => {
-  if (MAP_SHARED_SECRET && req.headers['x-map-secret'] !== MAP_SHARED_SECRET) {
-    return res.status(401).json({ error: 'unauthorized' });
+async function verifyOidcToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'unauthorized: missing bearer token' });
   }
+
+  const idToken = authHeader.split(' ')[1];
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken,
+      // Map service validates that we are the intended audience. 
+      // If deployed without generic URL yet, we skip audience check or use env var.
+    });
+    req.user = ticket.getPayload();
+    
+    // Authorization: Verify the caller is our relay service account
+    const allowedEmail = process.env.RELAY_SERVICE_ACCOUNT || '344391280523-compute@developer.gserviceaccount.com';
+    if (req.user.email !== allowedEmail) {
+      console.warn(`[map-server] Unauthorized caller: ${req.user.email}`);
+      return res.status(403).json({ error: 'forbidden: identity mismatch' });
+    }
+    
+    next();
+  } catch (err) {
+    console.error('[map-server] Token verification failed:', err.message);
+    res.status(401).json({ error: 'unauthorized: invalid token' });
+  }
+}
+
+app.post('/internal/alert', verifyOidcToken, (req, res) => {
   const { zones, categoryDesc, action } = req.body ?? {};
   if (action === 'clear_all') {
     mapState.clearAll();

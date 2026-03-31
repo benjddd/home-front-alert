@@ -4,15 +4,14 @@ const cors = require('cors');
 const axios = require('axios');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { google } = require('googleapis');
+const { GoogleAuth } = require('google-auth-library');
 const path = require('path');
 
-const play = google.androidpublisher('v3');
+const auth = new GoogleAuth();
 const app = express();
 app.set('trust proxy', 1); // Trust Cloud Run Load Balancer
-
-const MAP_SERVICE_URL = process.env.MAP_SERVICE_URL; // Optional. Set via GCP Console after deploying map service
-const MAP_SHARED_SECRET = process.env.MAP_SHARED_SECRET || '';
+const MAP_SERVICE_URL = process.env.MAP_SERVICE_URL; 
+// MAP_SHARED_SECRET is deprecated and no longer required for prod in favour of OIDC
 
 // Security Hardening — custom CSP needed for dashboard iframes / inline scripts
 app.use(helmet({
@@ -171,14 +170,24 @@ app.get('/alerts/history', (req, res) => {
 });
 
 app.post('/test-fcm', (req, res) => {
+    const isDryRun = req.body.dryRun === true;
     const testAlert = {
         id: 'TEST_' + Date.now(),
         type: req.body.type || 'Test Alert / בדיקה',
         cities: req.body.cities || ['בדיקה — FCM Test']
     };
-    console.log('🧪 Manual /test-fcm triggered');
+
+    if (isDryRun) {
+        // 🛡️ SAFETY: Propagate to Map for visual verification — skip FCM entirely
+        console.log('🛡️ DRY-RUN /test-fcm triggered — FCM skipped, Map notified only.');
+        notifyMapServiceAlert(testAlert);
+        return res.json({ ok: true, dryRun: true, alert: testAlert, note: 'FCM skipped. Map service notified.' });
+    }
+
+    console.log('🧪 Manual /test-fcm triggered (LIVE — will reach users)');
     sendFCMAlert(testAlert);
-    res.json({ ok: true, alert: testAlert });
+    notifyMapServiceAlert(testAlert);
+    res.json({ ok: true, dryRun: false, alert: testAlert });
 });
 
 // --- Closed Testing Endpoints ---
@@ -400,11 +409,16 @@ function handleSuccessfulConnection(data, source) {
 
     if (isEmpty) {
         if (currentAlert) {
-            console.log("Alert state cleared: API is now empty.");
+            console.log("Alert state cleared: API is now empty (All-Clear).");
             currentAlert = null;
+            if (alertExpirationTimer) {
+                clearTimeout(alertExpirationTimer);
+                alertExpirationTimer = null;
+            }
             notifyMapServiceClearAll();
+            sendFCMClear(); // 🚀 Notify Android app
         }
-        if (Math.random() < 0.02) { // Periodic heartbeat log (2% of polls = ~every 50s)
+        if (Math.random() < 0.02) { 
             console.log(`[${new Date().toLocaleTimeString()}] Heartbeat: Watching via ${source}`);
         }
         return;
@@ -420,7 +434,6 @@ function handleSuccessfulConnection(data, source) {
 
     if (normalizedAlert.cities.length > 0) {
         // Backend Deduplication: Only dispatch FCM if City List or ID changed.
-        // Use sorted copies to avoid mutating the original array (which would corrupt dedup).
         const currentCitiesKey = [...normalizedAlert.cities].sort().join('|');
         const lastCitiesKey = lastDetectedAlert ? [...lastDetectedAlert.cities].sort().join('|') : "";
 
@@ -428,17 +441,21 @@ function handleSuccessfulConnection(data, source) {
             console.log(`🚨 DISPATCHING [${source}]: ${normalizedAlert.cities.length} cities`);
             handleAlertDispatch(normalizedAlert);
         } else {
-            // Suppress duplicate FCM; log occasionally for confirmation
-            if (Math.random() < 0.05) console.log(`... Alert ${normalizedAlert.id} still active (suppressing redundant FCM)`);
+            if (Math.random() < 0.05) console.log(`... Alert ${normalizedAlert.id} still active`);
         }
 
-        // State maintenance for /alerts endpoint (Hybrid Polling)
+        // --- SSOT FAILOVER TIMER ---
+        // If an All-Clear signal is missed, automatically clear the state after 30 minutes.
+        // This matches the Android dashboard's failover window.
         currentAlert = normalizedAlert;
         if (alertExpirationTimer) clearTimeout(alertExpirationTimer);
         alertExpirationTimer = setTimeout(() => {
-            console.log("Current alert state cleared (90s timeout).");
+            console.log("🚨 FAILOVER: Alert state cleared after 30-minute timeout (All-Clear missed).");
             currentAlert = null;
-        }, 90000);
+            alertExpirationTimer = null;
+            notifyMapServiceClearAll();
+            sendFCMClear();
+        }, 1800000); // 30 minutes
     }
 }
 
@@ -487,25 +504,61 @@ function sendFCMAlert(alertData) {
     }
 }
 
-// --- Map Service Notification ---
-function notifyMapServiceAlert(alertData) {
-    if (!MAP_SERVICE_URL) return;
-    const payload = {
-        zones: alertData.cities || [],
-        categoryDesc: alertData.type || '',
+// --- FCM Clear Dispatch ---
+// Sends a 'CLEAR' signal to the Android app to immediately reset its dashboard state
+function sendFCMClear() {
+    const message = {
+        data: {
+            type: 'CLEAR',
+            time: new Date().toISOString()
+        },
+        android: {
+            priority: 'high',
+            ttl: 60 * 1000
+        },
+        topic: 'alerts'
     };
-    axios.post(`${MAP_SERVICE_URL}/internal/alert`, payload, {
-        headers: { 'x-map-secret': MAP_SHARED_SECRET },
-        timeout: 2000
-    }).catch(e => console.error("Map service notify error:", e.message));
+
+    admin.messaging().send(message)
+        .then(res => console.log('🚀 FCM: All-Clear broadcast sent successfully:', res))
+        .catch(err => console.error('❌ FCM: All-Clear broadcast error:', err.message));
 }
 
-function notifyMapServiceClearAll() {
+// --- Map Service Notification ---
+// Google Recommended "Secretless" IAM-based Auth for Service-to-Service communication
+async function notifyMapServiceAlert(alertData) {
     if (!MAP_SERVICE_URL) return;
-    axios.post(`${MAP_SERVICE_URL}/internal/alert`, { action: 'clear_all' }, {
-        headers: { 'x-map-secret': MAP_SHARED_SECRET },
-        timeout: 2000
-    }).catch(e => console.error("Map service clear error:", e.message));
+    try {
+        const payload = {
+            zones: alertData.cities || [],
+            categoryDesc: alertData.type || '',
+        };
+        
+        const client = await auth.getIdTokenClient(MAP_SERVICE_URL);
+        await client.request({
+            url: `${MAP_SERVICE_URL}/internal/alert`,
+            method: 'POST',
+            data: payload
+        });
+        console.log(`📡 Map: Notified of salvo (${payload.zones.length} zones)`);
+    } catch (e) {
+        console.error("Map service notify error:", e.message);
+    }
+}
+
+async function notifyMapServiceClearAll() {
+    if (!MAP_SERVICE_URL) return;
+    try {
+        const client = await auth.getIdTokenClient(MAP_SERVICE_URL);
+        await client.request({
+            url: `${MAP_SERVICE_URL}/internal/alert`,
+            method: 'POST',
+            data: { action: 'clear_all' }
+        });
+        console.log("📡 Map: Cleared all alerts.");
+    } catch (e) {
+        console.error("Map service clear error:", e.message);
+    }
 }
 
 // Global crash handler — surface unhandled promise rejections to GC logs

@@ -22,6 +22,12 @@
       border-radius: 4px;
       padding: 2px 5px !important;
     }
+    .maplibregl-ctrl-attrib a {
+      pointer-events: none !important;
+      text-decoration: none !important;
+      color: inherit !important;
+      cursor: default;
+    }
 
     /* Zone tooltip on tap/click */
     #tooltip {
@@ -108,12 +114,49 @@ const MAP_DATA_URL  = '/api/map-data';   // relative — same Cloud Run service
 const POLL_INTERVAL = 5000;             // 5 seconds
 
 const ALERT_LABELS = {
-  ROCKET:       'ירי רקטות וטילים',
-  UAV:          'חדירת כלי טיס עוין',
-  INFILTRATION: 'חדירת מחבלים',
-  PRE_WARNING:  'התרעה מוקדמת',
-  OTHER:        'אירוע ביטחוני',
+  he: {
+    ROCKET:       'ירי רקטות וטילים',
+    UAV:          'חדירת כלי טיס עוין',
+    INFILTRATION: 'חדירת מחבלים',
+    PRE_WARNING:  'התרעה מוקדמת',
+    OTHER:        'אירוע ביטחוני',
+  },
+  en: {
+    ROCKET:       'Rocket / Missile Fire',
+    UAV:          'Hostile UAV Incursion',
+    INFILTRATION: 'Terrorist Infiltration',
+    PRE_WARNING:  'Pre-Warning',
+    OTHER:        'Security Incident',
+  },
 };
+
+const STATUS_LABELS = {
+  he: {
+    loading:      'טוען…',
+    quiet:        'שקט',
+    prewarning:   'התרעה מוקדמת',
+    areasAlert:   (n) => `${n} אזו${n > 1 ? 'רים' : 'ר'} בהתרעה`,
+    offline:      'אין חיבור',
+  },
+  en: {
+    loading:      'Loading…',
+    quiet:        'Quiet',
+    prewarning:   'Pre-Warning Active',
+    areasAlert:   (n) => `${n} area${n > 1 ? 's' : ''} on alert`,
+    offline:      'No connection',
+  },
+};
+
+// Language set by Android JS bridge (defaults to Hebrew)
+let appLang = 'he';
+window.setAppLanguage = (lang) => {
+  appLang = (lang && lang.startsWith('iw') || lang === 'he') ? 'he' : 'en';
+  document.documentElement.lang = appLang;
+  document.documentElement.dir  = appLang === 'he' ? 'rtl' : 'ltr';
+};
+
+const L = () => STATUS_LABELS[appLang];
+const AL = () => ALERT_LABELS[appLang];
 
 // ── Map setup ─────────────────────────────────────────────────────────────
 const map = new maplibregl.Map({
@@ -122,19 +165,21 @@ const map = new maplibregl.Map({
     version: 8,
     glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
     sources: {
-      carto: {
+      esri: {
         type: 'raster',
+        // Esri Dark Gray Base has NO borders and NO labels, creating a perfectly clean canvas.
+        // NOTE: ArcGIS REST API uses {z}/{y}/{x} rather than standard {z}/{x}/{y}
         tiles: [
-          'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-          'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-          'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+          'https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
         ],
         tileSize: 256,
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/">CARTO</a>',
-        maxzoom: 19,
-      },
+        attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+        maxzoom: 16,
+      }
     },
-    layers: [{ id: 'bg', type: 'raster', source: 'carto' }],
+    layers: [
+      { id: 'bg', type: 'raster', source: 'esri' }
+    ],
   },
   center: [34.85, 31.5],   // Israel centre
   zoom: 7,
@@ -256,7 +301,7 @@ let tooltipTimer;
 function showTooltip(zones, alertType) {
   const tt = document.getElementById('tooltip');
   document.getElementById('tt-zone').textContent = zones || '';
-  document.getElementById('tt-type').textContent = ALERT_LABELS[alertType] ?? alertType;
+  document.getElementById('tt-type').textContent = AL()[alertType] ?? alertType;
   tt.style.display = 'block';
   clearTimeout(tooltipTimer);
   tooltipTimer = setTimeout(() => { tt.style.display = 'none'; }, 4000);
@@ -280,12 +325,11 @@ async function fetchAndRender() {
     clearAlertLayers();
 
     if (!data.clusters || data.clusters.length === 0) {
-      dot.className  = 'status-dot';
-      text.textContent = 'שקט';
+      dot.className    = 'status-dot';
+      text.textContent = L().quiet;
       return;
     }
 
-    // Render clusters sorted by priority (lower first = behind higher-priority)
     for (const cluster of data.clusters) {
       addClusterLayers(cluster);
     }
@@ -295,12 +339,12 @@ async function fetchAndRender() {
 
     dot.className    = hasUrgent ? 'status-dot alert' : 'status-dot';
     text.textContent = hasUrgent
-      ? `${data.clusters.length} אזו${data.clusters.length > 1 ? 'רים' : 'ר'} בהתרעה`
-      : 'התרעה מוקדמת';
+      ? L().areasAlert(data.clusters.length)
+      : L().prewarning;
 
   } catch (err) {
     dot.className    = 'status-dot offline';
-    text.textContent = 'אין חיבור';
+    text.textContent = L().offline;
     console.warn('[map] poll error:', err.message);
   }
 }

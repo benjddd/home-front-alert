@@ -22,6 +22,7 @@
     "helmet": "^8.1.0",
     "@turf/turf": "^6.5.0",
     "adm-zip": "^0.5.16",
-    "concaveman": "^1.2.1"
+    "concaveman": "^1.2.1",
+    "google-auth-library": "^9.6.0"
   }
 }
