@@ -33,16 +33,30 @@ class MapFragment : Fragment() {
         settings.domStorageEnabled = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
 
+        mapWebView.setOnTouchListener { view, event ->
+            // Prevent parent ViewPager2 from stealing the pinch/drag gesture
+            view.parent.requestDisallowInterceptTouchEvent(true)
+            false // allow the WebView to handle the actual touch/pinch
+        }
+
         mapWebView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                // Inject app language so map labels match app locale
+                val lang = LocaleHelper.getLanguage(requireContext())
+                view?.evaluateJavascript("if (window.setAppLanguage) window.setAppLanguage('$lang');", null)
                 updateUserLocationOnMap()
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                // Prevent navigation away from the map
+                return true // block all external navigation
             }
         }
 
         // The URL of the map service. For now, we use a placeholder or the backend's map endpoint
         // It relies on the standalone map service now.
-        val mapUrl = "https://homefront-map-271569424602.me-west1.run.app/map" // Placeholder
+        val mapUrl = "https://homefront-map-cjnpwpm63q-zf.a.run.app/map"
         mapWebView.loadUrl(mapUrl)
     }
 
