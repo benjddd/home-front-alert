@@ -26,7 +26,7 @@
       pointer-events: none !important;
       text-decoration: none !important;
       color: inherit !important;
-      cursor: default;
+      cursor: default !important;
     }
 
     /* Zone tooltip on tap/click */
@@ -79,10 +79,11 @@
       flex-shrink: 0;
     }
     #status-dot.alert { background: #e53935; box-shadow: 0 0 8px #e53935; animation: pulse 1.2s infinite; }
+    #status-dot.pre-warning { background: #ff9800; box-shadow: 0 0 6px #ff9800; animation: pulse 2.0s infinite; }
     #status-dot.offline { background: #757575; box-shadow: none; animation: none; }
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50%       { opacity: 0.5; transform: scale(1.4); }
+      50%       { opacity: 0.6; transform: scale(1.3); }
     }
 
     /* User location dot */
@@ -120,8 +121,30 @@ let ALERT_LABELS = {
 };
 
 let STATUS_LABELS = {
-  he: { loading: 'טוען…', quiet: 'אין התרעות', prewarning: 'התרעה מוקדמת', areasAlert: (n) => `${n} אזו${n > 1 ? 'רים' : 'ר'} בהתרעה`, offline: 'אין חיבור' },
-  en: { loading: 'Loading…', quiet: 'No Alerts', prewarning: 'Pre-Warning Active', areasAlert: (n) => `${n} area${n > 1 ? 's' : ''} on alert`, offline: 'No connection' },
+  he: { 
+    loading: 'טוען…', 
+    no_alerts: 'אין התרעות', 
+    prewarning: 'התרעה מוקדמת', 
+    areasAlert: (n) => `${n} אזו${n > 1 ? 'רים' : 'ר'} בהתרעה`, 
+    userAlert: 'התרעה באזור שלך!',
+    offline: 'אין חיבור' 
+  },
+  en: { 
+    loading: 'Loading…', 
+    no_alerts: 'No Alerts', 
+    prewarning: 'Pre-Warning Active', 
+    areasAlert: (n) => `${n} area${n > 1 ? 's' : ''} on alert`, 
+    userAlert: 'ALERT IN YOUR AREA!',
+    offline: 'No connection' 
+  },
+};
+
+let userZone = null;
+window.setUserZone = (name) => {
+  if (!name) return;
+  userZone = name.trim();
+  console.log(`📍 User Zone Set: ${userZone}`);
+  if (typeof fetchAndRender === 'function') fetchAndRender();
 };
 
 async function loadStrings() {
@@ -131,12 +154,13 @@ async function loadStrings() {
     const data = await res.json();
     for (const lang of ['en', 'he']) {
       if (data[lang]) {
-        STATUS_LABELS[lang].quiet = data[lang].no_alerts || STATUS_LABELS[lang].quiet;
+        STATUS_LABELS[lang].no_alerts = data[lang].no_alerts || STATUS_LABELS[lang].no_alerts;
+        STATUS_LABELS[lang].userAlert = data[lang].critical || STATUS_LABELS[lang].userAlert;
         ALERT_LABELS[lang].PRE_WARNING = data[lang].threat || ALERT_LABELS[lang].PRE_WARNING;
       }
     }
     console.log('✅ Synchronized strings with Android app.');
-    if (typeof fetchAndRender === 'function') fetchAndRender(); // Refresh UI if ready
+    if (typeof fetchAndRender === 'function') fetchAndRender();
   } catch (e) {
     console.warn('Using fallback strings', e);
   }
@@ -323,21 +347,41 @@ async function fetchAndRender() {
 
     if (!data.clusters || data.clusters.length === 0) {
       dot.className    = 'status-dot';
-      text.textContent = L().quiet;
+      text.textContent = L().no_alerts;
       return;
     }
 
+    let totalAreas = 0;
+    let isUserAreaAlerted = false;
+    let hasUrgent = false;
+
     for (const cluster of data.clusters) {
       addClusterLayers(cluster);
+      
+      // Calculate total areas across all clusters
+      if (cluster.zones) {
+        totalAreas += cluster.zones.length;
+        
+        if (userZone && cluster.zones.includes(userZone)) {
+          isUserAreaAlerted = true;
+        }
+      }
+      
+      if (cluster.alertType === 'ROCKET' || cluster.alertType === 'UAV' || cluster.alertType === 'INFILTRATION') {
+        hasUrgent = true;
+      }
     }
 
-    const hasUrgent = data.clusters.some(c =>
-      c.alertType === 'ROCKET' || c.alertType === 'UAV' || c.alertType === 'INFILTRATION');
-
-    dot.className    = hasUrgent ? 'status-dot alert' : 'status-dot';
-    text.textContent = hasUrgent
-      ? L().areasAlert(data.clusters.length)
-      : L().prewarning;
+    if (isUserAreaAlerted) {
+      dot.className = 'status-dot alert';
+      text.textContent = L().userAlert;
+    } else if (hasUrgent) {
+      dot.className = 'status-dot alert';
+      text.textContent = L().areasAlert(totalAreas);
+    } else {
+      dot.className = 'status-dot pre-warning';
+      text.textContent = L().prewarning;
+    }
 
   } catch (err) {
     dot.className    = 'status-dot offline';

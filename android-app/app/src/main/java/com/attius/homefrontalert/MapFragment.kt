@@ -45,6 +45,13 @@ class MapFragment : Fragment() {
                 // Inject app language so map labels match app locale
                 val lang = LocaleHelper.getLanguage(requireContext())
                 view?.evaluateJavascript("if (window.setAppLanguage) window.setAppLanguage('$lang');", null)
+                
+                // Inject user's selected area for map focus
+                val userCity = PrefUtils.getSelectedArea(requireContext())
+                if (!userCity.isNullOrEmpty()) {
+                    view?.evaluateJavascript("if (window.setUserZone) window.setUserZone('$userCity');", null)
+                }
+
                 updateUserLocationOnMap()
             }
 

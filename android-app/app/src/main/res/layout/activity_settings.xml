@@ -551,7 +551,7 @@
                             android:textStyle="bold"
                             android:textColor="#FFFFFF"
                             android:textSize="13sp"
-                            android:layout_marginBottom="2dp" />
+                            android:layout_bottom="2dp" />
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
