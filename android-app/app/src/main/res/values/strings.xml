@@ -92,4 +92,9 @@
     <string name="settings_bulb_ip_hint">Bulb IP (e.g. 192.168.1.15)</string>
     <string name="settings_bulb_token_hint">Xiaomi Crypto Token (Optional)</string>
     <string name="settings_bulb_discover">Auto Discover</string>
+    <string name="settings_advanced_experimental">Developer Settings (Experimental)</string>
+    <string name="settings_dedup_title">Smart Sync Deduplication</string>
+    <string name="settings_dedup_desc">Prevents redundant beeps for sequential HFC alerts in the same area.</string>
+    <string name="settings_dedup_ttl_label">Area Wait Time (Alert TTL)</string>
+    <string name="settings_dedup_unit_sec">sec</string>
 </resources>
