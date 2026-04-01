@@ -466,7 +466,8 @@ function sendFCMAlert(alertData) {
                 alertId: String(alertData.id),
                 type: String(alertData.type),
                 cities: JSON.stringify(chunk),
-                chunkInfo: String(`${chunkIndex}/${totalChunks}`)
+                chunkInfo: String(`${chunkIndex}/${totalChunks}`),
+                is_dedup: 'true' // Signals v1.7.7+ clients to use smart TTL deduplication
             },
             android: {
                 priority: 'high',

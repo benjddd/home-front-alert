@@ -150,6 +150,19 @@ class SettingsActivity : AppCompatActivity() {
             sharedPrefs.edit().putBoolean("show_advanced_settings", isChecked).apply()
         }
 
+        // 6c. Alert TTL (Smart Deduplication)
+        val etAlertTtl = findViewById<EditText>(R.id.etAlertTtl)
+        val currentTtl = sharedPrefs.getLong("alert_ttl_seconds", 180L)
+        etAlertTtl.setText(currentTtl.toString())
+        etAlertTtl.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val input = s?.toString()?.toLongOrNull() ?: 180L
+                sharedPrefs.edit().putLong("alert_ttl_seconds", input).apply()
+            }
+        })
+
         // 6b. Alert Source Selector (PRO only)
         val cardAlertSource = findViewById<androidx.cardview.widget.CardView>(R.id.cardAlertSource)
         val rgConnectivityMode = findViewById<RadioGroup>(R.id.rgConnectivityMode)

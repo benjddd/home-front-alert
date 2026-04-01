@@ -13,6 +13,7 @@ object StatusManager {
     private const val PREFS_NAME = "HomeFrontAlertsPrefs"
     private val recentlyProcessedIds = mutableSetOf<String>()
     private val signaledCitiesPerAlert = mutableMapOf<String, MutableSet<String>>()
+    private val globalSignaledCities = mutableMapOf<String, Long>()
     
     data class HandledAlert(
         val id: String,
@@ -408,9 +409,23 @@ object StatusManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val nowTime = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
         
-        // 1. Centralized Incremental Signaling (Deduplication per city within an ID)
+        // 1. Centralized Incremental Signaling (Deduplication within IDs and Global TTL)
         val signaledSet = signaledCitiesPerAlert.getOrPut(id) { mutableSetOf() }
-        val newCitiesForAudio = cities.filter { !signaledSet.contains(normalizeCity(it)) }
+        val ttlSeconds = prefs.getLong("alert_ttl_seconds", 180L)
+        val ttlMs = ttlSeconds * 1000L
+        val nowMs = System.currentTimeMillis()
+
+        val newCitiesForAudio = cities.filter { city ->
+            val norm = normalizeCity(city)
+            val globalKey = "$norm:${type.name}"
+            val lastNotified = globalSignaledCities[globalKey] ?: 0L
+            val isGlobalCooledDown = (nowMs - lastNotified) > ttlMs
+            
+            val isNewInThisAlert = !signaledSet.contains(norm)
+            
+            // Deduplicate: Must be new in this specific HFC ID AND passed the global TTL
+            isNewInThisAlert && isGlobalCooledDown
+        }
         
         // If it's a threat and no NEW cities were added, we still update the threat map (to refresh timers)
         // but we might skip the audio if it's purely a redundant broadcast.
@@ -516,11 +531,21 @@ object StatusManager {
                     val audioDistances = if (type == AlertType.CAUTION && newCitiesForAudio.isEmpty()) distancesTotal else distancesForAudio
                     Log.i("HomeFrontAlerts", "🔊 AUDIO: $id | Type: $type | New: ${newCitiesForAudio.size} | Local: $isLocalInDelta")
                     if (audioDistances.isNotEmpty()) {
-                        newCitiesForAudio.forEach { signaledSet.add(normalizeCity(it)) }
+                        newCitiesForAudio.forEach { 
+                            val norm = normalizeCity(it)
+                            signaledSet.add(norm)
+                            globalSignaledCities["$norm:${type.name}"] = nowMs
+                        }
                         toneGenerator.playTonesForDistances(audioDistances, volume, type, false)
                     }
                 }
             }
+        }
+
+        // 6b. Periodically clean up global TTL map (older than 1 hour is safe to prune)
+        if (globalSignaledCities.size > 200) {
+            val pruneTime = nowMs - (60 * 60 * 1000L)
+            globalSignaledCities.entries.removeIf { it.value < pruneTime }
         }
 
         // 7. Refresh SSOT Status

@@ -434,6 +434,69 @@
                                 android:layout_marginStart="2dp" />
                         </LinearLayout>
                     </LinearLayout>
+
+                <!-- ── ALERT LOGIC (SMART DEDUPLICATION) ── -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:backgroundTint="#1A1A1A"
+                    android:elevation="4dp">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="16dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Smart Sync Deduplication"
+                            android:textStyle="bold"
+                            android:textColor="#FFFFFF"
+                            android:textSize="13sp"
+                            android:layout_marginBottom="2dp" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Prevents redundant beeps for sequential HFC alerts in the same area."
+                            android:textColor="#555566"
+                            android:textSize="10sp"
+                            android:layout_marginBottom="14dp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Area Wait Time (Alert TTL)"
+                                android:textColor="#FFFFFF"
+                                android:textSize="12sp" />
+                            <EditText
+                                android:id="@+id/etAlertTtl"
+                                android:layout_width="80dp"
+                                android:layout_height="wrap_content"
+                                android:hint="180"
+                                android:inputType="number"
+                                android:text="180"
+                                android:textColor="#34C759"
+                                android:textColorHint="#444444"
+                                android:textSize="14sp"
+                                android:gravity="center"
+                                android:backgroundTint="#34C759" />
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="sec"
+                                android:textColor="#606060"
+                                android:textSize="10sp"
+                                android:layout_marginStart="4dp" />
+                        </LinearLayout>
+                    </LinearLayout>
                 </androidx.cardview.widget.CardView>
 
 
