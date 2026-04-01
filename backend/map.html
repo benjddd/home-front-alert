@@ -375,6 +375,52 @@ function updateClearingOpacities() {
   }
 }
 
+// ── Heatmap layers (diffuse glow underneath all zone polygons) ─────────────
+// Two separate heatmaps: urgent (red gradient) + pre-warning (amber gradient).
+// Radius and intensity are zoom-interpolated so the glow scales naturally.
+
+function addHeatmapLayers(data) {
+  const radiusExpr = ['interpolate', ['linear'], ['zoom'], 5, 40, 10, 110, 14, 240];
+  const weightExpr = ['coalesce', ['get', 'weight'], 1];
+
+  function addHeatmap(id, geojson, colorStops, intensity, opacity) {
+    if (!geojson || geojson.features.length === 0) return;
+    const srcId   = `hsrc-${id}`;
+    const layerId = `hlyr-${id}`;
+    map.addSource(srcId, { type: 'geojson', data: geojson });
+    map.addLayer({
+      id: layerId, type: 'heatmap', source: srcId,
+      paint: {
+        'heatmap-weight':    weightExpr,
+        'heatmap-radius':    radiusExpr,
+        'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 5, intensity * 0.5, 10, intensity, 14, intensity * 2],
+        'heatmap-opacity':   opacity,
+        'heatmap-color':     ['interpolate', ['linear'], ['heatmap-density'], ...colorStops],
+      },
+    });
+    managedLayers.add(layerId);
+    managedSources.add(srcId);
+  }
+
+  // Urgent (ROCKET / UAV / INFILTRATION) — red gradient matching #E53935 → #B71C1C
+  addHeatmap('urgent', data.urgentPoints, [
+    0,    'rgba(0,0,0,0)',
+    0.15, 'rgba(229,57,53,0.0)',
+    0.4,  'rgba(229,57,53,0.30)',
+    0.7,  'rgba(183,28,28,0.55)',
+    1.0,  'rgba(183,28,28,0.80)',
+  ], 0.9, 0.70);
+
+  // Pre-warning (PRE_WARNING / OTHER) — amber gradient matching #FDD835 → #F9A825
+  addHeatmap('prewarning', data.preWarningPoints, [
+    0,    'rgba(0,0,0,0)',
+    0.15, 'rgba(253,216,53,0.0)',
+    0.4,  'rgba(253,216,53,0.32)',
+    0.7,  'rgba(249,168,37,0.58)',
+    1.0,  'rgba(249,168,37,0.82)',
+  ], 0.7, 0.62);
+}
+
 // ── Tooltip ───────────────────────────────────────────────────────────────
 let tooltipTimer;
 function showTooltip(zones, alertType) {
@@ -412,6 +458,9 @@ async function fetchAndRender() {
         addClearingZoneLayer(zone);
       }
     }
+
+    // Heatmap layers first — must be added before cluster layers to stay underneath
+    addHeatmapLayers(data);
 
     if (!data.clusters || data.clusters.length === 0) {
       dot.className    = 'status-dot';

@@ -201,7 +201,31 @@ function computeMapPayload() {
     });
   }
 
-  return { timestamp: Date.now(), clusters, clearingZones: clearingPayload };
+  // Heatmap centroid points — one Point per active zone, weighted by alert priority.
+  // Urgent (ROCKET/UAV/INFILTRATION) and pre-warning are separated into two
+  // FeaturCollections so the client can apply different colour gradients.
+  const URGENT_TYPES = ['ROCKET', 'UAV', 'INFILTRATION'];
+  const urgentFeatures = [];
+  const preWarningFeatures = [];
+  for (const [name, info] of activeZones) {
+    const feature = polygonCache.getPolygon(name);
+    if (!feature) continue;
+    const centroid = turf.centroid(feature);
+    centroid.properties = { weight: ALERT_TYPES[info.alertType]?.priority ?? 1 };
+    if (URGENT_TYPES.includes(info.alertType)) {
+      urgentFeatures.push(centroid);
+    } else {
+      preWarningFeatures.push(centroid);
+    }
+  }
+
+  return {
+    timestamp:        Date.now(),
+    clusters,
+    clearingZones:    clearingPayload,
+    urgentPoints:     { type: 'FeatureCollection', features: urgentFeatures },
+    preWarningPoints: { type: 'FeatureCollection', features: preWarningFeatures },
+  };
 }
 
 // ── Geometry helpers ───────────────────────────────────────────────────────
