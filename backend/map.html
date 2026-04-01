@@ -120,21 +120,24 @@ let ALERT_LABELS = {
   en: { ROCKET: 'Rocket / Missile Fire', UAV: 'Hostile UAV Incursion', INFILTRATION: 'Terrorist Infiltration', PRE_WARNING: 'Pre-Warning', OTHER: 'Security Incident' },
 };
 
+// STATUS_LABELS mirrors strings.xml exactly for SSOT consistency.
+// Keys map: no_alerts=no_alerts, threat=threat_status, warning=warning_status, critical=critical_status
+// Overwritten at runtime by loadStrings() from status_strings.json (generated from Android XMLs).
 let STATUS_LABELS = {
   he: { 
     loading: 'טוען…', 
     no_alerts: 'אין התרעות', 
-    prewarning: 'התרעה מוקדמת', 
-    areasAlert: (n) => `${n} אזו${n > 1 ? 'רים' : 'ר'} בהתרעה`, 
-    userAlert: 'התרעה באזור שלך!',
+    threat: 'איום מרוחק',
+    warning: 'אזהרה',
+    critical: 'קריטי',
     offline: 'אין חיבור' 
   },
   en: { 
     loading: 'Loading…', 
-    no_alerts: 'No Alerts', 
-    prewarning: 'Pre-Warning Active', 
-    areasAlert: (n) => `${n} area${n > 1 ? 's' : ''} on alert`, 
-    userAlert: 'ALERT IN YOUR AREA!',
+    no_alerts: 'NO ALERTS', 
+    threat: 'REMOTE THREAT',
+    warning: 'WARNING',
+    critical: 'CRITICAL',
     offline: 'No connection' 
   },
 };
@@ -152,11 +155,13 @@ async function loadStrings() {
     const res = await fetch('/status_strings.json');
     if (!res.ok) return;
     const data = await res.json();
+    // Sync all four status states from Android strings.xml (via extract_strings.js)
     for (const lang of ['en', 'he']) {
       if (data[lang]) {
         STATUS_LABELS[lang].no_alerts = data[lang].no_alerts || STATUS_LABELS[lang].no_alerts;
-        STATUS_LABELS[lang].userAlert = data[lang].critical || STATUS_LABELS[lang].userAlert;
-        ALERT_LABELS[lang].PRE_WARNING = data[lang].threat || ALERT_LABELS[lang].PRE_WARNING;
+        STATUS_LABELS[lang].threat    = data[lang].threat    || STATUS_LABELS[lang].threat;
+        STATUS_LABELS[lang].warning   = data[lang].warning   || STATUS_LABELS[lang].warning;
+        STATUS_LABELS[lang].critical  = data[lang].critical  || STATUS_LABELS[lang].critical;
       }
     }
     console.log('✅ Synchronized strings with Android app.');
@@ -351,36 +356,37 @@ async function fetchAndRender() {
       return;
     }
 
-    let totalAreas = 0;
     let isUserAreaAlerted = false;
     let hasUrgent = false;
+    let hasPreWarningInUserArea = false;
 
     for (const cluster of data.clusters) {
       addClusterLayers(cluster);
-      
-      // Calculate total areas across all clusters
-      if (cluster.zones) {
-        totalAreas += cluster.zones.length;
-        
-        if (userZone && cluster.zones.includes(userZone)) {
-          isUserAreaAlerted = true;
-        }
-      }
-      
-      if (cluster.alertType === 'ROCKET' || cluster.alertType === 'UAV' || cluster.alertType === 'INFILTRATION') {
-        hasUrgent = true;
-      }
+
+      const isUrgent = cluster.alertType === 'ROCKET' || cluster.alertType === 'UAV' || cluster.alertType === 'INFILTRATION';
+      const isPreWarning = cluster.alertType === 'PRE_WARNING';
+      const containsUser = userZone && cluster.zones && cluster.zones.includes(userZone);
+
+      if (containsUser && isUrgent)   isUserAreaAlerted = true;
+      if (containsUser && isPreWarning) hasPreWarningInUserArea = true;
+      if (isUrgent) hasUrgent = true;
     }
 
+    // 4-state model — mirrors dashboard exactly:
+    // CRITICAL > WARNING > REMOTE THREAT > NO ALERTS
     if (isUserAreaAlerted) {
-      dot.className = 'status-dot alert';
-      text.textContent = L().userAlert;
+      dot.className    = 'status-dot alert';
+      text.textContent = L().critical;       // "CRITICAL" / "קריטי"
+    } else if (hasPreWarningInUserArea) {
+      dot.className    = 'status-dot pre-warning';
+      text.textContent = L().warning;        // "WARNING" / "אזהרה"
     } else if (hasUrgent) {
-      dot.className = 'status-dot alert';
-      text.textContent = L().areasAlert(totalAreas);
+      dot.className    = 'status-dot alert';
+      text.textContent = L().threat;         // "REMOTE THREAT" / "איום מרוחק"
     } else {
-      dot.className = 'status-dot pre-warning';
-      text.textContent = L().prewarning;
+      // Only PRE_WARNING clusters present, none in user area
+      dot.className    = 'status-dot pre-warning';
+      text.textContent = L().warning;        // Treat national pre-warning as WARNING
     }
 
   } catch (err) {
