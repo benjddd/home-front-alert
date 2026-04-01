@@ -101,7 +101,7 @@ class DashboardFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        // Event-driven: immediate update on any status change from FCM or Direct Shield
+        // Event-driven: immediate update on any status change from FCM or local polling
         LocalBroadcastManager.getInstance(requireContext())
             .registerReceiver(statusReceiver, IntentFilter(StatusManager.ACTION_STATUS_CHANGED))
         refreshDashboardState()     // sync on tab-return

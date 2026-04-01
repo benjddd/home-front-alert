@@ -102,7 +102,7 @@ class SettingsActivity : AppCompatActivity() {
             if (isChecked) {
                 val hasLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                 if (!hasLocation) {
-                    Toast.makeText(this, "Location permission required for Direct Shield", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Location permission required for direct monitoring", Toast.LENGTH_LONG).show()
                     switchShieldActive.isChecked = false
                     requestCriticalPermissions()
                     return@setOnCheckedChangeListener

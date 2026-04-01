@@ -43,7 +43,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             
             val mode = prefs.getInt("connectivity_mode", 0)
             if (prefs.getBoolean("shield_active", false) && mode == 0) {
-                Log.i("HomeFrontAlerts", "FCM received while in AUTO failover! Stopping Direct Shield.")
+                Log.i("HomeFrontAlerts", "FCM received while in AUTO failover — stopping local polling.")
                 prefs.edit().putBoolean("shield_active", false).apply()
                 stopService(Intent(this, LocalPollingService::class.java))
             }
