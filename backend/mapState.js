@@ -23,6 +23,8 @@ const CLUSTER_DIST_KM  = 22;             // DBSCAN radius (calibrated)
 const CLUSTER_SMALL    = 4;              // ≤4 zones → render individually
 const CLUSTER_MEDIUM   = 12;            // 5-12 → light union + 300m buffer
 // 13+ → full union + concave hull
+const CLEAR_FADE_MS    = 15 * 60 * 1000; // 15-min green-fade after CALM
+const RECENT_MS        = 15 * 1000;      // 15s threshold for "recently added" highlight
 
 // ── Alert type definitions ─────────────────────────────────────────────────
 
@@ -50,10 +52,17 @@ function classifyAlert(categoryDesc) {
 // ── State storage ──────────────────────────────────────────────────────────
 
 /**
- * activeZones: Map<zoneName → { alertType, expiresAt, categoryDesc }>
+ * activeZones: Map<zoneName → { alertType, expiresAt, categoryDesc, addedAt }>
  * Pre-warning zones get promoted to ROCKET if a rocket arrives in the cluster.
  */
 const activeZones = new Map();
+
+/**
+ * clearingZones: Map<zoneName → { geometry, alertType, color, clearedAt }>
+ * Holds a polygon snapshot for 15 min after CALM so the client can render
+ * the green → transparent fade without needing the active zone record.
+ */
+const clearingZones = new Map();
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
@@ -65,27 +74,49 @@ const activeZones = new Map();
 function updateAlerts(zoneNames, categoryDesc) {
   const alertType = classifyAlert(categoryDesc);
   const expiresAt = Date.now() + EXPIRY_MS;
+  const now = Date.now();
 
   for (const name of zoneNames) {
     const existing = activeZones.get(name);
     // Only upgrade priority, never downgrade
     if (!existing || ALERT_TYPES[alertType].priority > ALERT_TYPES[existing.alertType].priority) {
-      activeZones.set(name, { alertType, expiresAt, categoryDesc });
+      activeZones.set(name, { alertType, expiresAt, categoryDesc, addedAt: now });
     } else {
-      // Refresh expiry even if not upgrading
+      // Refresh expiry, but preserve addedAt so "recently added" logic is accurate
       existing.expiresAt = expiresAt;
     }
+    // If this zone was in a clearing fade, cancel it — it's active again
+    clearingZones.delete(name);
   }
 }
 
-/** Wipe all active zones (e.g. all-clear). */
+/** Wipe all active zones (e.g. all-clear); snapshot polygons into clearingZones for fade animation. */
 function clearAll() {
+  const now = Date.now();
+  for (const [name, info] of activeZones) {
+    const feature = polygonCache.getPolygon(name);
+    if (feature) {
+      const typeDef = ALERT_TYPES[info.alertType] || ALERT_TYPES.OTHER;
+      clearingZones.set(name, { geometry: feature.geometry, alertType: info.alertType, color: typeDef.color, clearedAt: now });
+    }
+  }
   activeZones.clear();
 }
 
-/** Wipe specific zones (targeted all-clear). */
+/** Wipe specific zones (targeted all-clear); snapshot into clearingZones for fade. */
 function clearZones(zoneNames) {
-  for (const name of zoneNames) activeZones.delete(name);
+  const now = Date.now();
+  for (const name of zoneNames) {
+    const info = activeZones.get(name);
+    if (info) {
+      const feature = polygonCache.getPolygon(name);
+      if (feature) {
+        const typeDef = ALERT_TYPES[info.alertType] || ALERT_TYPES.OTHER;
+        clearingZones.set(name, { geometry: feature.geometry, alertType: info.alertType, color: typeDef.color, clearedAt: now });
+      }
+      activeZones.delete(name);
+    }
+  }
 }
 
 /**
@@ -94,6 +125,7 @@ function clearZones(zoneNames) {
  */
 function computeMapPayload() {
   _pruneExpired();
+  _pruneClearingZones();
 
   // Group active zones by alertType
   const byType = {};
@@ -103,6 +135,7 @@ function computeMapPayload() {
   }
 
   const clusters = [];
+  const now = Date.now();
 
   for (const [alertType, zones] of Object.entries(byType)) {
     const typeDef = ALERT_TYPES[alertType];
@@ -119,31 +152,38 @@ function computeMapPayload() {
       let geometry, renderStyle;
 
       if (size <= CLUSTER_SMALL) {
-        // Render individually — MultiPolygon
-        geometry = {
-          type: 'GeometryCollection',
-          geometries: group.map(f => f.geometry),
-        };
+        geometry = { type: 'GeometryCollection', geometries: group.map(f => f.geometry) };
         renderStyle = 'individual';
       } else if (size <= CLUSTER_MEDIUM) {
-        // Union + 300m buffer to close hairline gaps
         geometry = _unionWithBuffer(group, 0.3);
         renderStyle = 'union_light';
       } else {
-        // Full union + concave hull gap-fill
         geometry = _fullUnion(group);
         renderStyle = 'union_full';
       }
 
+      // Convex hull buffered 4 km → underlying "general area" hint for the client
+      const hullGeometry = _convexHullBuffered(group, 4);
+
+      // Individual polygon geometries for zones added within the last 15 seconds
+      const recentZoneGeometries = group
+        .filter(f => {
+          const info = activeZones.get(f.properties.name);
+          return info && (now - info.addedAt) < RECENT_MS;
+        })
+        .map(f => f.geometry);
+
       clusters.push({
-        id:          `${alertType}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+        id:                   `${alertType}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
         alertType,
-        color:       typeDef.color,
-        border:      typeDef.border,
-        priority:    typeDef.priority,
-        zones:       clusterZones,
+        color:                typeDef.color,
+        border:               typeDef.border,
+        priority:             typeDef.priority,
+        zones:                clusterZones,
         geometry,
         renderStyle,
+        hullGeometry,         // may be null for single-zone clusters
+        recentZoneGeometries, // empty array if no zones < 15s old
       });
     }
   }
@@ -151,7 +191,17 @@ function computeMapPayload() {
   // Sort by priority ascending so higher-priority types render on top in MapLibre
   clusters.sort((a, b) => a.priority - b.priority);
 
-  return { timestamp: Date.now(), clusters };
+  // Clearing zones: snapshot of recently cleared zones for the green fade animation
+  const clearingPayload = [];
+  for (const [name, info] of clearingZones) {
+    clearingPayload.push({
+      id:        `clearing-${name.replace(/\s/g, '_')}-${info.clearedAt}`,
+      geometry:  info.geometry,
+      clearedAt: info.clearedAt,
+    });
+  }
+
+  return { timestamp: Date.now(), clusters, clearingZones: clearingPayload };
 }
 
 // ── Geometry helpers ───────────────────────────────────────────────────────
@@ -160,6 +210,26 @@ function _pruneExpired() {
   const now = Date.now();
   for (const [name, info] of activeZones) {
     if (info.expiresAt < now) activeZones.delete(name);
+  }
+}
+
+function _pruneClearingZones() {
+  const cutoff = Date.now() - CLEAR_FADE_MS;
+  for (const [name, info] of clearingZones) {
+    if (info.clearedAt < cutoff) clearingZones.delete(name);
+  }
+}
+
+/** Convex hull of all feature centroids, buffered by bufferKm. Returns geometry or null. */
+function _convexHullBuffered(features, bufferKm) {
+  try {
+    const centroids = features.map(f => turf.centroid(f));
+    const hull = turf.convex(turf.featureCollection(centroids));
+    if (!hull) return null;
+    const buffered = turf.buffer(hull, bufferKm, { units: 'kilometers' });
+    return buffered ? buffered.geometry : null;
+  } catch {
+    return null;
   }
 }
 

@@ -119,8 +119,8 @@ class ZoneDistanceCalculator(private val context: Context) {
             return if (lang == "iw" || lang == "he") loc.nameHe else loc.nameEn
         }
         if (isThreatPayload) {
-            val lang = LocaleHelper.getLanguage(context)
-            return if (lang == "iw" || lang == "he") "לא מדויק (דיווח פיקוד העורף: $hebrewName)" else "Location unknown (HFC reported: $hebrewName)"
+            // Zone is valid but absent from our coordinates database — show the HFC name directly
+            return hebrewName
         }
         return hebrewName
     }
