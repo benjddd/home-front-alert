@@ -78,7 +78,9 @@ class MapFragment : Fragment() {
                 view?.evaluateJavascript("if (window.setAppLanguage) window.setAppLanguage('$lang');", null)
                 
                 // Inject user's selected area for map focus
-                val userCity = PrefUtils.getSelectedArea(requireContext())
+                val userCity = requireContext()
+                    .getSharedPreferences("HomeFrontAlertsPrefs", android.content.Context.MODE_PRIVATE)
+                    .getString("selected_area", null)
                 if (!userCity.isNullOrEmpty()) {
                     view?.evaluateJavascript("if (window.setUserZone) window.setUserZone('$userCity');", null)
                 }

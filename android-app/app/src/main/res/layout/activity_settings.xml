@@ -530,6 +530,7 @@
                                 android:layout_marginStart="2dp" />
                         </LinearLayout>
                     </LinearLayout>
+                </androidx.cardview.widget.CardView>
 
                 <!-- ── ALERT LOGIC (SMART DEDUPLICATION) ── -->
                 <androidx.cardview.widget.CardView
@@ -551,7 +552,7 @@
                             android:textStyle="bold"
                             android:textColor="#FFFFFF"
                             android:textSize="13sp"
-                            android:layout_bottom="2dp" />
+                            android:layout_marginBottom="2dp" />
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
