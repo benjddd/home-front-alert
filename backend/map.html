@@ -357,36 +357,36 @@ async function fetchAndRender() {
     }
 
     let isUserAreaAlerted = false;
-    let hasUrgent = false;
     let hasPreWarningInUserArea = false;
+    let hasAnyClusters = false;
 
     for (const cluster of data.clusters) {
       addClusterLayers(cluster);
 
       const isUrgent = cluster.alertType === 'ROCKET' || cluster.alertType === 'UAV' || cluster.alertType === 'INFILTRATION';
-      const isPreWarning = cluster.alertType === 'PRE_WARNING';
+      const isPreWarning = cluster.alertType === 'PRE_WARNING' || cluster.alertType === 'OTHER';
       const containsUser = userZone && cluster.zones && cluster.zones.includes(userZone);
 
-      if (containsUser && isUrgent)   isUserAreaAlerted = true;
+      if (containsUser && isUrgent)     isUserAreaAlerted = true;
       if (containsUser && isPreWarning) hasPreWarningInUserArea = true;
-      if (isUrgent) hasUrgent = true;
+      hasAnyClusters = true;
     }
 
     // 4-state model — mirrors dashboard exactly:
-    // CRITICAL > WARNING > REMOTE THREAT > NO ALERTS
+    // CRITICAL  = urgent alert in user's zone
+    // WARNING   = pre-warning in user's zone (only)
+    // REMOTE THREAT = anything active, but not in user's zone
+    // NO ALERTS = nothing active
     if (isUserAreaAlerted) {
       dot.className    = 'status-dot alert';
-      text.textContent = L().critical;       // "CRITICAL" / "קריטי"
+      text.textContent = L().critical;  // "CRITICAL" / "קריטי"
     } else if (hasPreWarningInUserArea) {
       dot.className    = 'status-dot pre-warning';
-      text.textContent = L().warning;        // "WARNING" / "אזהרה"
-    } else if (hasUrgent) {
+      text.textContent = L().warning;   // "WARNING" / "אזהרה"
+    } else if (hasAnyClusters) {
+      // Anything active (urgent or pre-warning) outside user's zone → REMOTE THREAT
       dot.className    = 'status-dot alert';
-      text.textContent = L().threat;         // "REMOTE THREAT" / "איום מרוחק"
-    } else {
-      // Only PRE_WARNING clusters present, none in user area
-      dot.className    = 'status-dot pre-warning';
-      text.textContent = L().warning;        // Treat national pre-warning as WARNING
+      text.textContent = L().threat;    // "REMOTE THREAT" / "איום מרוחק"
     }
 
   } catch (err) {
