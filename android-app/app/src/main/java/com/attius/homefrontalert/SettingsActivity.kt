@@ -135,6 +135,55 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        // Yeelight Smart Home Integration
+        val switchYeelight = findViewById<Switch>(R.id.switchYeelight)
+        val etYeelightIp = findViewById<EditText>(R.id.etYeelightIp)
+        val etYeelightToken = findViewById<EditText>(R.id.etYeelightToken)
+        val btnDiscoverYeelight = findViewById<Button>(R.id.btnDiscoverYeelight)
+
+        switchYeelight.isChecked = sharedPrefs.getBoolean("yeelight_enabled", false)
+        etYeelightIp.setText(sharedPrefs.getString("yeelight_ip", ""))
+        etYeelightToken.setText(sharedPrefs.getString("yeelight_token", ""))
+
+        switchYeelight.setOnCheckedChangeListener { _, isChecked ->
+            sharedPrefs.edit().putBoolean("yeelight_enabled", isChecked).apply()
+        }
+
+        etYeelightIp.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                sharedPrefs.edit().putString("yeelight_ip", etYeelightIp.text.toString()).apply()
+            }
+        }
+        
+        etYeelightToken.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                sharedPrefs.edit().putString("yeelight_token", etYeelightToken.text.toString().trim()).apply()
+            }
+        }
+
+        btnDiscoverYeelight.setOnClickListener {
+            val originalText = btnDiscoverYeelight.text
+            btnDiscoverYeelight.text = "Searching..."
+            btnDiscoverYeelight.isEnabled = false
+            etYeelightIp.isEnabled = false
+
+            YeelightController.discoverDevice { ip ->
+                Handler(Looper.getMainLooper()).post {
+                    btnDiscoverYeelight.text = originalText
+                    btnDiscoverYeelight.isEnabled = true
+                    etYeelightIp.isEnabled = true
+
+                    if (ip != null) {
+                        etYeelightIp.setText(ip)
+                        sharedPrefs.edit().putString("yeelight_ip", ip).apply()
+                        Toast.makeText(this@SettingsActivity, "Found Yeelight at $ip", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@SettingsActivity, "No Yeelight device found", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
         // Version footer — always matches APK filename
         val flavor = if (BuildConfig.IS_PAID) "pro" else "standard"
         findViewById<TextView>(R.id.tvAppVersion).text = "v${BuildConfig.VERSION_NAME}-$flavor"
@@ -383,29 +432,35 @@ class SettingsActivity : AppCompatActivity() {
         // CALM — Two-note resolve
         findViewById<android.widget.Button>(R.id.btnTestCalm).setOnClickListener {
             toneGenerator.playTonesForDistances(emptyList(), vol(), AlertType.CALM)
+            YeelightController.triggerAlert(this, AlertType.CALM, true)
         }
         // CAUTION — Wobble Remote (isLocal = false)
         findViewById<android.widget.Button>(R.id.btnTestCautionRemote).setOnClickListener {
             toneGenerator.playTonesForDistances(emptyList(), vol(), AlertType.CAUTION, isLocal = false)
+            YeelightController.triggerAlert(this, AlertType.CAUTION, false)
         }
         // CAUTION — Wobble Local (isLocal = true)
         findViewById<android.widget.Button>(R.id.btnTestCautionLocal).setOnClickListener {
             toneGenerator.playTonesForDistances(emptyList(), vol(), AlertType.CAUTION, isLocal = true)
+            YeelightController.triggerAlert(this, AlertType.CAUTION, true)
         }
         // URGENT — Whisper · Small (4 zones, Ashkelon corridor)
         val urgentSmall = listOf(6.0, 14.0, 22.0, 28.0)
         findViewById<android.widget.Button>(R.id.btnTestUrgentSmall).setOnClickListener {
             toneGenerator.playTonesForDistances(urgentSmall, vol(), AlertType.URGENT)
+            YeelightController.triggerAlert(this, AlertType.URGENT, true)
         }
         // URGENT — Whisper · Medium (100 zones — tests high density)
         val urgentMed = (1..100).map { it * 4.0 }
         findViewById<android.widget.Button>(R.id.btnTestUrgentMed).setOnClickListener {
             toneGenerator.playTonesForDistances(urgentMed, vol(), AlertType.URGENT)
+            YeelightController.triggerAlert(this, AlertType.URGENT, true)
         }
         // URGENT — Whisper · Large (600 zones — tests 1s shimmer texture)
         val urgentLarge = (1..600).map { it * (500.0 / 600.0) } 
         findViewById<android.widget.Button>(R.id.btnTestUrgentLarge).setOnClickListener {
             toneGenerator.playTonesForDistances(urgentLarge, vol(), AlertType.URGENT)
+            YeelightController.triggerAlert(this, AlertType.URGENT, true)
         }
     }
 

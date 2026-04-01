@@ -215,6 +215,7 @@ object StatusManager {
         if (status == "GREEN") {
             manager.cancel(LocalPollingService.ALERT_NOTIFICATION_ID)
             flipRunnable?.let { uiHandler.removeCallbacks(it) }
+            YeelightController.triggerOff(context)
             return
         }
 
@@ -515,6 +516,7 @@ object StatusManager {
                 val isLocalTotal = userZone.isNotEmpty() && allNormalized.contains(userZone)
                 if (isLocalTotal) {
                     toneGenerator.playTonesForDistances(emptyList(), volume, type, true)
+                    YeelightController.triggerAlert(context, type, true)
                 }
             } else if (newCitiesForAudio.isNotEmpty() || type == AlertType.CAUTION) {
                 val homeZone = normalizeCity(userZone)
@@ -527,6 +529,7 @@ object StatusManager {
                     Log.i("HomeFrontAlerts", "🔊 AUDIO: $id | Escalating to LOCAL siren!")
                     newCitiesForAudio.forEach { signaledSet.add(normalizeCity(it)) }
                     toneGenerator.playTonesForDistances(distancesForAudio, volume, type, true)
+                    YeelightController.triggerAlert(context, type, true)
                 } else {
                     val audioDistances = if (type == AlertType.CAUTION && newCitiesForAudio.isEmpty()) distancesTotal else distancesForAudio
                     Log.i("HomeFrontAlerts", "🔊 AUDIO: $id | Type: $type | New: ${newCitiesForAudio.size} | Local: $isLocalInDelta")
@@ -537,6 +540,7 @@ object StatusManager {
                             globalSignaledCities["$norm:${type.name}"] = nowMs
                         }
                         toneGenerator.playTonesForDistances(audioDistances, volume, type, false)
+                        YeelightController.triggerAlert(context, type, false)
                     }
                 }
             }

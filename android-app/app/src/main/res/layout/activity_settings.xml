@@ -299,6 +299,8 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
+
+
             <!-- ── ADVANCED TOGGLE ── -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -326,6 +328,100 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone">
+
+                <!-- ── DEVELOPER OPTIONS HEADER ── -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Developer Settings (Experimental)"
+                    android:textColor="#FFAC33"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- ── MI SMART BULB INTEGRATION (EXPERIMENTAL) ── -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:backgroundTint="#1A1A1A"
+                    android:elevation="4dp">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="16dp"
+                        android:orientation="vertical">
+                        
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="8dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/settings_bulb_title"
+                                android:textStyle="bold"
+                                android:textColor="#FFFFFF"
+                                android:textSize="14sp" />
+                            <Switch
+                                android:id="@+id/switchYeelight"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/settings_bulb_desc"
+                            android:textColor="#808080"
+                            android:textSize="11sp"
+                            android:layout_marginBottom="12dp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+                            <EditText
+                                android:id="@+id/etYeelightIp"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:hint="@string/settings_bulb_ip_hint"
+                                android:inputType="textUri"
+                                android:textColor="#FFFFFF"
+                                android:textColorHint="#606060"
+                                android:textSize="12sp"
+                                android:backgroundTint="#4CAF50" />
+                            <Button
+                                android:id="@+id/btnDiscoverYeelight"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:textSize="10sp"
+                                android:text="@string/settings_bulb_discover"
+                                android:backgroundTint="#2196F3" />
+                        </LinearLayout>
+
+                        <EditText
+                            android:id="@+id/etYeelightToken"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:hint="@string/settings_bulb_token_hint"
+                            android:inputType="textVisiblePassword"
+                            android:textColor="#FFFFFF"
+                            android:textColorHint="#606060"
+                            android:textSize="12sp"
+                            android:backgroundTint="#FF9800" />
+
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
 
                 <!-- ── SOUND TEST (moved to diagnostics) ── -->
                 <androidx.cardview.widget.CardView

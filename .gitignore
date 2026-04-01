@@ -62,3 +62,6 @@ siren_video.mp4
 *.apk
 *.aab
 *.ap_
+
+# ===== XIAOMI TOKEN EXTRACTOR =====
+Xiaomi-cloud-tokens-extractor/
