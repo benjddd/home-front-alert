@@ -113,46 +113,43 @@
 const MAP_DATA_URL  = '/api/map-data';   // relative — same Cloud Run service
 const POLL_INTERVAL = 5000;             // 5 seconds
 
-const ALERT_LABELS = {
-  he: {
-    ROCKET:       'ירי רקטות וטילים',
-    UAV:          'חדירת כלי טיס עוין',
-    INFILTRATION: 'חדירת מחבלים',
-    PRE_WARNING:  'התרעה מוקדמת',
-    OTHER:        'אירוע ביטחוני',
-  },
-  en: {
-    ROCKET:       'Rocket / Missile Fire',
-    UAV:          'Hostile UAV Incursion',
-    INFILTRATION: 'Terrorist Infiltration',
-    PRE_WARNING:  'Pre-Warning',
-    OTHER:        'Security Incident',
-  },
+// ── Terminology (SSOT from Android) ──────────────────────────────────────
+let ALERT_LABELS = {
+  he: { ROCKET: 'ירי רקטות וטילים', UAV: 'חדירת כלי טיס עוין', INFILTRATION: 'חדירת מחבלים', PRE_WARNING: 'התרעה מוקדמת', OTHER: 'אירוע ביטחוני' },
+  en: { ROCKET: 'Rocket / Missile Fire', UAV: 'Hostile UAV Incursion', INFILTRATION: 'Terrorist Infiltration', PRE_WARNING: 'Pre-Warning', OTHER: 'Security Incident' },
 };
 
-const STATUS_LABELS = {
-  he: {
-    loading:      'טוען…',
-    quiet:        'שקט',
-    prewarning:   'התרעה מוקדמת',
-    areasAlert:   (n) => `${n} אזו${n > 1 ? 'רים' : 'ר'} בהתרעה`,
-    offline:      'אין חיבור',
-  },
-  en: {
-    loading:      'Loading…',
-    quiet:        'Quiet',
-    prewarning:   'Pre-Warning Active',
-    areasAlert:   (n) => `${n} area${n > 1 ? 's' : ''} on alert`,
-    offline:      'No connection',
-  },
+let STATUS_LABELS = {
+  he: { loading: 'טוען…', quiet: 'אין התרעות', prewarning: 'התרעה מוקדמת', areasAlert: (n) => `${n} אזו${n > 1 ? 'רים' : 'ר'} בהתרעה`, offline: 'אין חיבור' },
+  en: { loading: 'Loading…', quiet: 'No Alerts', prewarning: 'Pre-Warning Active', areasAlert: (n) => `${n} area${n > 1 ? 's' : ''} on alert`, offline: 'No connection' },
 };
+
+async function loadStrings() {
+  try {
+    const res = await fetch('/status_strings.json');
+    if (!res.ok) return;
+    const data = await res.json();
+    for (const lang of ['en', 'he']) {
+      if (data[lang]) {
+        STATUS_LABELS[lang].quiet = data[lang].no_alerts || STATUS_LABELS[lang].quiet;
+        ALERT_LABELS[lang].PRE_WARNING = data[lang].threat || ALERT_LABELS[lang].PRE_WARNING;
+      }
+    }
+    console.log('✅ Synchronized strings with Android app.');
+    if (typeof fetchAndRender === 'function') fetchAndRender(); // Refresh UI if ready
+  } catch (e) {
+    console.warn('Using fallback strings', e);
+  }
+}
+loadStrings();
 
 // Language set by Android JS bridge (defaults to Hebrew)
 let appLang = 'he';
 window.setAppLanguage = (lang) => {
-  appLang = (lang && lang.startsWith('iw') || lang === 'he') ? 'he' : 'en';
+  appLang = (lang && (lang.startsWith('iw') || lang === 'he')) ? 'he' : 'en';
   document.documentElement.lang = appLang;
   document.documentElement.dir  = appLang === 'he' ? 'rtl' : 'ltr';
+  if (typeof fetchAndRender === 'function') fetchAndRender();
 };
 
 const L = () => STATUS_LABELS[appLang];

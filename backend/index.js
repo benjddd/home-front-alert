@@ -28,6 +28,21 @@ app.use(express.json());
 // Handle favicon to prevent 404 logs
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
+// Serve static files from 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Run string extraction script on startup to ensure SSOT
+const { exec } = require('child_process');
+const extractScriptPath = path.join(__dirname, '..', 'scripts', 'extract_strings.js');
+exec(`node "${extractScriptPath}"`, (error, stdout, stderr) => {
+    if (error) {
+        console.error(`❌ String extraction failed: ${error.message}`);
+        return;
+    }
+    if (stderr) console.warn(`⚠️ String extraction warning: ${stderr}`);
+    console.log(`✅ String extraction successful: ${stdout.trim()}`);
+});
+
 // Strict Rate Limiting: 100 requests per 15 minutes
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,

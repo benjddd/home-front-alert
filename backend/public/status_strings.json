@@ -1,0 +1,16 @@
+{
+  "en": {
+    "critical": "CRITICAL",
+    "warning": "WARNING",
+    "threat": "REMOTE THREAT",
+    "no_alerts": "NO ALERTS",
+    "all_clear": "✅ NO ALERTS"
+  },
+  "he": {
+    "critical": "קריטי",
+    "warning": "אזהרה",
+    "threat": "איום מרוחק",
+    "no_alerts": "אין התרעות",
+    "all_clear": "✅ אין התרעות"
+  }
+}
