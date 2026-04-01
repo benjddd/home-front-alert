@@ -7,6 +7,7 @@ import com.google.firebase.messaging.RemoteMessage
 import org.json.JSONArray
 import android.content.Context
 import android.content.Intent
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -73,10 +74,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                     val clearId = "fcm-clear-${System.currentTimeMillis()}"
                     StatusManager.processAlert(this, clearId, AlertType.CALM, activeZones, "[FCM-CLEAR]", toneGenerator, null)
                 } else {
-                    // No active zones to process — just ensure status is green
                     StatusManager.updateStatus(this, "GREEN")
                 }
                 chunkBuffers.clear()
+                // Notify MapFragment to refresh immediately
+                LocalBroadcastManager.getInstance(this)
+                    .sendBroadcast(Intent(StatusManager.ACTION_MAP_REFRESH))
                 return
             }
             
@@ -106,6 +109,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                                 for (i in 1..totalChunks) { buffer[i]?.let { fullCities.addAll(it) } }
                                 StatusManager.logFcmDiagnostic(this@MyFirebaseMessagingService, "Assembled ${buffer.size}/$totalChunks chunks internally")
                                 StatusManager.processAlert(this@MyFirebaseMessagingService, alertId, type, fullCities, "[FCM-CHUNKS]", toneGenerator, remoteMessage.data.toString())
+                                LocalBroadcastManager.getInstance(this@MyFirebaseMessagingService)
+                                    .sendBroadcast(Intent(StatusManager.ACTION_MAP_REFRESH))
                             }
 
                             // If this is the FIRST chunk received for this alert, set a safety fallback timer
@@ -127,6 +132,9 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                     // Single-chunk / Normal behavior
                     StatusManager.logFcmDiagnostic(this, remoteMessage.data.toString())
                     StatusManager.processAlert(this, alertId, type, chunkCities, "[FCM]", toneGenerator, remoteMessage.data.toString())
+                    // Notify MapFragment to refresh immediately
+                    LocalBroadcastManager.getInstance(this)
+                        .sendBroadcast(Intent(StatusManager.ACTION_MAP_REFRESH))
 
                 } catch (e: Exception) {
                     Log.e("HomeFrontAlerts", "FCM processing failed: ${e.message}")

@@ -2,8 +2,10 @@ package com.attius.homefrontalert
 
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.util.Log
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 /**
  * Single Source of Truth for the application's alert status and current location.
@@ -11,7 +13,12 @@ import android.util.Log
  */
 object StatusManager {
     private const val PREFS_NAME = "HomeFrontAlertsPrefs"
-    private val recentlyProcessedIds = mutableSetOf<String>()
+    const val ACTION_STATUS_CHANGED = "com.attius.homefrontalert.STATUS_CHANGED"
+    const val ACTION_ZONE_CHANGED   = "com.attius.homefrontalert.ZONE_CHANGED"
+    const val ACTION_MAP_REFRESH    = "com.attius.homefrontalert.MAP_REFRESH"
+    const val EXTRA_ZONE_HE         = "zone_he"
+    const val EXTRA_LAT             = "lat"
+    const val EXTRA_LNG             = "lng"
     private val signaledCitiesPerAlert = mutableMapOf<String, MutableSet<String>>()
     private val globalSignaledCities = mutableMapOf<String, Long>()
     
@@ -92,7 +99,11 @@ object StatusManager {
             putLong("dash_status_start_ms", System.currentTimeMillis())
             apply()
         }
-        
+
+        // Notify DashboardFragment immediately (works in both FCM and Direct modes)
+        LocalBroadcastManager.getInstance(context)
+            .sendBroadcast(Intent(ACTION_STATUS_CHANGED).putExtra("status", newStatus))
+
         syncUiComponents(context)
     }
 
@@ -113,6 +124,12 @@ object StatusManager {
         // Re-evaluate threat status whenever zone changes — moving from a threatened zone
         // to a safe zone (or vice versa) must immediately update the dashboard.
         if (prevZone != zoneHe) {
+            // Notify MapFragment so badge/dot update immediately without tab switch
+            LocalBroadcastManager.getInstance(context)
+                .sendBroadcast(Intent(ACTION_ZONE_CHANGED)
+                    .putExtra(EXTRA_ZONE_HE, zoneHe)
+                    .putExtra(EXTRA_LAT, lat)
+                    .putExtra(EXTRA_LNG, lng))
             recalculateStatus(context)  // calls updateStatus → syncUiComponents
         } else {
             syncUiComponents(context)

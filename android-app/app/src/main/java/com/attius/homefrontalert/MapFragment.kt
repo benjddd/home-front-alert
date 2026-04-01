@@ -1,6 +1,10 @@
 package com.attius.homefrontalert
 
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -9,11 +13,37 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.fragment.app.Fragment
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class MapFragment : Fragment() {
 
     private lateinit var mapWebView: WebView
     private lateinit var locationManager: AppLocationManager
+    private lateinit var sharedPrefs: android.content.SharedPreferences
+
+    // Updates zone and dot immediately when GPS resolves a new zone (no tab switch required)
+    private val zoneReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val zoneHe = intent?.getStringExtra(StatusManager.EXTRA_ZONE_HE) ?: return
+            val lat    = intent.getDoubleExtra(StatusManager.EXTRA_LAT, 0.0)
+            val lng    = intent.getDoubleExtra(StatusManager.EXTRA_LNG, 0.0)
+            mapWebView.post {
+                mapWebView.evaluateJavascript("if(window.setUserZone) window.setUserZone('${zoneHe.replace("'", "\\'")}');", null)
+                if (lat != 0.0 && lng != 0.0) {
+                    mapWebView.evaluateJavascript("if(window.onLocationUpdate) window.onLocationUpdate($lat,$lng);", null)
+                }
+            }
+        }
+    }
+
+    // Triggers map data refresh when an FCM alert or CLEAR arrives
+    private val mapRefreshReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            mapWebView.post {
+                mapWebView.evaluateJavascript("if(window.fetchAndRender) fetchAndRender();", null)
+            }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -22,6 +52,7 @@ class MapFragment : Fragment() {
         val root = inflater.inflate(R.layout.fragment_map, container, false)
         mapWebView = root.findViewById(R.id.mapWebView)
         locationManager = AppLocationManager.getInstance(requireContext())
+        sharedPrefs = requireContext().getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
         setupWebView()
         return root
     }
@@ -61,9 +92,9 @@ class MapFragment : Fragment() {
             }
         }
 
-        // The URL of the map service. For now, we use a placeholder or the backend's map endpoint
-        // It relies on the standalone map service now.
-        val mapUrl = "https://homefront-map-cjnpwpm63q-zf.a.run.app/map"
+        // Map URL from Developer Settings (or hardcoded default)
+        val defaultUrl = "https://homefront-map-cjnpwpm63q-zf.a.run.app/map"
+        val mapUrl = sharedPrefs.getString("map_service_url", defaultUrl) ?: defaultUrl
         mapWebView.loadUrl(mapUrl)
     }
 
@@ -72,7 +103,24 @@ class MapFragment : Fragment() {
         val currentLoc = locationManager.resolveCurrentLocation()
         if (currentLoc.lat != 0.0 && currentLoc.lng != 0.0) {
             mapWebView.evaluateJavascript("if (window.onLocationUpdate) { window.onLocationUpdate(${currentLoc.lat}, ${currentLoc.lng}); }", null)
+            // Also refresh zone string so badge reflects current zone on tab-return
+            val zone = currentLoc.zoneNameHe.replace("'", "\\'")
+            mapWebView.evaluateJavascript("if (window.setUserZone) window.setUserZone('$zone');", null)
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val lbm = LocalBroadcastManager.getInstance(requireContext())
+        lbm.registerReceiver(zoneReceiver,       IntentFilter(StatusManager.ACTION_ZONE_CHANGED))
+        lbm.registerReceiver(mapRefreshReceiver, IntentFilter(StatusManager.ACTION_MAP_REFRESH))
+    }
+
+    override fun onStop() {
+        super.onStop()
+        val lbm = LocalBroadcastManager.getInstance(requireContext())
+        lbm.unregisterReceiver(zoneReceiver)
+        lbm.unregisterReceiver(mapRefreshReceiver)
     }
 
     override fun onResume() {

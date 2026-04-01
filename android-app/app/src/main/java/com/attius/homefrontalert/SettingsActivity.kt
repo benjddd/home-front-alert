@@ -258,6 +258,21 @@ class SettingsActivity : AppCompatActivity() {
 
 
 
+        // 6d. Map Service URL override
+        val etMapUrl = findViewById<EditText>(R.id.etMapServiceUrl)
+        val defaultMapUrl = "https://homefront-map-cjnpwpm63q-zf.a.run.app/map"
+        etMapUrl?.setText(sharedPrefs.getString("map_service_url", defaultMapUrl))
+        etMapUrl?.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val input = s?.toString()?.trim() ?: return
+                if (input.startsWith("https://")) {
+                    sharedPrefs.edit().putString("map_service_url", input).apply()
+                }
+            }
+        })
+
         // 7. Dynamic UI Refresh (Zone Status)
         val tvShieldLog = findViewById<TextView>(R.id.tvHybridLog)
         val tvRawHistory = findViewById<TextView>(R.id.tvRawHistory)

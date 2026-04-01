@@ -97,4 +97,6 @@
     <string name="settings_dedup_desc">מונע צפצופים חוזרים עבור שידורי פיקוד העורף רציפים באותו אזור.</string>
     <string name="settings_dedup_ttl_label">זמן המתנה לאזור (Alert TTL)</string>
     <string name="settings_dedup_unit_sec">שנ\'</string>
+    <string name="settings_map_url_title">כתובת שירות המפה</string>
+    <string name="settings_map_url_hint">https://…/map</string>
 </resources>

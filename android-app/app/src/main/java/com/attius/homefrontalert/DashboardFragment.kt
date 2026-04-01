@@ -2,6 +2,7 @@ package com.attius.homefrontalert
 
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -16,6 +17,7 @@ import android.widget.TextView
 import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.fragment.app.Fragment
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class DashboardFragment : Fragment() {
 
@@ -43,9 +45,19 @@ class DashboardFragment : Fragment() {
     private var isResolvingLocation = false
     private var isLastAlertZonesExpanded = false
 
+    // Immediately refreshes the full UI when StatusManager reports a state change.
+    // Registered/unregistered with the fragment's active lifecycle (onResume/onPause).
+    private val statusReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            refreshDashboardState()
+        }
+    }
+
+    // Runs every 1s while fragment is visible — drives countdown/elapsed timer display only.
+    // Full state reads are handled by statusReceiver; this just advances the clock string.
     private val uiUpdater = object : Runnable {
         override fun run() {
-            refreshDashboardState()
+            refreshTimerDisplay()
             uiHandler.postDelayed(this, 1000)
         }
     }
@@ -89,12 +101,48 @@ class DashboardFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        uiHandler.post(uiUpdater)
+        // Event-driven: immediate update on any status change from FCM or Direct Shield
+        LocalBroadcastManager.getInstance(requireContext())
+            .registerReceiver(statusReceiver, IntentFilter(StatusManager.ACTION_STATUS_CHANGED))
+        refreshDashboardState()     // sync on tab-return
+        uiHandler.post(uiUpdater)   // start 1s timer ticker
     }
 
     override fun onPause() {
         super.onPause()
+        LocalBroadcastManager.getInstance(requireContext())
+            .unregisterReceiver(statusReceiver)
         uiHandler.removeCallbacks(uiUpdater)
+    }
+
+    /**
+     * Lightweight 1s tick — only advances the "Monitoring for / Active for" timer string.
+     * Also enforces the UI-side 30-min failover (third independent guard alongside
+     * the backend timer and recalculateStatus()).
+     * Full dashboard refresh happens via statusReceiver on STATUS_CHANGED broadcast.
+     */
+    private fun refreshTimerDisplay() {
+        if (!isAdded) return
+        val status = sharedPrefs.getString("dash_status", "GREEN") ?: "GREEN"
+        val startTime = sharedPrefs.getLong("dash_status_start_ms", System.currentTimeMillis())
+
+        // UI-side 30-min failover guard
+        if (status != "GREEN" && System.currentTimeMillis() - startTime > 1800000) {
+            StatusManager.updateStatus(requireContext(), "GREEN")
+            return
+        }
+
+        val elapsedSec = (System.currentTimeMillis() - startTime) / 1000
+        val unitS = getString(R.string.unit_seconds_short)
+        val unitM = getString(R.string.unit_minutes_short)
+        val unitH = getString(R.string.unit_hours_short)
+        val dispTimer = when {
+            elapsedSec < 60   -> "${elapsedSec}$unitS"
+            elapsedSec < 3600 -> String.format("%d:%02d", elapsedSec / 60, elapsedSec % 60)
+            else              -> String.format("%d$unitH %d$unitM", elapsedSec / 3600, (elapsedSec % 3600) / 60)
+        }
+        val timerPrefix = if (status == "GREEN") getString(R.string.monitoring_for) else getString(R.string.active_for)
+        tvDashTimer.text = "$timerPrefix $dispTimer"
     }
 
     private fun refreshDashboardState() {

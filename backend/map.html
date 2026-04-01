@@ -112,7 +112,7 @@
 
 // ── Config ────────────────────────────────────────────────────────────────
 const MAP_DATA_URL  = '/api/map-data';   // relative — same Cloud Run service
-const POLL_INTERVAL = 5000;             // 5 seconds
+const POLL_INTERVAL = 30000;            // 30s — cleanup/expiry only; alerts arrive via FCM-triggered JS bridge
 
 // ── Terminology (SSOT from Android) ──────────────────────────────────────
 let ALERT_LABELS = {
