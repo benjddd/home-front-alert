@@ -16,11 +16,11 @@ const config = require('./config');
 
 
 const ALERT_TYPES = {
-    ROCKET:       { key: 'ROCKET',      priority: 4, color: '#E53935', border: '#B71C1C' },
-    UAV:          { key: 'UAV',         priority: 3, color: '#F4511E', border: '#BF360C' },
-    INFILTRATION: { key: 'INFILTRATION',priority: 5, color: '#7B1FA2', border: '#4A148C' },
-    PRE_WARNING:  { key: 'PRE_WARNING', priority: 1, color: '#FDD835', border: '#F9A825' },
-    OTHER:        { key: 'OTHER',       priority: 2, color: '#546E7A', border: '#263238' },
+    ROCKET:       { key: 'ROCKET',      priority: 4, color: '#C62828', border: '#B71C1C' },
+    UAV:          { key: 'UAV',         priority: 3, color: '#D84315', border: '#BF360C' },
+    INFILTRATION: { key: 'INFILTRATION',priority: 5, color: '#6A1B9A', border: '#4A148C' },
+    PRE_WARNING:  { key: 'PRE_WARNING', priority: 1, color: '#F9A825', border: '#F57F17' },
+    OTHER:        { key: 'OTHER',       priority: 2, color: '#546E7A', border: '#37474F' },
 };
 
 /**

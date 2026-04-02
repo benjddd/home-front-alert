@@ -61,7 +61,7 @@ module.exports = {
     /**
      * Maximum distance (km) between two zone centroids for them to be
      * placed in the same map cluster.
-     * Default: 22 km.
+     * Default: 12 km.
      */
-    CLUSTER_DIST_KM: 22,
+    CLUSTER_DIST_KM: 12,
 };
