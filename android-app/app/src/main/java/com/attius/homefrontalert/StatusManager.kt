@@ -532,8 +532,22 @@ object StatusManager {
                 // All-clear is handled separately (mapped to local zone check)
                 val isLocalTotal = userZone.isNotEmpty() && allNormalized.contains(userZone)
                 if (isLocalTotal) {
-                    toneGenerator.playTonesForDistances(emptyList(), volume, type, true)
-                    YeelightController.triggerAlert(context, type, true)
+                    val norm = normalizeCity(userZone)
+                    val globalKey = "$norm:${type.name}"
+                    val lastNotified = globalSignaledCities[globalKey] ?: 0L
+                    
+                    // Reduced 60-second TTL special window for All-Clear events 
+                    // (Prevents jitter/echoes without locking out the next real resolution)
+                    val isCooledDown = (nowMs - lastNotified) > 60 * 1000L
+                    
+                    if (isCooledDown) {
+                        Log.i("HomeFrontAlerts", "🔊 AUDIO: $id | All-Clear sound triggered for $norm")
+                        toneGenerator.playTonesForDistances(emptyList(), volume, type, true)
+                        YeelightController.triggerAlert(context, type, true)
+                        globalSignaledCities[globalKey] = nowMs
+                    } else {
+                        Log.d("HomeFrontAlerts", "🔊 AUDIO: $id | All-Clear suppressed (within 60s cooldown)")
+                    }
                 }
             } else if (newCitiesForAudio.isNotEmpty() || type == AlertType.CAUTION) {
                 val homeZone = normalizeCity(userZone)

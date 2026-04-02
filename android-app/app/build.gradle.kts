@@ -74,11 +74,14 @@ android {
     // exactly before the build starts to avoid Google Drive sync locks.
     tasks.register("cleanDesktopInit") {
         doLast {
-            println("🛡️ Purging desktop.ini files from resources...")
-            val resDir = file("src/main/res")
-            resDir.walkBottomUp().forEach { file ->
-                if (file.name == "desktop.ini") {
-                    file.delete()
+            println("🛡️ Purging desktop.ini files from ALL directories...")
+            projectDir.walkBottomUp().forEach { file ->
+                if (file.name.equals("desktop.ini", ignoreCase = true)) {
+                    try {
+                        file.delete()
+                    } catch (e: Exception) {
+                        println("⚠️ Could not delete ${file.absolutePath}")
+                    }
                 }
             }
         }
@@ -152,7 +155,5 @@ dependencies {
 }
 
 
-// Build output goes to temp to avoid Google Drive File Stream injecting desktop.ini files
-// which break the Android resource merger. APKs are at:
-// C:\Users\user\AppData\Local\Temp\homefrontalert\app\build\outputs\apk\
-project.layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/homefrontalert/app/build"))
+// Build output default (restored for accessibility)
+// project.layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/homefrontalert/app/build"))
