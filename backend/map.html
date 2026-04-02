@@ -346,10 +346,10 @@ function updateClearingZones(zones) {
       type: 'fill',
       source: sid,
       paint: {
-        'fill-color': '#4CAF50',
+        'fill-color': '#388E3C', // Forest Green for clearer distinction from red
         'fill-opacity': [
           'interpolate', ['linear'], ['-', Date.now(), ['get', 'clearedAt']],
-          0, 0.45,
+          0, 0.30, // Lower initial opacity than active red (0.38)
           CLEAR_FADE_MS, 0
         ]
       }
@@ -388,12 +388,12 @@ function addHeatmapLayers(data) {
     managedSources.add(srcId);
   }
 
-  // Red glow for urgent (ROCKET/UAV/etc) — Lowered intensity 0.5
+  // Red glow for urgent (ROCKET/UAV/etc)
   addHeatmap('urgent', data.urgentPoints, [
     0,    'rgba(0,0,0,0)',
-    0.2,  'rgba(211,47,47,0.15)',
-    0.5,  'rgba(211,47,47,0.40)',
-    0.8,  'rgba(198,40,40,0.60)',
+    0.05, 'rgba(211,47,47,0.15)', // Glow visible even for single alerts (density = 0.05)
+    0.3,  'rgba(211,47,47,0.40)',
+    0.7,  'rgba(183,28,28,0.60)',
     1.0,  'rgba(183,28,28,0.75)',
   ], 0.5, 0.45);
 
