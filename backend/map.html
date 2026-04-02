@@ -189,29 +189,19 @@ const map = new maplibregl.Map({
   container: 'map',
   style: {
     version: 8,
-    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-    sources: {
-      esri: {
-        type: 'raster',
-        // Esri Dark Gray Base has NO borders and NO labels, creating a perfectly clean canvas.
-        // NOTE: ArcGIS REST API uses {z}/{y}/{x} rather than standard {z}/{x}/{y}
-        tiles: [
-          'https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
-        ],
-        tileSize: 256,
-        attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
-        maxzoom: 16,
-      }
-    },
+    // No external tile sources — pure dark canvas.
+    // Country outline is loaded separately as our own GeoJSON after map.on('load').
+    sources: {},
     layers: [
-      { id: 'bg', type: 'raster', source: 'esri' }
+      // Deep dark background = "sea" / off-territory
+      { id: 'bg', type: 'background', paint: { 'background-color': '#0a0a18' } },
     ],
   },
   center: [34.85, 31.5],   // Israel centre
   zoom: 7,
   minZoom: 5,
   maxZoom: 17,
-  attributionControl: true,
+  attributionControl: false,
   logoPosition: 'bottom-left',
 });
 
@@ -503,10 +493,30 @@ async function fetchAndRender() {
   }
 }
 
-map.on('load', () => {
+map.on('load', async () => {
+  // Load our own country outline (Israel + Judea & Samaria as one territory).
+  // Fill-only — no line layer — so the boundary between features (Green Line) is never rendered.
+  try {
+    const r = await fetch('/api/country-outline', { signal: AbortSignal.timeout(5000) });
+    if (r.ok) {
+      const outline = await r.json();
+      map.addSource('country-src', { type: 'geojson', data: outline });
+      // Land fill: slightly lighter dark tone than the #0a0a18 background
+      map.addLayer({
+        id:     'country-fill',
+        type:   'fill',
+        source: 'country-src',
+        paint:  { 'fill-color': '#18182e', 'fill-opacity': 1 },
+      });
+    }
+  } catch (e) {
+    console.warn('[map] country outline unavailable:', e.message);
+  }
+
   fetchAndRender();
   setInterval(fetchAndRender, POLL_INTERVAL);
 });
+
 </script>
 </body>
 </html>

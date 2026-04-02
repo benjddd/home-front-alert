@@ -31,30 +31,18 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc:  ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
       styleSrc:   ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
-      // Raster tile images (Esri Dark Gray Base)
-      imgSrc:     [
-        "'self'", 'data:', 'blob:',
-        'https://*.basemaps.cartocdn.com',
-        'https://unpkg.com',
-        'https://services.arcgisonline.com',
-        'https://*.arcgisonline.com',
-      ],
-      // MapLibre fetches tiles + fonts via fetch() inside a Web Worker;
-      // ALL tile/font domains must be in connect-src.
-      connectSrc: [
-        "'self'", 'blob:',
-        'https://*.basemaps.cartocdn.com',
-        'https://demotiles.maplibre.org',
-        'https://services.arcgisonline.com',
-        'https://*.arcgisonline.com',
-        'https://*.arcgis.com',
-      ],
-      fontSrc:    ["'self'", 'https://demotiles.maplibre.org'],
+      // No external tile servers — basemap is our own GeoJSON outline.
+      // blob: needed for MapLibre's internal Web Worker comms.
+      imgSrc:     ["'self'", 'data:', 'blob:'],
+      connectSrc: ["'self'", 'blob:'],
       workerSrc:  ["'self'", 'blob:'],
     },
   },
   crossOriginEmbedderPolicy: false,
 }));
+
+// Static assets (israel-outline.json etc.)
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Routes ───────────────────────────────────────────────────────────────
 
@@ -75,6 +63,13 @@ app.get('/api/map-data', (_req, res) => {
     console.error('[map-server] computeMapPayload error:', err);
     res.status(500).json({ error: 'map data unavailable' });
   }
+});
+
+// Country outline GeoJSON — Israel + Judea & Samaria as one territory, no Green Line.
+// Public domain natural earth data, pre-generated once by generate_country_outline.js.
+app.get('/api/country-outline', (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.sendFile(path.join(__dirname, 'public', 'israel-outline.json'));
 });
 
 // Polygon cache status (internal health)
