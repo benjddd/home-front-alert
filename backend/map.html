@@ -235,22 +235,18 @@ if (navigator.geolocation) {
 }
 
 // ── Layer management ──────────────────────────────────────────────────────
+// ── Layer management ──────────────────────────────────────────────────────
 const managedLayers  = new Set();
 const managedSources = new Set();
 
-// Separate tracking for clearing zones — these have their own 15-min lifecycle
-// and must NOT be wiped by clearAlertLayers().
-const clearingLayers  = new Set();
-const clearingSources = new Set();
+// One single source/layer for all clearing zones to prevent MapLibre lag
 const CLEAR_FADE_MS   = 15 * 60 * 1000;
-const clearingMeta    = {};  // fillLayerId → { clearedAt }
 
 function clearAlertLayers() {
   for (const id of managedLayers)  { try { map.removeLayer(id);  } catch {} }
   for (const id of managedSources) { try { map.removeSource(id); } catch {} }
   managedLayers.clear();
   managedSources.clear();
-  // Clearing layers are intentionally preserved — they age out independently
 }
 
 /**
@@ -324,44 +320,42 @@ function addClusterLayers(cluster) {
 
 // ── Clearing zone animation (green → transparent over 15 min) ────────────────
 
-function addClearingZoneLayer(zone) {
-  const fillId = `cfill-${zone.id}`;
-  if (clearingLayers.has(fillId)) return;  // Already rendering this zone
+function updateClearingZones(zones) {
+  const sid = 'csrc-all';
+  const lid = 'cfill-all';
 
-  const elapsed = Date.now() - zone.clearedAt;
-  if (elapsed >= CLEAR_FADE_MS) return;   // Already fully faded
-
-  const opacity = (1 - elapsed / CLEAR_FADE_MS) * 0.55;
-  const sid = `csrc-${zone.id}`;
-
-  try {
-    map.addSource(sid, { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: zone.geometry } });
-    map.addLayer({ id: fillId, type: 'fill', source: sid, paint: { 'fill-color': '#4CAF50', 'fill-opacity': opacity } });
-    clearingSources.add(sid);
-    clearingLayers.add(fillId);
-    clearingMeta[fillId] = { clearedAt: zone.clearedAt };
-  } catch (e) {
-    console.warn('[map] clearing layer error:', e.message);
+  if (!zones || zones.length === 0) {
+    if (map.getLayer(lid)) try { map.removeLayer(lid); } catch {}
+    if (map.getSource(sid)) try { map.removeSource(sid); } catch {}
+    return;
   }
-}
 
-function updateClearingOpacities() {
-  const now = Date.now();
-  for (const fillId of Array.from(clearingLayers)) {
-    const meta = clearingMeta[fillId];
-    if (!meta) continue;
-    const elapsed = now - meta.clearedAt;
-    if (elapsed >= CLEAR_FADE_MS) {
-      try { map.removeLayer(fillId); } catch {}
-      const sid = fillId.replace('cfill-', 'csrc-');
-      try { map.removeSource(sid); } catch {}
-      clearingLayers.delete(fillId);
-      clearingSources.delete(sid);
-      delete clearingMeta[fillId];
-    } else {
-      const opacity = (1 - elapsed / CLEAR_FADE_MS) * 0.55;
-      try { map.setPaintProperty(fillId, 'fill-opacity', opacity); } catch {}
-    }
+  const fc = {
+    type: 'FeatureCollection',
+    features: zones.map(z => ({
+      type: 'Feature',
+      geometry: z.geometry,
+      properties: { clearedAt: z.clearedAt }
+    }))
+  };
+
+  if (!map.getSource(sid)) {
+    map.addSource(sid, { type: 'geojson', data: fc });
+    map.addLayer({
+      id: lid,
+      type: 'fill',
+      source: sid,
+      paint: {
+        'fill-color': '#4CAF50',
+        'fill-opacity': [
+          'interpolate', ['linear'], ['-', Date.now(), ['get', 'clearedAt']],
+          0, 0.45,
+          CLEAR_FADE_MS, 0
+        ]
+      }
+    });
+  } else {
+    map.getSource(sid).setData(fc);
   }
 }
 
@@ -370,10 +364,11 @@ function updateClearingOpacities() {
 // Radius and intensity are zoom-interpolated so the glow scales naturally.
 
 function addHeatmapLayers(data) {
-  const radiusExpr = ['interpolate', ['linear'], ['zoom'], 5, 40, 10, 110, 14, 240];
+  // Balanced radius: not too small but not overwhelming
+  const radiusExpr = ['interpolate', ['linear'], ['zoom'], 5, 25, 10, 75, 14, 150];
   const weightExpr = ['coalesce', ['get', 'weight'], 1];
 
-  function addHeatmap(id, geojson, colorStops, intensity, opacity) {
+  function addHeatmap(id, geojson, colorStops, intensity, maxOpacity) {
     if (!geojson || geojson.features.length === 0) return;
     const srcId   = `hsrc-${id}`;
     const layerId = `hlyr-${id}`;
@@ -383,8 +378,8 @@ function addHeatmapLayers(data) {
       paint: {
         'heatmap-weight':    weightExpr,
         'heatmap-radius':    radiusExpr,
-        'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 5, intensity * 0.5, 10, intensity, 14, intensity * 2],
-        'heatmap-opacity':   opacity,
+        'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 5, intensity * 0.4, 10, intensity, 14, intensity * 1.5],
+        'heatmap-opacity':   maxOpacity,
         'heatmap-color':     ['interpolate', ['linear'], ['heatmap-density'], ...colorStops],
       },
     });
@@ -392,23 +387,22 @@ function addHeatmapLayers(data) {
     managedSources.add(srcId);
   }
 
-  // Urgent (ROCKET / UAV / INFILTRATION) — red gradient matching #E53935 → #B71C1C
+  // Red glow for urgent (ROCKET/UAV/etc) — Max opacity 0.45
   addHeatmap('urgent', data.urgentPoints, [
     0,    'rgba(0,0,0,0)',
-    0.15, 'rgba(229,57,53,0.0)',
-    0.4,  'rgba(229,57,53,0.30)',
-    0.7,  'rgba(183,28,28,0.55)',
-    1.0,  'rgba(183,28,28,0.80)',
-  ], 0.9, 0.70);
+    0.2,  'rgba(229,57,53,0.05)',
+    0.5,  'rgba(229,57,53,0.25)',
+    0.8,  'rgba(183,28,28,0.50)',
+    1.0,  'rgba(183,28,28,0.70)',
+  ], 0.7, 0.45);
 
-  // Pre-warning (PRE_WARNING / OTHER) — amber gradient matching #FDD835 → #F9A825
+  // Amber glow for pre-warning — Max opacity 0.35
   addHeatmap('prewarning', data.preWarningPoints, [
     0,    'rgba(0,0,0,0)',
-    0.15, 'rgba(253,216,53,0.0)',
-    0.4,  'rgba(253,216,53,0.32)',
-    0.7,  'rgba(249,168,37,0.58)',
-    1.0,  'rgba(249,168,37,0.82)',
-  ], 0.7, 0.62);
+    0.2,  'rgba(253,216,53,0.05)',
+    0.5,  'rgba(253,216,53,0.25)',
+    1.0,  'rgba(249,168,37,0.55)',
+  ], 0.5, 0.35);
 }
 
 // ── Tooltip ───────────────────────────────────────────────────────────────
@@ -439,51 +433,35 @@ async function fetchAndRender() {
 
     clearAlertLayers();
 
-    // Update clearing zone fade opacities (runs even when no active clusters)
-    updateClearingOpacities();
-
-    // Add newly cleared zones received from server
-    if (data.clearingZones && data.clearingZones.length > 0) {
-      for (const zone of data.clearingZones) {
-        addClearingZoneLayer(zone);
-      }
-    }
-
-    // Heatmap layers first — must be added before cluster layers to stay underneath
-    addHeatmapLayers(data);
-
-    if (!data.clusters || data.clusters.length === 0) {
-      dot.className    = 'status-dot';
-      text.textContent = L().no_alerts;
-      return;
-    }
-
-    let isUserAreaAlerted = false;
-    let hasPreWarningInUserArea = false;
-    let hasAnyClusters = false;
-
-    for (const cluster of data.clusters) {
-      addClusterLayers(cluster);
-
-      const isUrgent = cluster.alertType === 'ROCKET' || cluster.alertType === 'UAV' || cluster.alertType === 'INFILTRATION';
-      const isPreWarning = cluster.alertType === 'PRE_WARNING' || cluster.alertType === 'OTHER';
-      const containsUser = userZone && cluster.zones && cluster.zones.includes(userZone);
-
-      if (containsUser && isUrgent)     isUserAreaAlerted = true;
-      if (containsUser && isPreWarning) hasPreWarningInUserArea = true;
-      hasAnyClusters = true;
-    }
-
-    // 4-state model — mirrors dashboard exactly
-    if (isUserAreaAlerted) {
+    // Map badge status from backend (SSOT)
+    const status = data.systemStatus || 'CALM';
+    if (status === 'CRITICAL') {
       dot.className    = 'status-dot alert';
       text.textContent = L().critical;
-    } else if (hasPreWarningInUserArea) {
+    } else if (status === 'WARNING') {
       dot.className    = 'status-dot pre-warning';
       text.textContent = L().warning;
-    } else if (hasAnyClusters) {
+    } else if (status === 'THREAT') {
       dot.className    = 'status-dot alert';
       text.textContent = L().threat;
+    } else {
+      dot.className    = 'status-dot';
+      text.textContent = L().no_alerts;
+    }
+
+    // 10m stats hint
+    if (data.recentAlertCount > 0) {
+      const statsSuffix = appLang === 'he' ? ` (${data.recentAlertCount} התרעות)` : ` (${data.recentAlertCount} alerts)`;
+      text.textContent += statsSuffix;
+    }
+
+    updateClearingZones(data.clearingZones);
+    addHeatmapLayers(data);
+
+    if (data.clusters) {
+      for (const cluster of data.clusters) {
+        addClusterLayers(cluster);
+      }
     }
 
   } catch (err) {
@@ -493,25 +471,52 @@ async function fetchAndRender() {
   }
 }
 
+// JS Bridge for instant refresh on FCM alert/clear
+window.onAlertCleared = fetchAndRender;
+
 map.on('load', async () => {
-  // Load our own country outline (Israel + Judea & Samaria as one territory).
-  // Fill-only — no line layer — so the boundary between features (Green Line) is never rendered.
+  // 1. Country Outline
   try {
     const r = await fetch('/api/country-outline', { signal: AbortSignal.timeout(5000) });
     if (r.ok) {
       const outline = await r.json();
       map.addSource('country-src', { type: 'geojson', data: outline });
-      // Land fill: slightly lighter dark tone than the #0a0a18 background
       map.addLayer({
-        id:     'country-fill',
-        type:   'fill',
-        source: 'country-src',
+        id: 'country-fill', type: 'fill', source: 'country-src',
         paint:  { 'fill-color': '#18182e', 'fill-opacity': 1 },
       });
     }
-  } catch (e) {
-    console.warn('[map] country outline unavailable:', e.message);
-  }
+  } catch (e) {}
+
+  // 2. Extra Geography (Cities & Water)
+  try {
+    const r = await fetch('/geo-extras.json');
+    if (r.ok) {
+      const extras = await r.json();
+      map.addSource('extras-src', { type: 'geojson', data: extras });
+      
+      // Water bodies (Kinneret, Dead Sea, Mediterranean)
+      map.addLayer({
+        id: 'water-fill', type: 'fill', source: 'extras-src',
+        filter: ['==', ['get', 'type'], 'water'],
+        paint: { 'fill-color': '#0a0a18', 'fill-opacity': 0.8 }
+      });
+
+      // City labels
+      map.addLayer({
+        id: 'city-labels', type: 'symbol', source: 'extras-src',
+        filter: ['==', ['get', 'type'], 'city'],
+        layout: {
+          'text-field': appLang === 'he' ? ['get', 'name_he'] : ['get', 'name_en'],
+          'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+          'text-size': 10,
+          'text-anchor': 'center',
+          'text-justify': 'center'
+        },
+        paint: { 'text-color': '#adb5bd', 'text-halo-color': '#0a0a18', 'text-halo-width': 1 }
+      });
+    }
+  } catch (e) {}
 
   fetchAndRender();
   setInterval(fetchAndRender, POLL_INTERVAL);

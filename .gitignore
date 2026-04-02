@@ -65,3 +65,6 @@ siren_video.mp4
 
 # ===== XIAOMI TOKEN EXTRACTOR =====
 Xiaomi-cloud-tokens-extractor/
+
+# ===== AI ASSISTANT =====
+.claude/

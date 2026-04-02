@@ -1,0 +1,18 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "type": "city", "name_he": "ירושלים", "name_en": "Jerusalem" }, "geometry": { "type": "Point", "coordinates": [35.2137, 31.7683] } },
+    { "type": "Feature", "properties": { "type": "city", "name_he": "תל אביב", "name_en": "Tel Aviv" }, "geometry": { "type": "Point", "coordinates": [34.7818, 32.0853] } },
+    { "type": "Feature", "properties": { "type": "city", "name_he": "חיפה", "name_en": "Haifa" }, "geometry": { "type": "Point", "coordinates": [34.9896, 32.7940] } },
+    { "type": "Feature", "properties": { "type": "city", "name_he": "באר שבע", "name_en": "Beer Sheva" }, "geometry": { "type": "Point", "coordinates": [34.7915, 31.2530] } },
+    { "type": "Feature", "properties": { "type": "city", "name_he": "אשדוד", "name_en": "Ashdod" }, "geometry": { "type": "Point", "coordinates": [34.6447, 31.8044] } },
+    { "type": "Feature", "properties": { "type": "city", "name_he": "טבריה", "name_en": "Tiberias" }, "geometry": { "type": "Point", "coordinates": [35.5312, 32.7922] } },
+    { "type": "Feature", "properties": { "type": "city", "name_he": "אילת", "name_en": "Eilat" }, "geometry": { "type": "Point", "coordinates": [34.9512, 29.5577] } },
+    { "type": "Feature", "properties": { "type": "city", "name_he": "קצרין", "name_en": "Katzrin" }, "geometry": { "type": "Point", "coordinates": [35.6881, 32.9912] } },
+    { "type": "Feature", "properties": { "type": "city", "name_he": "אריאל", "name_en": "Ariel" }, "geometry": { "type": "Point", "coordinates": [35.1932, 32.1064] } },
+    
+    { "type": "Feature", "properties": { "type": "water", "name_he": "הים התיכון", "name_en": "Mediterranean Sea" }, "geometry": { "type": "Polygon", "coordinates": [[[34.4, 31.0], [33.5, 31.0], [33.5, 33.5], [34.4, 33.5], [34.4, 31.0]]] } },
+    { "type": "Feature", "properties": { "type": "water", "name_he": "ים המלח", "name_en": "Dead Sea" }, "geometry": { "type": "Polygon", "coordinates": [[[35.45, 31.25], [35.6, 31.25], [35.6, 31.75], [35.45, 31.75], [35.45, 31.25]]] } },
+    { "type": "Feature", "properties": { "type": "water", "name_he": "כנרת", "name_en": "Sea of Galilee" }, "geometry": { "type": "Polygon", "coordinates": [[[35.52, 32.7], [35.65, 32.7], [35.65, 32.9], [35.52, 32.9], [35.52, 32.7]]] } }
+  ]
+}
