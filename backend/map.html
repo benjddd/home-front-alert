@@ -287,7 +287,7 @@ function addClusterLayers(cluster) {
   map.addLayer({ id: glowId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.10 } });
 
   // ── Main fill (toned down) ────────────────────────────────────────────
-  map.addLayer({ id: fillId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.22 } });
+  map.addLayer({ id: fillId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.38 } });
 
   // ── Crisp border (full opacity — unchanged) ──────────────────────────────
   map.addLayer({ id: borderId, type: 'line', source: sid, paint: { 'line-color': cluster.border, 'line-width': 2.2, 'line-opacity': 0.92 } });
@@ -391,11 +391,11 @@ function addHeatmapLayers(data) {
   // Red glow for urgent (ROCKET/UAV/etc) — Lowered intensity 0.5
   addHeatmap('urgent', data.urgentPoints, [
     0,    'rgba(0,0,0,0)',
-    0.2,  'rgba(198,40,40,0.05)',
-    0.4,  'rgba(198,40,40,0.20)',
-    0.7,  'rgba(183,28,28,0.45)',
-    1.0,  'rgba(183,28,28,0.65)',
-  ], 0.5, 0.40);
+    0.2,  'rgba(211,47,47,0.15)',
+    0.5,  'rgba(211,47,47,0.40)',
+    0.8,  'rgba(198,40,40,0.60)',
+    1.0,  'rgba(183,28,28,0.75)',
+  ], 0.5, 0.45);
 
   // Amber glow for pre-warning — Lowered intensity 0.4
   addHeatmap('prewarning', data.preWarningPoints, [

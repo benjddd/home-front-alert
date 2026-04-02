@@ -16,7 +16,7 @@ const config = require('./config');
 
 
 const ALERT_TYPES = {
-    ROCKET:       { key: 'ROCKET',      priority: 4, color: '#C62828', border: '#B71C1C' },
+    ROCKET:       { key: 'ROCKET',      priority: 4, color: '#D32F2F', border: '#B71C1C' },
     UAV:          { key: 'UAV',         priority: 3, color: '#D84315', border: '#BF360C' },
     INFILTRATION: { key: 'INFILTRATION',priority: 5, color: '#6A1B9A', border: '#4A148C' },
     PRE_WARNING:  { key: 'PRE_WARNING', priority: 1, color: '#F9A825', border: '#F57F17' },

@@ -155,5 +155,5 @@ dependencies {
 }
 
 
-// Build output default (restored for accessibility)
-// project.layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/homefrontalert/app/build"))
+// Build output default (restored for faster builds and to avoid Google Drive sync locks)
+project.layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/homefrontalert/app/build"))
