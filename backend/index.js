@@ -199,11 +199,23 @@ app.get('/privacy', (req, res) => {
     res.sendFile(__dirname + '/public/privacy.html');
 });
 
+// Current alert status and map data SSOT
+app.get('/api/map-data', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+    try {
+        const payload = mapState.computeMapPayload();
+        res.json(payload);
+    } catch (err) {
+        console.error('[Relay] computeMapPayload error:', err);
+        res.status(500).json({ error: 'map synchronization failed' });
+    }
+});
+
 app.get('/alerts', (req, res) => {
     // Consolidated SSOT state for Dashboard
     res.json({ 
         active: {
-            status: systemStatus,
+            status: mapState.getSystemStatus(null), // Direct from SSOT
             recent_alerts_10m: mapState.getRecentAlertCount(),
         }, 
         system: { 

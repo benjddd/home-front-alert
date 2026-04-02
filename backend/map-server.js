@@ -14,11 +14,13 @@
 const express   = require('express');
 const path      = require('path');
 const helmet    = require('helmet');
-const { OAuth2Client } = require('google-auth-library');
-
 const polygonCache = require('./polygonCache');
 const mapState     = require('./mapState');
+const axios        = require('axios');
+const { GoogleAuth } = require('google-auth-library');
 
+const auth = new GoogleAuth();
+const BACKEND_SERVICE_URL = process.env.BACKEND_SERVICE_URL || 'https://homefront-backend-344391280523.me-west1.run.app';
 const client = new OAuth2Client();
 
 const app  = express();
@@ -51,17 +53,27 @@ app.get('/map', (_req, res) => {
   res.sendFile(path.join(__dirname, 'map.html'));
 });
 
-// Current alert clusters as GeoJSON-based payload
-app.get('/api/map-data', (_req, res) => {
+// Unified SSOT: Proxy data from the Backend relay service
+app.get('/api/map-data', async (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store');
   res.setHeader('Content-Type', 'application/json');
 
   try {
-    const payload = mapState.computeMapPayload();
-    res.json(payload);
+    const oidcClient = await auth.getIdTokenClient(BACKEND_SERVICE_URL);
+    const response = await oidcClient.request({
+      url: `${BACKEND_SERVICE_URL}/api/map-data`,
+      method: 'GET'
+    });
+    res.json(response.data);
   } catch (err) {
-    console.error('[map-server] computeMapPayload error:', err);
-    res.status(500).json({ error: 'map data unavailable' });
+    console.error('[map-server] Proxy error to Backend relay:', err.message);
+    // Fallback: Compute locally if proxy fails (prevents absolute outage)
+    try {
+        const payload = mapState.computeMapPayload();
+        res.json(payload);
+    } catch (localErr) {
+        res.status(500).json({ error: 'synchronization failure' });
+    }
   }
 });
 
