@@ -13,6 +13,9 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
  */
 object StatusManager {
     private const val PREFS_NAME = "HomeFrontAlertsPrefs"
+    private const val THREAT_TIMEOUT_MS = 30 * 60 * 1000L
+    private const val CLEARING_FADE_MS = 5 * 60 * 1000L
+    private const val STATE_CLEARING = "CLEARING"
     const val ACTION_STATUS_CHANGED = "com.attius.homefrontalert.STATUS_CHANGED"
     const val ACTION_ZONE_CHANGED   = "com.attius.homefrontalert.ZONE_CHANGED"
     const val ACTION_MAP_REFRESH    = "com.attius.homefrontalert.MAP_REFRESH"
@@ -59,13 +62,16 @@ object StatusManager {
             while(iter.hasNext()) {
                 val z = iter.next()
                 val obj = threats.getJSONObject(z)
+                val state = obj.optString("s", "URGENT")
+                if (state == STATE_CLEARING) continue
+
                 val t = obj.optLong("t", 0L)
                 val isHome = normalizeCity(z) == homeZone
                 
                 if (isHome) {
                     homeThreatObj = obj
                     val duration = obj.optInt("c", 0)
-                    if (t > 0 && duration > 0 && obj.optString("s", "URGENT") == "URGENT") {
+                    if (t > 0 && duration > 0 && state == "URGENT") {
                         val rem = duration - (now - t) / 1000
                         if (rem > 0) localRemaining = rem
                     }
@@ -145,27 +151,39 @@ object StatusManager {
      * Re-calculates status based on active threat map.
      * Threats expire after 30 minutes unless cleared explicitly.
      */
-    fun recalculateStatus(context: Context) {
+    fun recalculateStatus(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
         var threats = org.json.JSONObject(threatsStr)
         val homeZone = normalizeCity(prefs.getString("current_home_zone", "") ?: "")
         
         val now = System.currentTimeMillis()
-        val threatTimeoutMs = 1800000L // 30 minutes
         
         val iter = threats.keys()
         while(iter.hasNext()) {
             val z = iter.next()
             val obj = threats.getJSONObject(z)
-            // Remove threat if it's past the 30-min window
-            if (now - obj.optLong("t", now) > threatTimeoutMs) { 
-                iter.remove()
+            val state = obj.optString("s", "URGENT")
+
+            if (state == STATE_CLEARING) {
+                val clearedAt = obj.optLong("ct", 0L)
+                if (clearedAt <= 0L || now - clearedAt > CLEARING_FADE_MS) {
+                    iter.remove()
+                }
+            } else {
+                // Remove active threat if it's past the 30-min window
+                if (now - obj.optLong("t", now) > THREAT_TIMEOUT_MS) {
+                    iter.remove()
+                }
             }
         }
         
-        // Persist cleaned map
-        prefs.edit().putString("active_threat_map", threats.toString()).apply()
+        // Persist cleaned map only if changed
+        val cleanedThreatsStr = threats.toString()
+        val mapChanged = cleanedThreatsStr != threatsStr
+        if (mapChanged) {
+            prefs.edit().putString("active_threat_map", cleanedThreatsStr).apply()
+        }
         
         // Simpler PRUNING: If registry gets too large, clear oldest entries to maintain memory safety
         if (signaledCitiesPerAlert.size > 100) {
@@ -173,27 +191,38 @@ object StatusManager {
            if (oldestKey != null) signaledCitiesPerAlert.remove(oldestKey)
         }
         
+        var hasActiveThreats = false
         var newStatus = "GREEN"
-        if (threats.length() > 0) {
-            newStatus = "YELLOW"
-            val iterKeys = threats.keys()
-            while(iterKeys.hasNext()) {
-                val zoneKey = iterKeys.next()
-                val obj = threats.getJSONObject(zoneKey)
-                // Use normalized check
-                if (zoneKey == homeZone || normalizeCity(zoneKey) == homeZone) {
-                    val style = obj.optString("s", "URGENT")
-                    if (style == "URGENT") {
-                        newStatus = "RED"
-                        break 
-                    } else if (newStatus != "RED") {
-                        newStatus = "ORANGE" 
-                    }
+        val iterKeys = threats.keys()
+        while(iterKeys.hasNext()) {
+            val zoneKey = iterKeys.next()
+            val obj = threats.getJSONObject(zoneKey)
+            val style = obj.optString("s", "URGENT")
+            if (style == STATE_CLEARING) continue
+
+            hasActiveThreats = true
+            if (newStatus == "GREEN") newStatus = "YELLOW"
+
+            // Use normalized check
+            if (zoneKey == homeZone || normalizeCity(zoneKey) == homeZone) {
+                if (style == "URGENT") {
+                    newStatus = "RED"
+                    break
+                } else if (newStatus != "RED") {
+                    newStatus = "ORANGE"
                 }
             }
         }
 
+        if (!hasActiveThreats) {
+            newStatus = "GREEN"
+        }
+
+        val previousStatus = prefs.getString("dash_status", "GREEN") ?: "GREEN"
         updateStatus(context, newStatus)
+        val statusChanged = previousStatus != newStatus
+
+        return mapChanged || statusChanged
     }
 
     fun syncUiComponents(context: Context) {
@@ -334,6 +363,13 @@ object StatusManager {
             if (code == 200 || code == 204) {
                 val body = if (code == 200) conn.inputStream.bufferedReader().use { it.readText() } else ""
                 success = handlePollResult(context, body, "[HFC]", hfcStatus, toneGenerator)
+                if (success) {
+                    val changed = recalculateStatus(context)
+                    if (changed) {
+                        LocalBroadcastManager.getInstance(context)
+                            .sendBroadcast(Intent(ACTION_MAP_REFRESH))
+                    }
+                }
             }
         } catch (e: Exception) { hfcStatus = "HFC: Fail" }
 
@@ -426,30 +462,14 @@ object StatusManager {
     fun processAlert(context: Context, id: String, type: AlertType, cities: List<String>, source: String, toneGenerator: DynamicToneGenerator?, rawBody: String? = null) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val nowTime = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
-        
-        // 1. Centralized Incremental Signaling (Deduplication within IDs and Global TTL)
+
+        // 1. Centralized incremental signaling (dedup within IDs and global TTL)
         val signaledSet = signaledCitiesPerAlert.getOrPut(id) { mutableSetOf() }
         val ttlSeconds = prefs.getLong("alert_ttl_seconds", 180L)
         val ttlMs = ttlSeconds * 1000L
         val nowMs = System.currentTimeMillis()
-
-        val newCitiesForAudio = cities.filter { city ->
-            val norm = normalizeCity(city)
-            val globalKey = "$norm:${type.name}"
-            val lastNotified = globalSignaledCities[globalKey] ?: 0L
-            val isGlobalCooledDown = (nowMs - lastNotified) > ttlMs
-            
-            val isNewInThisAlert = !signaledSet.contains(norm)
-            
-            // Deduplicate: Must be new in this specific HFC ID AND passed the global TTL
-            isNewInThisAlert && isGlobalCooledDown
-        }
+        val forceAudioZones = mutableSetOf<String>()
         
-        // If it's a threat and no NEW cities were added, we still update the threat map (to refresh timers)
-        // but we might skip the audio if it's purely a redundant broadcast.
-        
-        Log.i("HomeFrontAlerts", "🚨 PROCESSING: $id | $type | Total: ${cities.size} | New: ${newCitiesForAudio.size} | Source: $source")
-
         // 2. Update Raw History Log (Diagnostics SSOT)
         val history = prefs.getString("raw_alert_history", "") ?: ""
         val displayBody = rawBody?.trim()?.take(250)?.replace("\n", " ") ?: "$type @ ${cities.take(3).joinToString(", ")}"
@@ -461,28 +481,76 @@ object StatusManager {
             prefs.edit().putString("raw_alert_history", lines.take(10).joinToString("\n")).apply()
         }
 
-        // 3. Update SSOT Threat Map
+        // 3. Update SSOT threat map
         val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
         val threats = org.json.JSONObject(threatsStr)
         val calculator = ZoneDistanceCalculator(context)
-        
+
         cities.forEach { zone ->
             val normZone = normalizeCity(zone)
             if (type == AlertType.CALM) {
-                // If it's an all-clear, remove any entries matching this normalized zone
-                threats.remove(normZone)
-                // Also remove the raw name if it was stored previously
+                // Explicit CALM transitions matching active zones into CLEARING (fade phase).
+                val existing = threats.optJSONObject(normZone)
+                if (existing != null) {
+                    existing.put("s", STATE_CLEARING)
+                    existing.put("ct", nowMs)
+                    threats.put(normZone, existing)
+                }
+                // Cleanup legacy raw-keyed entries if they exist.
                 threats.remove(zone)
             } else {
+                val existing = threats.optJSONObject(normZone)
+                val existingState = existing?.optString("s", "CAUTION") ?: ""
+                val existingSeverity = when (existingState) {
+                    "URGENT" -> 1
+                    "CAUTION" -> 0
+                    else -> -1
+                }
+                val incomingSeverity = if (type == AlertType.URGENT) 1 else 0
+                val isEscalation = incomingSeverity > existingSeverity
+                val isReactivation = existingState == STATE_CLEARING
+
+                if (isEscalation || isReactivation) {
+                    forceAudioZones.add(normZone)
+                }
+
                 val obj = org.json.JSONObject()
-                obj.put("t", System.currentTimeMillis())
-                obj.put("s", type.name)
+                obj.put("t", nowMs)
                 obj.put("c", calculator.getZoneCountdown(zone))
                 obj.put("name", zone) // Store raw name for display if needed
+
+                if (existing != null && !isReactivation && incomingSeverity <= existingSeverity) {
+                    // Preserve one-way severity (never downgrade).
+                    obj.put("s", existingState)
+                    val prevClearedAt = existing.optLong("ct", 0L)
+                    if (prevClearedAt > 0L) obj.put("ct", prevClearedAt)
+                } else {
+                    // New threat / escalation / reactivation.
+                    obj.put("s", type.name)
+                    obj.put("ct", org.json.JSONObject.NULL)
+                }
                 threats.put(normZone, obj)
             }
         }
         prefs.edit().putString("active_threat_map", threats.toString()).apply()
+
+        val newCitiesForAudio = cities.filter { city ->
+            val norm = normalizeCity(city)
+            val shouldForceAudio = forceAudioZones.contains(norm)
+            if (shouldForceAudio) return@filter true
+
+            val isNewInThisAlert = !signaledSet.contains(norm)
+            if (!isNewInThisAlert) return@filter false
+
+            val globalKey = "$norm:${type.name}"
+            val lastNotified = globalSignaledCities[globalKey] ?: 0L
+            val isGlobalCooledDown = (nowMs - lastNotified) > ttlMs
+
+            // Default dedup path: new in this alert ID + global cooldown passed.
+            isGlobalCooledDown
+        }
+
+        Log.i("HomeFrontAlerts", "🚨 PROCESSING: $id | $type | Total: ${cities.size} | New: ${newCitiesForAudio.size} | Source: $source")
 
         // 4. Calculate Audio/UI distance metrics
         val locationManager = AppLocationManager.getInstance(context)
@@ -583,8 +651,12 @@ object StatusManager {
             globalSignaledCities.entries.removeIf { it.value < pruneTime }
         }
 
-        // 7. Refresh SSOT Status
+        // 7. Refresh SSOT status
         recalculateStatus(context)
+
+        // 8. Refresh map in both FCM and direct-HFC paths
+        LocalBroadcastManager.getInstance(context)
+            .sendBroadcast(Intent(ACTION_MAP_REFRESH))
     }
 
     fun logFcmDiagnostic(context: Context, rawData: String) {
