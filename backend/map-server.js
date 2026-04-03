@@ -17,10 +17,10 @@ const helmet    = require('helmet');
 const polygonCache = require('./polygonCache');
 const mapState     = require('./mapState');
 const axios        = require('axios');
-const { GoogleAuth } = require('google-auth-library');
+const { GoogleAuth, OAuth2Client } = require('google-auth-library');
 
 const auth = new GoogleAuth();
-const BACKEND_SERVICE_URL = process.env.BACKEND_SERVICE_URL || 'https://homefront-backend-344391280523.me-west1.run.app';
+const BACKEND_SERVICE_URL = process.env.BACKEND_SERVICE_URL || 'https://homefront-backend-cjnpwpm63q-zf.a.run.app';
 const client = new OAuth2Client();
 
 const app  = express();
