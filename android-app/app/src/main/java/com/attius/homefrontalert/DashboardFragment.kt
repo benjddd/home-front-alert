@@ -104,6 +104,7 @@ class DashboardFragment : Fragment() {
         // Event-driven: immediate update on any status change from FCM or local polling
         LocalBroadcastManager.getInstance(requireContext())
             .registerReceiver(statusReceiver, IntentFilter(StatusManager.ACTION_STATUS_CHANGED))
+        StatusManager.maintainState(requireContext())
         refreshDashboardState()     // sync on tab-return
         uiHandler.post(uiUpdater)   // start 1s timer ticker
     }
@@ -126,12 +127,6 @@ class DashboardFragment : Fragment() {
         val status = sharedPrefs.getString("dash_status", "GREEN") ?: "GREEN"
         val startTime = sharedPrefs.getLong("dash_status_start_ms", System.currentTimeMillis())
 
-        // UI-side 30-min failover guard
-        if (status != "GREEN" && System.currentTimeMillis() - startTime > 1800000) {
-            StatusManager.updateStatus(requireContext(), "GREEN")
-            return
-        }
-
         val elapsedSec = (System.currentTimeMillis() - startTime) / 1000
         val unitS = getString(R.string.unit_seconds_short)
         val unitM = getString(R.string.unit_minutes_short)
@@ -148,11 +143,6 @@ class DashboardFragment : Fragment() {
     private fun refreshDashboardState() {
         val status = sharedPrefs.getString("dash_status", "GREEN") ?: "GREEN"
         val startTime = sharedPrefs.getLong("dash_status_start_ms", System.currentTimeMillis())
-        
-        if (status != "GREEN" && System.currentTimeMillis() - startTime > 1800000) {
-            StatusManager.updateStatus(requireContext(), "GREEN")
-            return
-        }
 
         val elapsedSec = (System.currentTimeMillis() - startTime) / 1000
         val unitS = getString(R.string.unit_seconds_short)

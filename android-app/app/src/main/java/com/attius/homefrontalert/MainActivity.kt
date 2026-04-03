@@ -39,6 +39,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+    private val stateMaintenanceRunnable = object : Runnable {
+        override fun run() {
+            StatusManager.maintainState(this@MainActivity)
+            uiHandler.postDelayed(this, StatusManager.STATE_MAINTENANCE_INTERVAL_MS)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -128,6 +134,8 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         sharedPrefs.registerOnSharedPreferenceChangeListener(prefsListener)
         locationManager.startTracking()
+        StatusManager.maintainState(this)
+        uiHandler.post(stateMaintenanceRunnable)
         
         if (BuildConfig.IS_PAID && !sharedPrefs.getBoolean("shield_active", false)) {
             val lastFcmMs = sharedPrefs.getLong("last_fcm_heartbeat_ms", System.currentTimeMillis())
@@ -141,6 +149,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         sharedPrefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
+        uiHandler.removeCallbacks(stateMaintenanceRunnable)
     }
 
     fun showLocationExplanation() {

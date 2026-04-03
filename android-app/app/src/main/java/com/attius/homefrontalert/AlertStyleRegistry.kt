@@ -55,8 +55,10 @@ object AlertStyleRegistry {
             trimmedTitle == "רעידת אדמה" ||
             trimmedTitle == "צונאמי" ||
             trimmedTitle == "אירוע קרינה" ||
+            trimmedTitle == "אירוע רדיולוגי" ||
+            trimmedTitle == "חשש לצונאמי" ||
             trimmedTitle == "התרעה ביטחונית") {
-            return AlertType.URGENT // Safety-first for hazardous/security events
+            return AlertType.CAUTION
         }
 
 

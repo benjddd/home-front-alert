@@ -240,6 +240,9 @@ object YeelightController {
             AlertType.CALM -> {
                 // Handled intentionally natively via Status Dashboard dropping to GREEN and firing triggerOff() !
             }
+            AlertType.SILENT -> {
+                // Intentionally no-op
+            }
         }
     }
 

@@ -55,8 +55,28 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             }
 
             if (alertType == "CLEAR") {
-                Log.i("HomeFrontAlerts", "FCM All-Clear received.")
-                StatusManager.clearAll(this, toneGenerator)
+                val clearScope = alertData["clearScope"]?.trim().orEmpty()
+                val citiesJsonStr = alertData["cities"]
+                val clearZones = mutableListOf<String>()
+                if (citiesJsonStr != null) {
+                    try {
+                        val citiesArray = JSONArray(citiesJsonStr)
+                        for (i in 0 until citiesArray.length()) clearZones.add(citiesArray.getString(i))
+                    } catch (e: Exception) {
+                        Log.w("HomeFrontAlerts", "FCM CLEAR cities parse failed: ${e.message}")
+                    }
+                }
+
+                if (clearZones.isNotEmpty()) {
+                    Log.i("HomeFrontAlerts", "FCM Zone Clear received (${clearZones.size} zones).")
+                    StatusManager.clearZones(this, clearZones, toneGenerator, "[FCM-CLEAR]", alertData["alertId"], remoteMessage.data.toString())
+                } else if (clearScope == "global") {
+                    Log.i("HomeFrontAlerts", "FCM All-Clear received.")
+                    StatusManager.clearAll(this, toneGenerator)
+                } else {
+                    Log.w("HomeFrontAlerts", "FCM CLEAR received without zones; ignoring non-global clear payload.")
+                    StatusManager.maintainState(this)
+                }
                 chunkBuffers.clear()
                 LocalBroadcastManager.getInstance(this)
                     .sendBroadcast(Intent(StatusManager.ACTION_MAP_REFRESH))

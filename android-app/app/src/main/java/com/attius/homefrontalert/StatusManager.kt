@@ -13,9 +13,10 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
  */
 object StatusManager {
     private const val PREFS_NAME = "HomeFrontAlertsPrefs"
-    private const val THREAT_TIMEOUT_MS = 30 * 60 * 1000L
+    const val STATE_MAINTENANCE_INTERVAL_MS = 30 * 1000L
+    private const val THREAT_TIMEOUT_MS_DEFAULT = 30 * 60 * 1000L
     // Must match backend/config.js CLEARING_FADE_MS (15 minutes)
-    private const val CLEARING_FADE_MS = 15 * 60 * 1000L
+    private const val CLEARING_FADE_MS_DEFAULT = 15 * 60 * 1000L
     private const val STATE_CLEARING = "CLEARING"
     const val ACTION_STATUS_CHANGED = "com.attius.homefrontalert.STATUS_CHANGED"
     const val ACTION_ZONE_CHANGED   = "com.attius.homefrontalert.ZONE_CHANGED"
@@ -114,6 +115,15 @@ object StatusManager {
         syncUiComponents(context)
     }
 
+    fun maintainState(context: Context): Boolean {
+        val changed = recalculateStatus(context)
+        if (changed) {
+            LocalBroadcastManager.getInstance(context)
+                .sendBroadcast(Intent(ACTION_MAP_REFRESH))
+        }
+        return changed
+    }
+
     fun updateLocation(context: Context, zoneHe: String, lat: Double, lng: Double) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -168,12 +178,12 @@ object StatusManager {
 
             if (state == STATE_CLEARING) {
                 val clearedAt = obj.optLong("ct", 0L)
-                if (clearedAt <= 0L || now - clearedAt > CLEARING_FADE_MS) {
+                if (clearedAt <= 0L || now - clearedAt > getClearingFadeMs(prefs)) {
                     iter.remove()
                 }
             } else {
                 // Remove active threat if it's past the 30-min window
-                if (now - obj.optLong("t", now) > THREAT_TIMEOUT_MS) {
+                if (now - obj.optLong("t", now) > getThreatTimeoutMs(prefs)) {
                     iter.remove()
                 }
             }
@@ -478,11 +488,31 @@ object StatusManager {
                 activeZones.add(obj.optString("name", z))
             }
         }
-        if (activeZones.isNotEmpty()) {
-            processAlert(context, "clear-${System.currentTimeMillis()}", AlertType.CALM, activeZones, "[FCM-CLEAR]", toneGenerator, null)
-        } else {
-            updateStatus(context, "GREEN")
+        clearZones(context, activeZones, toneGenerator, "[FCM-CLEAR]")
+    }
+
+    fun clearZones(
+        context: Context,
+        zones: List<String>,
+        toneGenerator: DynamicToneGenerator?,
+        source: String = "[CLEAR]",
+        alertId: String? = null,
+        rawBody: String? = null
+    ) {
+        if (zones.isEmpty()) {
+            maintainState(context)
+            return
         }
+        val effectiveId = alertId ?: "clear-${System.currentTimeMillis()}"
+        processAlert(context, effectiveId, AlertType.CALM, zones, source, toneGenerator, rawBody)
+    }
+
+    fun getThreatTimeoutMs(prefs: SharedPreferences): Long {
+        return prefs.getLong("threat_timeout_ms", THREAT_TIMEOUT_MS_DEFAULT)
+    }
+
+    fun getClearingFadeMs(prefs: SharedPreferences): Long {
+        return prefs.getLong("clearing_fade_ms", CLEARING_FADE_MS_DEFAULT)
     }
 
     fun processAlert(context: Context, id: String, type: AlertType, cities: List<String>, source: String, toneGenerator: DynamicToneGenerator?, rawBody: String? = null) {
