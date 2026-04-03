@@ -79,19 +79,20 @@ class ThreatManager {
     }
 
     /**
-     * Explicit All-Clear handler. 
-     * Immediately transitions threats of this type to CLEARING.
+     * Explicit All-Clear handler.
+     * CALM/CLEAR type clears ALL active threats (end-of-event is a global signal).
+     * Other types only clear matching threats.
      */
     handleExplicitClear(zones, type) {
         const now = Date.now();
         let changed = false;
+        const isGlobalClear = !type || type === 'CALM' || type === 'CLEAR' || type.toUpperCase().includes('CALM') || type.toUpperCase().includes('CLEAR');
         for (const [id, threat] of this.activeThreats) {
-            if (threat.type === type && threat.status === THREAT_STATUS.ACTIVE) {
-                // If zones provided, only clear those? Usually HFC clears the whole type.
-                // For now, clear the whole threat entity if it matches the type.
+            const typeMatch = isGlobalClear || threat.type === type;
+            if (typeMatch && threat.status === THREAT_STATUS.ACTIVE) {
                 threat.status = THREAT_STATUS.CLEARING;
                 threat.clearedAt = now;
-                console.log(`[threatManager] Explicit All-Clear for ${id} (${type})`);
+                console.log(`[threatManager] Explicit clear: ${id} (triggered by ${type})`);
                 changed = true;
             }
         }
