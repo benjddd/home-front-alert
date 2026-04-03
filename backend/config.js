@@ -96,10 +96,14 @@ module.exports = {
         // Infiltration
         'חדירת מחבלים': 'INFILTRATION',
         'infiltration':  'INFILTRATION',
-        // Pre-warning
+        // Pre-warning (multiple HFC phrases in use)
         'התרעה מוקדמת': 'PRE_WARNING',
-        'pre-warning':   'PRE_WARNING',
-        'pre_warning':   'PRE_WARNING',
+        // "In the next few minutes, alerts are expected in your area"
+        'בדקות הקרובות צפויות להתקבל התרעות באזורך': 'PRE_WARNING',
+        // "Prepare yourselves"
+        'הכינו עצמכם': 'PRE_WARNING',
+        'pre-warning':  'PRE_WARNING',
+        'pre_warning':  'PRE_WARNING',
         // Other / natural events
         'רעידת אדמה':          'OTHER',
         'צונאמי':              'OTHER',
