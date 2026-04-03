@@ -109,13 +109,14 @@ class ThreatManager {
 
         for (const [id, threat] of this.activeThreats) {
             if (threat.status === THREAT_STATUS.ACTIVE) {
-                // Auto-clear only after THREAT_EXPIRY_MS of HFC silence.
-                // Explicit all-clear is handled separately via handleExplicitClear().
+                // Auto-expire after THREAT_EXPIRY_MS of HFC silence.
+                // Per spec: silent expiry removes zones immediately (no green fade).
+                // Green fade is reserved for explicit all-clears only.
                 if (now > threat.lastSeenAt + config.THREAT_EXPIRY_MS) {
-                    threat.status = THREAT_STATUS.CLEARING;
-                    threat.clearedAt = now;
-                    console.log(`[threatManager] Threat ${id} expired after ${config.THREAT_EXPIRY_MS / 60000}m silence — auto-cleared.`);
+                    this.activeThreats.delete(id);
+                    console.log(`[threatManager] Threat ${id} silently expired after ${config.THREAT_EXPIRY_MS / 60000}m — removed immediately.`);
                     changed = true;
+                    continue;
                 }
             } else if (threat.status === THREAT_STATUS.CLEARING) {
                 // Remove entirely after CLEARING_FADE_MS (green fade window)

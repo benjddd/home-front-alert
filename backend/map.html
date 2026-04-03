@@ -80,6 +80,7 @@
     }
     /* Synced with dashboard / ALERT_TYPES palette */
     #status-dot.alert { background: #d32f2f; box-shadow: 0 0 8px #d32f2f; animation: pulse 1.2s infinite; }
+    #status-dot.threat { background: #E64A19; box-shadow: 0 0 6px #E64A19; animation: pulse 1.8s infinite; }
     #status-dot.pre-warning { background: #f9a825; box-shadow: 0 0 6px #f9a825; animation: pulse 2.0s infinite; }
     #status-dot.offline { background: #757575; box-shadow: none; animation: none; }
     @keyframes pulse {
@@ -279,8 +280,6 @@ function addClusterLayers(cluster) {
   const fillId   = `fill-${cluster.id}`;
   const borderId = `border-${cluster.id}`;
   const recentId = `recent-${cluster.id}`;
-  const isOther  = cluster.alertType === 'OTHER';
-
   const geojson = {
     type: 'Feature',
     properties: { name: cluster.zones.join(', '), alertType: cluster.alertType },
@@ -289,23 +288,20 @@ function addClusterLayers(cluster) {
   map.addSource(sid, { type: 'geojson', data: geojson });
   managedSources.add(sid);
 
-  // NOTE: convex-hull connector layer intentionally removed
-  // (it visually implied connected affected corridors and wasn't part of requirements).
+  // ── Outer glow ───────────────────────────────────────────────────────────
+  map.addLayer({ id: glowId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.06 } });
 
-  // ── Outer glow (further toned down) ─────────────────────────────────────
-  map.addLayer({ id: glowId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': isOther ? 0.02 : 0.06 } });
+  // ── Main fill (reduced strength to avoid over-saturation) ────────────────
+  map.addLayer({ id: fillId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.42 } });
 
-  // ── Main fill (reduced strength to avoid over-saturation) ──────────────
-  map.addLayer({ id: fillId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': isOther ? 0.20 : 0.42 } });
-
-  // ── Crisp border (full opacity — unchanged) ──────────────────────────────
-  map.addLayer({ id: borderId, type: 'line', source: sid, paint: { 'line-color': cluster.border, 'line-width': 2.2, 'line-opacity': isOther ? 0.60 : 0.92 } });
+  // ── Crisp border ─────────────────────────────────────────────────────────
+  map.addLayer({ id: borderId, type: 'line', source: sid, paint: { 'line-color': cluster.border, 'line-width': 2.2, 'line-opacity': 0.92 } });
 
   managedLayers.add(glowId);
   managedLayers.add(fillId);
   managedLayers.add(borderId);
 
-  // ── Recent zones overlay (individual polygons added < 15s ago) ──────────────
+  // ── Recent zones overlay (individual polygons added < RECENT_ZONE_MS ago) ─
   if (cluster.recentZoneGeometries && cluster.recentZoneGeometries.length > 0) {
     const recentSrc = `src-recent-${cluster.id}`;
     map.addSource(recentSrc, {
@@ -315,7 +311,7 @@ function addClusterLayers(cluster) {
         features: cluster.recentZoneGeometries.map(g => ({ type: 'Feature', properties: {}, geometry: g })),
       },
     });
-    map.addLayer({ id: recentId, type: 'fill', source: recentSrc, paint: { 'fill-color': cluster.color, 'fill-opacity': isOther ? 0.18 : 0.38 } });
+    map.addLayer({ id: recentId, type: 'fill', source: recentSrc, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.38 } });
     managedSources.add(recentSrc);
     managedLayers.add(recentId);
   }
@@ -452,7 +448,7 @@ async function fetchAndRender() {
       dot.className    = 'status-dot pre-warning';
       text.textContent = L().warning;
     } else if (status === 'THREAT') {
-      dot.className    = 'status-dot alert';
+      dot.className    = 'status-dot threat';
       text.textContent = L().threat;
     } else {
       dot.className    = 'status-dot';
