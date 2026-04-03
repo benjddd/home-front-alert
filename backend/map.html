@@ -7,8 +7,8 @@
   <meta name="description" content="מפת התרעות חיה של פיקוד העורף" />
 
   <!-- MapLibre GL JS (BSD-2) -->
-  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <link href="/vendor/maplibre-gl.css" rel="stylesheet" />
+  <script src="/vendor/maplibre-gl.js"></script>
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -79,9 +79,9 @@
       flex-shrink: 0;
     }
     /* Synced with dashboard / ALERT_TYPES palette */
-    #status-dot.alert { background: #d32f2f; box-shadow: 0 0 8px #d32f2f; animation: pulse 1.2s infinite; }
-    #status-dot.threat { background: #E64A19; box-shadow: 0 0 6px #E64A19; animation: pulse 1.8s infinite; }
-    #status-dot.pre-warning { background: #f9a825; box-shadow: 0 0 6px #f9a825; animation: pulse 2.0s infinite; }
+    #status-dot.alert { background: #EF4444; box-shadow: 0 0 8px #EF4444; animation: pulse 1.2s infinite; }
+    #status-dot.threat { background: #FFD740; box-shadow: 0 0 6px #FFD740; animation: pulse 1.8s infinite; }
+    #status-dot.pre-warning { background: #FBBF24; box-shadow: 0 0 6px #FBBF24; animation: pulse 2.0s infinite; }
     #status-dot.offline { background: #757575; box-shadow: none; animation: none; }
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
@@ -96,6 +96,7 @@
       border: 2.5px solid #fff;
       box-shadow: 0 0 0 3px rgba(33,150,243,0.3);
     }
+
   </style>
 </head>
 <body>
@@ -189,11 +190,6 @@ window.setAppLanguage = (lang) => {
   appLang = (lang && (lang.startsWith('iw') || lang === 'he')) ? 'he' : 'en';
   document.documentElement.lang = appLang;
   document.documentElement.dir  = appLang === 'he' ? 'rtl' : 'ltr';
-  // Update all label layers to reflect new language
-  const nameField = ['get', appLang === 'he' ? 'name_he' : 'name_en'];
-  for (const layerId of ['city-labels', 'water-labels', 'neighbor-labels']) {
-    try { map.setLayoutProperty(layerId, 'text-field', nameField); } catch {}
-  }
   if (typeof fetchAndRender === 'function') fetchAndRender();
 };
 
@@ -205,9 +201,6 @@ const map = new maplibregl.Map({
   container: 'map',
   style: {
     version: 8,
-    // Required for text/symbol layers (city/water/neighbor labels)
-    // Using MapLibre demo glyphs keeps stack lightweight and CDN-free for tiles.
-    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
     // No external tile sources — pure dark canvas.
     // Country outline is loaded separately as our own GeoJSON after map.on('load').
     sources: {},
@@ -257,6 +250,22 @@ if (navigator.geolocation) {
 // ── Layer management ──────────────────────────────────────────────────────
 const managedLayers  = new Set();
 const managedSources = new Set();
+const recentPulseLayers = new Set(); // layer IDs receiving new-zone pulse
+
+// Drive a ~1 Hz sine-wave opacity pulse on all active recent-zone overlays.
+let _pulseRaf = null;
+function _pulseTick(ts) {
+  if (recentPulseLayers.size === 0) { _pulseRaf = null; return; }
+  // oscillates between 0.28 and 0.56
+  const opacity = 0.42 + 0.14 * Math.sin(ts / 500);
+  for (const lid of recentPulseLayers) {
+    try { map.setPaintProperty(lid, 'fill-opacity', opacity); } catch {}
+  }
+  _pulseRaf = requestAnimationFrame(_pulseTick);
+}
+function _startPulse() {
+  if (!_pulseRaf) _pulseRaf = requestAnimationFrame(_pulseTick);
+}
 
 // One single source/layer for all clearing zones to prevent MapLibre lag
 const CLEAR_FADE_MS   = 15 * 60 * 1000;
@@ -266,6 +275,7 @@ function clearAlertLayers() {
   for (const id of managedSources) { try { map.removeSource(id); } catch {} }
   managedLayers.clear();
   managedSources.clear();
+  recentPulseLayers.clear();
 }
 
 /**
@@ -314,9 +324,11 @@ function addClusterLayers(cluster) {
         features: cluster.recentZoneGeometries.map(g => ({ type: 'Feature', properties: {}, geometry: g })),
       },
     });
-    map.addLayer({ id: recentId, type: 'fill', source: recentSrc, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.38 } });
+    map.addLayer({ id: recentId, type: 'fill', source: recentSrc, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.42 } });
     managedSources.add(recentSrc);
     managedLayers.add(recentId);
+    recentPulseLayers.add(recentId);
+    _startPulse();
   }
 
   // Click/tap → show tooltip
@@ -396,23 +408,23 @@ function addHeatmapLayers(data) {
     managedSources.add(srcId);
   }
 
-  // Red glow for urgent (ROCKET/UAV/etc) — toned down
+  // Warm crimson glow for urgent (ROCKET/UAV/etc)
   addHeatmap('urgent', data.urgentPoints, [
     0,    'rgba(0,0,0,0)',
-    0.05, 'rgba(211,47,47,0.14)',
-    0.3,  'rgba(211,47,47,0.28)',
-    0.6,  'rgba(198,40,40,0.42)',
-    1.0,  'rgba(183,28,28,0.55)',
-  ], 0.58, 0.50);
+    0.05, 'rgba(239,68,68,0.18)',
+    0.3,  'rgba(239,68,68,0.38)',
+    0.6,  'rgba(220,38,38,0.58)',
+    1.0,  'rgba(200,20,20,0.72)',
+  ], 0.78, 0.65);
 
-  // Amber glow for pre-warning — less intense than red but clearly visible
+  // Golden amber glow for pre-warning
   addHeatmap('prewarning', data.preWarningPoints, [
     0,    'rgba(0,0,0,0)',
-    0.05, 'rgba(249,168,37,0.12)',
-    0.3,  'rgba(249,168,37,0.30)',
-    0.7,  'rgba(245,127,23,0.50)',
-    1.0,  'rgba(245,127,23,0.65)',
-  ], 0.50, 0.42);
+    0.05, 'rgba(251,191,36,0.16)',
+    0.3,  'rgba(251,191,36,0.38)',
+    0.7,  'rgba(245,158,11,0.58)',
+    1.0,  'rgba(245,158,11,0.72)',
+  ], 0.68, 0.56);
 }
 
 // ── Tooltip ───────────────────────────────────────────────────────────────
@@ -459,12 +471,6 @@ async function fetchAndRender() {
       text.textContent = L().no_alerts;
     }
 
-    // 10m stats hint
-    if (data.recentAlertCount > 0) {
-      const statsSuffix = appLang === 'he' ? ` (${data.recentAlertCount} התרעות)` : ` (${data.recentAlertCount} alerts)`;
-      text.textContent += statsSuffix;
-    }
-
     updateClearingZones(data.clearingZones);
     addHeatmapLayers(data);
 
@@ -498,7 +504,7 @@ map.on('load', async () => {
     }
   } catch (e) {}
 
-  // 2. Extra Geography (Cities, Water, River, Labels)
+  // 2. Extra Geography (Cities, Water, River — no text labels)
   try {
     const r = await fetch('/geo-extras.json');
     if (r.ok) {
@@ -517,20 +523,6 @@ map.on('load', async () => {
         paint: { 'line-color': '#1a2a4a', 'line-width': 0.8, 'line-opacity': 0.5 }
       });
 
-      // Water body labels
-      map.addLayer({
-        id: 'water-labels', type: 'symbol', source: 'extras-src',
-        filter: ['==', ['get', 'type'], 'water'],
-        layout: {
-          'text-field': appLang === 'he' ? ['get', 'name_he'] : ['get', 'name_en'],
-          'text-font': ['Noto Sans Italic', 'Noto Sans Regular'],
-          'text-size': 9,
-          'text-anchor': 'center',
-          'text-justify': 'center'
-        },
-        paint: { 'text-color': '#6e7f94', 'text-halo-color': '#0a0a18', 'text-halo-width': 1, 'text-opacity': 0.65 }
-      });
-
       // Jordan River
       map.addLayer({
         id: 'river-line', type: 'line', source: 'extras-src',
@@ -538,39 +530,28 @@ map.on('load', async () => {
         paint: { 'line-color': '#1a3a5a', 'line-width': 1.2, 'line-opacity': 0.5 }
       });
 
-      // Neighboring country labels
+      // Neighboring anchors (no labels to avoid external glyph dependency)
       map.addLayer({
-        id: 'neighbor-labels', type: 'symbol', source: 'extras-src',
+        id: 'neighbor-markers', type: 'circle', source: 'extras-src',
         filter: ['==', ['get', 'type'], 'neighbor'],
-        layout: {
-          'text-field': appLang === 'he' ? ['get', 'name_he'] : ['get', 'name_en'],
-          'text-font': ['Noto Sans Regular'],
-          'text-size': 11,
-          'text-letter-spacing': 0.15,
-          'text-anchor': 'center',
-          'text-justify': 'center'
-        },
-        paint: { 'text-color': UI_COLORS.textSecondary, 'text-halo-color': '#0a0a18', 'text-halo-width': 1, 'text-opacity': 0.55 }
-      });
-
-      // City labels (rank 1 = larger)
-      map.addLayer({
-        id: 'city-labels', type: 'symbol', source: 'extras-src',
-        filter: ['==', ['get', 'type'], 'city'],
-        layout: {
-          'text-field': appLang === 'he' ? ['get', 'name_he'] : ['get', 'name_en'],
-          'text-font': ['Noto Sans Bold', 'Noto Sans Regular'],
-          'text-size': ['match', ['get', 'rank'], 1, 11, 9],
-          'text-anchor': 'center',
-          'text-justify': 'center',
-          'text-padding': 4
-        },
         paint: {
-          'text-color': ['match', ['get', 'rank'], 1, UI_COLORS.textPrimary, UI_COLORS.textSecondary],
-          'text-halo-color': '#0a0a18',
-          'text-halo-width': 1.2
+          'circle-radius': 1.6,
+          'circle-color': '#5f6770',
+          'circle-opacity': 0.55
         }
       });
+
+      // City anchors (minimalistic markers; no labels)
+      map.addLayer({
+        id: 'city-markers', type: 'circle', source: 'extras-src',
+        filter: ['==', ['get', 'type'], 'city'],
+        paint: {
+          'circle-radius': ['match', ['get', 'rank'], 1, 2.8, 2.0],
+          'circle-color': ['match', ['get', 'rank'], 1, '#9aa3ad', '#6f7780'],
+          'circle-opacity': ['match', ['get', 'rank'], 1, 0.80, 0.62]
+        }
+      });
+
     }
   } catch (e) {}
 

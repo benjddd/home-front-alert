@@ -16,11 +16,11 @@ const config = require('./config');
 
 
 const ALERT_TYPES = {
-    ROCKET:       { key: 'ROCKET',      priority: 4, color: '#D32F2F', border: '#B71C1C' },
-    UAV:          { key: 'UAV',         priority: 3, color: '#D84315', border: '#BF360C' },
-    INFILTRATION: { key: 'INFILTRATION',priority: 5, color: '#6A1B9A', border: '#4A148C' },
-    PRE_WARNING:  { key: 'PRE_WARNING', priority: 1, color: '#F9A825', border: '#F57F17' },
-    OTHER:        { key: 'OTHER',       priority: 2, color: '#546E7A', border: '#37474F' },
+    ROCKET:       { key: 'ROCKET',      priority: 4, color: '#EF4444', border: '#DC2626' },
+    UAV:          { key: 'UAV',         priority: 3, color: '#F97316', border: '#EA580C' },
+    INFILTRATION: { key: 'INFILTRATION',priority: 5, color: '#A855F7', border: '#9333EA' },
+    PRE_WARNING:  { key: 'PRE_WARNING', priority: 1, color: '#FBBF24', border: '#F59E0B' },
+    OTHER:        { key: 'OTHER',       priority: 2, color: '#64748B', border: '#475569' },
 };
 
 // Defensive normalization: uses the same ALERT_TYPE_MAP as index.js (SSOT in config).
