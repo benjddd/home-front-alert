@@ -86,6 +86,9 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             val citiesJsonStr = alertData["cities"]
             val alertId = alertData["alertId"] ?: System.currentTimeMillis().toString()
             val chunkInfo = alertData["chunkInfo"]
+            val canonicalType = alertData["canonicalType"]?.trim().orEmpty()
+            val legacyTitle = alertData["legacyTitle"]?.trim().orEmpty()
+            val legacyCat = alertData["legacyCat"]?.trim().orEmpty()
 
             if (citiesJsonStr != null) {
                 try {
@@ -93,7 +96,25 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                     val chunkCities = mutableListOf<String>()
                     for (i in 0 until citiesArray.length()) chunkCities.add(citiesArray.getString(i))
 
-                    val type = AlertStyleRegistry.getStyle("", alertType ?: "")
+                    val (type, classificationPath) = when {
+                        canonicalType.isNotEmpty() -> {
+                            Pair(AlertStyleRegistry.getStyle("", canonicalType), "canonical")
+                        }
+                        legacyTitle.isNotEmpty() -> {
+                            Pair(AlertStyleRegistry.getStyle(legacyCat, legacyTitle), "legacy_title")
+                        }
+                        legacyCat.isNotEmpty() -> {
+                            Pair(AlertStyleRegistry.getStyle(legacyCat, alertType ?: ""), "legacy_cat")
+                        }
+                        else -> {
+                            Pair(AlertStyleRegistry.getStyle("", alertType ?: ""), "legacy_type")
+                        }
+                    }
+
+                    StatusManager.logFcmDiagnostic(
+                        this,
+                        "classificationPath=$classificationPath canonical=$canonicalType legacyTitle=${legacyTitle.take(80)} legacyCat=$legacyCat resolvedType=$type"
+                    )
 
                     if (chunkInfo != null && chunkInfo.contains("/")) {
                         val parts = chunkInfo.split("/")

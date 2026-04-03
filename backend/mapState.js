@@ -23,6 +23,22 @@ const ALERT_TYPES = {
     OTHER:        { key: 'OTHER',       priority: 2, color: '#546E7A', border: '#37474F' },
 };
 
+// Defensive normalization: Hebrew HFC types → canonical keys (in case upstream didn't normalize)
+const _TYPE_FALLBACK = {
+    'ירי רקטות וטילים': 'ROCKET', 'ירי רקטות': 'ROCKET',
+    'חדירת כלי טיס עוין': 'UAV', 'כלי טיס עוין': 'UAV',
+    'חדירת מחבלים': 'INFILTRATION',
+    'התרעה מוקדמת': 'PRE_WARNING',
+};
+function _resolveType(raw) {
+    if (ALERT_TYPES[raw]) return raw;
+    if (_TYPE_FALLBACK[raw]) return _TYPE_FALLBACK[raw];
+    for (const [pattern, canonical] of Object.entries(_TYPE_FALLBACK)) {
+        if (raw.includes(pattern)) return canonical;
+    }
+    return raw; // let caller fall back to OTHER
+}
+
 /**
  * SSOT for Dashboard, Map Badge, and sounds.
  * Derives status from all currently ACTIVE threats in the ThreatManager.
@@ -73,7 +89,8 @@ function computeMapPayload(userZone) {
         byType[t.type].push(...t.zones);
     });
 
-    for (const [type, zoneList] of Object.entries(byType)) {
+    for (const [rawType, zoneList] of Object.entries(byType)) {
+        const type = _resolveType(rawType);
         const typeDef = ALERT_TYPES[type] || ALERT_TYPES.OTHER;
         const features = [...new Set(zoneList)].map(name => {
             const feat = polygonCache.getPolygon(name);

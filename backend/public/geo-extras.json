@@ -1,18 +1,41 @@
 {
   "type": "FeatureCollection",
   "features": [
-    { "type": "Feature", "properties": { "type": "city", "name_he": "ירושלים", "name_en": "Jerusalem" }, "geometry": { "type": "Point", "coordinates": [35.2137, 31.7683] } },
-    { "type": "Feature", "properties": { "type": "city", "name_he": "תל אביב", "name_en": "Tel Aviv" }, "geometry": { "type": "Point", "coordinates": [34.7818, 32.0853] } },
-    { "type": "Feature", "properties": { "type": "city", "name_he": "חיפה", "name_en": "Haifa" }, "geometry": { "type": "Point", "coordinates": [34.9896, 32.7940] } },
-    { "type": "Feature", "properties": { "type": "city", "name_he": "באר שבע", "name_en": "Beer Sheva" }, "geometry": { "type": "Point", "coordinates": [34.7915, 31.2530] } },
-    { "type": "Feature", "properties": { "type": "city", "name_he": "אשדוד", "name_en": "Ashdod" }, "geometry": { "type": "Point", "coordinates": [34.6447, 31.8044] } },
-    { "type": "Feature", "properties": { "type": "city", "name_he": "טבריה", "name_en": "Tiberias" }, "geometry": { "type": "Point", "coordinates": [35.5312, 32.7922] } },
-    { "type": "Feature", "properties": { "type": "city", "name_he": "אילת", "name_en": "Eilat" }, "geometry": { "type": "Point", "coordinates": [34.9512, 29.5577] } },
-    { "type": "Feature", "properties": { "type": "city", "name_he": "קצרין", "name_en": "Katzrin" }, "geometry": { "type": "Point", "coordinates": [35.6881, 32.9912] } },
-    { "type": "Feature", "properties": { "type": "city", "name_he": "אריאל", "name_en": "Ariel" }, "geometry": { "type": "Point", "coordinates": [35.1932, 32.1064] } },
     
-    { "type": "Feature", "properties": { "type": "water", "name_he": "הים התיכון", "name_en": "Mediterranean Sea" }, "geometry": { "type": "Polygon", "coordinates": [[[34.4, 31.0], [33.5, 31.0], [33.5, 33.5], [34.4, 33.5], [34.4, 31.0]]] } },
-    { "type": "Feature", "properties": { "type": "water", "name_he": "ים המלח", "name_en": "Dead Sea" }, "geometry": { "type": "Polygon", "coordinates": [[[35.45, 31.25], [35.6, 31.25], [35.6, 31.75], [35.45, 31.75], [35.45, 31.25]]] } },
-    { "type": "Feature", "properties": { "type": "water", "name_he": "כנרת", "name_en": "Sea of Galilee" }, "geometry": { "type": "Polygon", "coordinates": [[[35.52, 32.7], [35.65, 32.7], [35.65, 32.9], [35.52, 32.9], [35.52, 32.7]]] } }
+    {"type":"Feature","properties":{"type":"city","name_he":"ירושלים","name_en":"Jerusalem","rank":1},"geometry":{"type":"Point","coordinates":[35.2137,31.7683]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"תל אביב","name_en":"Tel Aviv","rank":1},"geometry":{"type":"Point","coordinates":[34.7818,32.0853]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"חיפה","name_en":"Haifa","rank":1},"geometry":{"type":"Point","coordinates":[34.9896,32.7940]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"באר שבע","name_en":"Beer Sheva","rank":1},"geometry":{"type":"Point","coordinates":[34.7915,31.2530]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"אשדוד","name_en":"Ashdod","rank":2},"geometry":{"type":"Point","coordinates":[34.6447,31.8044]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"טבריה","name_en":"Tiberias","rank":2},"geometry":{"type":"Point","coordinates":[35.5312,32.7922]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"אילת","name_en":"Eilat","rank":1},"geometry":{"type":"Point","coordinates":[34.9512,29.5577]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"קצרין","name_en":"Katzrin","rank":2},"geometry":{"type":"Point","coordinates":[35.6881,32.9912]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"אריאל","name_en":"Ariel","rank":2},"geometry":{"type":"Point","coordinates":[35.1932,32.1064]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"נתניה","name_en":"Netanya","rank":2},"geometry":{"type":"Point","coordinates":[34.8571,32.3215]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"ראשון לציון","name_en":"Rishon LeZion","rank":2},"geometry":{"type":"Point","coordinates":[34.7898,31.9642]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"פתח תקוה","name_en":"Petah Tikva","rank":2},"geometry":{"type":"Point","coordinates":[34.8867,32.0868]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"נצרת","name_en":"Nazareth","rank":2},"geometry":{"type":"Point","coordinates":[35.3035,32.6996]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"אשקלון","name_en":"Ashkelon","rank":2},"geometry":{"type":"Point","coordinates":[34.5715,31.6688]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"שדרות","name_en":"Sderot","rank":2},"geometry":{"type":"Point","coordinates":[34.5968,31.5253]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"קריית שמונה","name_en":"Kiryat Shmona","rank":2},"geometry":{"type":"Point","coordinates":[35.5719,33.2072]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"נהריה","name_en":"Nahariya","rank":2},"geometry":{"type":"Point","coordinates":[35.0977,33.0058]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"עפולה","name_en":"Afula","rank":2},"geometry":{"type":"Point","coordinates":[35.2894,32.6073]}},
+    {"type":"Feature","properties":{"type":"city","name_he":"דימונה","name_en":"Dimona","rank":2},"geometry":{"type":"Point","coordinates":[35.0304,31.0700]}},
+
+    {"type":"Feature","properties":{"type":"water","name_he":"כנרת","name_en":"Sea of Galilee"},"geometry":{"type":"Polygon","coordinates":[[[35.5714,32.8720],[35.5600,32.8550],[35.5530,32.8350],[35.5500,32.8150],[35.5480,32.7950],[35.5500,32.7750],[35.5560,32.7580],[35.5650,32.7430],[35.5780,32.7320],[35.5920,32.7260],[35.6060,32.7250],[35.6200,32.7290],[35.6340,32.7380],[35.6440,32.7510],[35.6500,32.7680],[35.6520,32.7870],[35.6500,32.8070],[35.6440,32.8250],[35.6350,32.8400],[35.6230,32.8520],[35.6080,32.8610],[35.5920,32.8660],[35.5800,32.8700],[35.5714,32.8720]]]}}
+    ,
+    {"type":"Feature","properties":{"type":"water","name_he":"ים המלח","name_en":"Dead Sea"},"geometry":{"type":"Polygon","coordinates":[[[35.4740,31.7800],[35.4680,31.7600],[35.4620,31.7350],[35.4580,31.7100],[35.4560,31.6800],[35.4560,31.6500],[35.4570,31.6200],[35.4580,31.5900],[35.4580,31.5600],[35.4560,31.5300],[35.4530,31.5050],[35.4520,31.4800],[35.4510,31.4500],[35.4500,31.4200],[35.4530,31.3950],[35.4610,31.3800],[35.4720,31.3700],[35.4830,31.3650],[35.4970,31.3650],[35.5100,31.3700],[35.5200,31.3800],[35.5270,31.3950],[35.5310,31.4200],[35.5330,31.4500],[35.5330,31.4800],[35.5310,31.5050],[35.5280,31.5200],[35.5170,31.5250],[35.5050,31.5220],[35.4980,31.5100],[35.4960,31.5250],[35.4980,31.5400],[35.5050,31.5500],[35.5150,31.5580],[35.5200,31.5700],[35.5240,31.5900],[35.5260,31.6200],[35.5260,31.6500],[35.5240,31.6800],[35.5200,31.7100],[35.5140,31.7350],[35.5060,31.7550],[35.4950,31.7700],[35.4840,31.7790],[35.4740,31.7800]]]}}
+    ,
+    {"type":"Feature","properties":{"type":"water","name_he":"מפרץ אילת","name_en":"Gulf of Eilat"},"geometry":{"type":"Polygon","coordinates":[[[34.918,29.575],[34.908,29.540],[34.895,29.505],[34.885,29.475],[34.880,29.450],[34.878,29.420],[34.882,29.390],[34.895,29.370],[34.920,29.355],[34.945,29.348],[34.970,29.350],[34.995,29.365],[35.010,29.385],[35.018,29.410],[35.020,29.440],[35.015,29.470],[35.005,29.500],[34.990,29.530],[34.975,29.555],[34.955,29.570],[34.935,29.578],[34.918,29.575]]]}}
+    ,
+
+    {"type":"Feature","properties":{"type":"river","name_he":"הירדן","name_en":"Jordan River"},"geometry":{"type":"LineString","coordinates":[[35.6050,32.7260],[35.6000,32.7050],[35.5940,32.6800],[35.5880,32.6500],[35.5790,32.6200],[35.5730,32.5900],[35.5700,32.5600],[35.5650,32.5300],[35.5620,32.5000],[35.5580,32.4700],[35.5550,32.4400],[35.5530,32.4100],[35.5510,32.3800],[35.5490,32.3500],[35.5470,32.3200],[35.5450,32.2900],[35.5430,32.2600],[35.5410,32.2300],[35.5380,32.2000],[35.5350,32.1700],[35.5320,32.1400],[35.5300,32.1100],[35.5270,32.0800],[35.5230,32.0500],[35.5180,32.0200],[35.5120,31.9900],[35.5060,31.9600],[35.5000,31.9300],[35.4950,31.9000],[35.4900,31.8700],[35.4860,31.8400],[35.4820,31.8100],[35.4780,31.7850]]}}
+    ,
+
+    {"type":"Feature","properties":{"type":"neighbor","name_he":"לבנון","name_en":"Lebanon"},"geometry":{"type":"Point","coordinates":[35.50,33.70]}},
+    {"type":"Feature","properties":{"type":"neighbor","name_he":"סוריה","name_en":"Syria"},"geometry":{"type":"Point","coordinates":[36.30,33.00]}},
+    {"type":"Feature","properties":{"type":"neighbor","name_he":"ירדן","name_en":"Jordan"},"geometry":{"type":"Point","coordinates":[36.00,31.50]}},
+    {"type":"Feature","properties":{"type":"neighbor","name_he":"מצרים","name_en":"Egypt"},"geometry":{"type":"Point","coordinates":[33.80,30.50]}},
+    {"type":"Feature","properties":{"type":"neighbor","name_he":"רצועת עזה","name_en":"Gaza Strip"},"geometry":{"type":"Point","coordinates":[34.35,31.42]}}
   ]
 }

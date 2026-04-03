@@ -153,9 +153,48 @@ async function addTesterToPlayStore(email) {
     }
 }
 
+// --- Alert Type Normalization (HFC Hebrew → Canonical Keys for ALERT_TYPES) ---
+const ALERT_TYPE_MAP = {
+    'ירי רקטות וטילים': 'ROCKET',
+    'ירי רקטות': 'ROCKET',
+    'rocket': 'ROCKET',
+    'missiles': 'ROCKET',
+    'חדירת כלי טיס עוין': 'UAV',
+    'כלי טיס עוין': 'UAV',
+    'uav': 'UAV',
+    'drone': 'UAV',
+    'חדירת מחבלים': 'INFILTRATION',
+    'infiltration': 'INFILTRATION',
+    'התרעה מוקדמת': 'PRE_WARNING',
+    'pre-warning': 'PRE_WARNING',
+    'pre_warning': 'PRE_WARNING',
+    'רעידת אדמה': 'OTHER',
+    'צונאמי': 'OTHER',
+    'אירוע רדיולוגי': 'OTHER',
+    'אירוע חומרים מסוכנים': 'OTHER',
+    'חשש לצונאמי': 'OTHER',
+};
+
+function normalizeAlertType(rawType) {
+    if (!rawType) return 'OTHER';
+    const trimmed = rawType.trim();
+    // Direct match
+    if (ALERT_TYPE_MAP[trimmed]) return ALERT_TYPE_MAP[trimmed];
+    // Case-insensitive match
+    const lower = trimmed.toLowerCase();
+    if (ALERT_TYPE_MAP[lower]) return ALERT_TYPE_MAP[lower];
+    // Substring match for partial Hebrew descriptions
+    for (const [pattern, canonical] of Object.entries(ALERT_TYPE_MAP)) {
+        if (trimmed.includes(pattern) || pattern.includes(trimmed)) return canonical;
+    }
+    console.warn(`[normalizeAlertType] Unknown type "${rawType}" → OTHER`);
+    return 'OTHER';
+}
+
 // --- App State ---
 const mapState = require('./mapState');
 const threatManager = require('./threatManager');
+const polygonCache = require('./polygonCache');
 let isConnected = false;
 let activeSource = "None";
 let lastSuccessfulPoll = null;
@@ -310,17 +349,22 @@ function handleSuccessfulConnection(data) {
     const batchedByType = new Map(); // type -> { id, cities: Set }
 
     for (const alertPayload of rawAlerts) {
-        const type = alertPayload.title || alertPayload.desc || alertPayload.type || "Rocket Alert";
+        const rawType = alertPayload.title || alertPayload.desc || alertPayload.type || "Rocket Alert";
+        const type = normalizeAlertType(rawType);
+        const legacyTitle = String(rawType || '').trim();
+        const legacyCat = String(alertPayload.cat || '').trim();
         const id = alertPayload.id || Date.now().toString();
         const cities = Array.isArray(alertPayload.cities) ? alertPayload.cities : (Array.isArray(alertPayload.data) ? alertPayload.data : []);
 
         if (cities.length === 0) continue;
 
         if (!batchedByType.has(type)) {
-            batchedByType.set(type, { id, cities: new Set(cities) });
+            batchedByType.set(type, { id, cities: new Set(cities), legacyTitle, legacyCat });
         } else {
             const entry = batchedByType.get(type);
             cities.forEach(c => entry.cities.add(c));
+            if (!entry.legacyTitle && legacyTitle) entry.legacyTitle = legacyTitle;
+            if (!entry.legacyCat && legacyCat) entry.legacyCat = legacyCat;
         }
     }
 
@@ -341,7 +385,9 @@ function handleSuccessfulConnection(data) {
             handleAlertDispatch({
                 id: entry.id,
                 type: type,
-                cities: consolidatedCities
+                cities: consolidatedCities,
+                legacyTitle: entry.legacyTitle || '',
+                legacyCat: entry.legacyCat || ''
             });
         }
     }
@@ -365,7 +411,14 @@ function sendFCMAlert(alertData) {
         const message = {
             data: {
                 alertId: String(alertData.id),
-                type: String(alertData.type),
+                // Backward-compat: old clients expect phrase-like type here.
+                // New clients should prefer canonicalType.
+                type: String(alertData.legacyTitle || alertData.type),
+                canonicalType: String(alertData.type || ''),
+                legacyTitle: String(alertData.legacyTitle || ''),
+                legacyCat: String(alertData.legacyCat || ''),
+                schemaVersion: '2',
+                classificationPath: 'backend_canonical',
                 cities: JSON.stringify(chunk),
                 chunkInfo: String(`${chunkIndex}/${totalChunks}`),
                 is_dedup: 'true'
@@ -382,7 +435,12 @@ function sendFCMAlert(alertData) {
 
 function sendFCMClear() {
     const message = {
-        data: { type: 'CLEAR', time: new Date().toISOString() },
+        data: {
+            type: 'CLEAR',
+            canonicalType: 'CALM',
+            schemaVersion: '2',
+            time: new Date().toISOString()
+        },
         android: { priority: 'high', ttl: 60 * 1000 },
         topic: 'alerts'
     };
@@ -413,8 +471,11 @@ async function notifyMapServiceClearAll() {
 }
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-    console.log(`Backend Server listening on port ${PORT}`);
-    poll();
+polygonCache.init().then(() => {
+    console.log(`[backend] Polygon cache ready: ${polygonCache.isReady()}`);
+    app.listen(PORT, () => {
+        console.log(`Backend Server listening on port ${PORT}`);
+        poll();
+    });
 });
 

@@ -78,8 +78,9 @@
       box-shadow: 0 0 6px #4caf50;
       flex-shrink: 0;
     }
-    #status-dot.alert { background: #e53935; box-shadow: 0 0 8px #e53935; animation: pulse 1.2s infinite; }
-    #status-dot.pre-warning { background: #ff9800; box-shadow: 0 0 6px #ff9800; animation: pulse 2.0s infinite; }
+    /* Synced with dashboard / ALERT_TYPES palette */
+    #status-dot.alert { background: #d32f2f; box-shadow: 0 0 8px #d32f2f; animation: pulse 1.2s infinite; }
+    #status-dot.pre-warning { background: #f9a825; box-shadow: 0 0 6px #f9a825; animation: pulse 2.0s infinite; }
     #status-dot.offline { background: #757575; box-shadow: none; animation: none; }
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
@@ -113,6 +114,15 @@
 // ── Config ────────────────────────────────────────────────────────────────
 const MAP_DATA_URL  = '/api/map-data';   // relative — same Cloud Run service
 const POLL_INTERVAL = 30000;            // 30s — cleanup/expiry only; alerts arrive via FCM-triggered JS bridge
+
+// Shared UI palette (aligned with dashboard + ALERT_TYPES)
+const UI_COLORS = {
+  critical: '#D32F2F',
+  warning:  '#F9A825',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#B3B3B3',
+  textTertiary: '#8A929A',
+};
 
 // ── Terminology (SSOT from Android) ──────────────────────────────────────
 let ALERT_LABELS = {
@@ -178,6 +188,11 @@ window.setAppLanguage = (lang) => {
   appLang = (lang && (lang.startsWith('iw') || lang === 'he')) ? 'he' : 'en';
   document.documentElement.lang = appLang;
   document.documentElement.dir  = appLang === 'he' ? 'rtl' : 'ltr';
+  // Update all label layers to reflect new language
+  const nameField = ['get', appLang === 'he' ? 'name_he' : 'name_en'];
+  for (const layerId of ['city-labels', 'water-labels', 'neighbor-labels']) {
+    try { map.setLayoutProperty(layerId, 'text-field', nameField); } catch {}
+  }
   if (typeof fetchAndRender === 'function') fetchAndRender();
 };
 
@@ -260,11 +275,11 @@ function clearAlertLayers() {
  */
 function addClusterLayers(cluster) {
   const sid      = `src-${cluster.id}`;
-  const hullId   = `hull-${cluster.id}`;
   const glowId   = `glow-${cluster.id}`;
   const fillId   = `fill-${cluster.id}`;
   const borderId = `border-${cluster.id}`;
   const recentId = `recent-${cluster.id}`;
+  const isOther  = cluster.alertType === 'OTHER';
 
   const geojson = {
     type: 'Feature',
@@ -274,23 +289,17 @@ function addClusterLayers(cluster) {
   map.addSource(sid, { type: 'geojson', data: geojson });
   managedSources.add(sid);
 
-  // ── Underlying area hint (convex hull, very transparent) ────────────────────
-  if (cluster.hullGeometry) {
-    const hullSrc = `src-hull-${cluster.id}`;
-    map.addSource(hullSrc, { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: cluster.hullGeometry } });
-    map.addLayer({ id: hullId, type: 'fill', source: hullSrc, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.07 } });
-    managedSources.add(hullSrc);
-    managedLayers.add(hullId);
-  }
+  // NOTE: convex-hull connector layer intentionally removed
+  // (it visually implied connected affected corridors and wasn't part of requirements).
 
-  // ── Outer glow (toned down) ────────────────────────────────────────────
-  map.addLayer({ id: glowId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.10 } });
+  // ── Outer glow (further toned down) ─────────────────────────────────────
+  map.addLayer({ id: glowId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': isOther ? 0.02 : 0.06 } });
 
-  // ── Main fill (warm red, readable on dark background) ─────────────────
-  map.addLayer({ id: fillId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.60 } });
+  // ── Main fill (reduced strength to avoid over-saturation) ──────────────
+  map.addLayer({ id: fillId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': isOther ? 0.20 : 0.42 } });
 
   // ── Crisp border (full opacity — unchanged) ──────────────────────────────
-  map.addLayer({ id: borderId, type: 'line', source: sid, paint: { 'line-color': cluster.border, 'line-width': 2.2, 'line-opacity': 0.92 } });
+  map.addLayer({ id: borderId, type: 'line', source: sid, paint: { 'line-color': cluster.border, 'line-width': 2.2, 'line-opacity': isOther ? 0.60 : 0.92 } });
 
   managedLayers.add(glowId);
   managedLayers.add(fillId);
@@ -306,7 +315,7 @@ function addClusterLayers(cluster) {
         features: cluster.recentZoneGeometries.map(g => ({ type: 'Feature', properties: {}, geometry: g })),
       },
     });
-    map.addLayer({ id: recentId, type: 'fill', source: recentSrc, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.52 } });
+    map.addLayer({ id: recentId, type: 'fill', source: recentSrc, paint: { 'fill-color': cluster.color, 'fill-opacity': isOther ? 0.18 : 0.38 } });
     managedSources.add(recentSrc);
     managedLayers.add(recentId);
   }
@@ -364,8 +373,8 @@ function updateClearingZones(zones) {
 // Radius and intensity are zoom-interpolated so the glow scales naturally.
 
 function addHeatmapLayers(data) {
-  // Radius: tighter than original but still visible glow beyond polygon edges
-  const radiusExpr = ['interpolate', ['linear'], ['zoom'], 5, 18, 10, 55, 14, 120];
+  // Reduced radius envelope so glow hugs clusters more tightly
+  const radiusExpr = ['interpolate', ['linear'], ['zoom'], 5, 12, 10, 34, 14, 72];
   const weightExpr = ['coalesce', ['get', 'weight'], 1];
 
   function addHeatmap(id, geojson, colorStops, intensity, maxOpacity) {
@@ -388,22 +397,22 @@ function addHeatmapLayers(data) {
     managedSources.add(srcId);
   }
 
-  // Red glow for urgent (ROCKET/UAV/etc) — balanced intensity
+  // Red glow for urgent (ROCKET/UAV/etc) — toned down
   addHeatmap('urgent', data.urgentPoints, [
     0,    'rgba(0,0,0,0)',
-    0.05, 'rgba(220,50,50,0.25)',
-    0.3,  'rgba(210,50,50,0.60)',
-    0.6,  'rgba(190,30,30,0.80)',
-    1.0,  'rgba(183,28,28,0.90)',
-  ], 0.8, 0.70);
+    0.05, 'rgba(211,47,47,0.14)',
+    0.3,  'rgba(211,47,47,0.28)',
+    0.6,  'rgba(198,40,40,0.42)',
+    1.0,  'rgba(183,28,28,0.55)',
+  ], 0.58, 0.50);
 
-  // Amber glow for pre-warning — Lowered intensity 0.4
+  // Amber glow for pre-warning — slightly reduced as well for parity
   addHeatmap('prewarning', data.preWarningPoints, [
     0,    'rgba(0,0,0,0)',
     0.2,  'rgba(249,168,37,0.05)',
     0.5,  'rgba(249,168,37,0.20)',
     1.0,  'rgba(245,127,23,0.50)',
-  ], 0.4, 0.30);
+  ], 0.32, 0.24);
 }
 
 // ── Tooltip ───────────────────────────────────────────────────────────────
@@ -489,32 +498,78 @@ map.on('load', async () => {
     }
   } catch (e) {}
 
-  // 2. Extra Geography (Cities & Water)
+  // 2. Extra Geography (Cities, Water, River, Labels)
   try {
     const r = await fetch('/geo-extras.json');
     if (r.ok) {
       const extras = await r.json();
       map.addSource('extras-src', { type: 'geojson', data: extras });
       
-      // Water bodies (Kinneret, Dead Sea, Mediterranean)
+      // Water bodies (Kinneret, Dead Sea, Gulf of Eilat)
       map.addLayer({
         id: 'water-fill', type: 'fill', source: 'extras-src',
         filter: ['==', ['get', 'type'], 'water'],
-        paint: { 'fill-color': '#0a0a18', 'fill-opacity': 0.8 }
+        paint: { 'fill-color': '#0a0a18', 'fill-opacity': 0.9 }
+      });
+      map.addLayer({
+        id: 'water-outline', type: 'line', source: 'extras-src',
+        filter: ['==', ['get', 'type'], 'water'],
+        paint: { 'line-color': '#1a2a4a', 'line-width': 0.8, 'line-opacity': 0.5 }
       });
 
-      // City labels
+      // Water body labels
+      map.addLayer({
+        id: 'water-labels', type: 'symbol', source: 'extras-src',
+        filter: ['==', ['get', 'type'], 'water'],
+        layout: {
+          'text-field': appLang === 'he' ? ['get', 'name_he'] : ['get', 'name_en'],
+          'text-font': ['Open Sans Italic', 'Arial Unicode MS Regular'],
+          'text-size': 9,
+          'text-anchor': 'center',
+          'text-justify': 'center'
+        },
+        paint: { 'text-color': '#6e7f94', 'text-halo-color': '#0a0a18', 'text-halo-width': 1, 'text-opacity': 0.65 }
+      });
+
+      // Jordan River
+      map.addLayer({
+        id: 'river-line', type: 'line', source: 'extras-src',
+        filter: ['==', ['get', 'type'], 'river'],
+        paint: { 'line-color': '#1a3a5a', 'line-width': 1.2, 'line-opacity': 0.5 }
+      });
+
+      // Neighboring country labels
+      map.addLayer({
+        id: 'neighbor-labels', type: 'symbol', source: 'extras-src',
+        filter: ['==', ['get', 'type'], 'neighbor'],
+        layout: {
+          'text-field': appLang === 'he' ? ['get', 'name_he'] : ['get', 'name_en'],
+          'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+          'text-size': 11,
+          'text-letter-spacing': 0.15,
+          'text-anchor': 'center',
+          'text-justify': 'center'
+        },
+        paint: { 'text-color': UI_COLORS.textSecondary, 'text-halo-color': '#0a0a18', 'text-halo-width': 1, 'text-opacity': 0.55 }
+      });
+
+      // City labels (rank 1 = larger)
       map.addLayer({
         id: 'city-labels', type: 'symbol', source: 'extras-src',
         filter: ['==', ['get', 'type'], 'city'],
         layout: {
           'text-field': appLang === 'he' ? ['get', 'name_he'] : ['get', 'name_en'],
           'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-          'text-size': 10,
+          'text-size': ['match', ['get', 'rank'], 1, 11, 9],
           'text-anchor': 'center',
-          'text-justify': 'center'
+          'text-justify': 'center',
+          'text-padding': 4
         },
-        paint: { 'text-color': '#adb5bd', 'text-halo-color': '#0a0a18', 'text-halo-width': 1 }
+        paint: {
+          'text-color': ['match', ['get', 'rank'], 1, UI_COLORS.textPrimary, UI_COLORS.textSecondary],
+          'text-halo-color': '#0a0a18',
+          'text-halo-width': 1.2
+        }
       });
     }
   } catch (e) {}

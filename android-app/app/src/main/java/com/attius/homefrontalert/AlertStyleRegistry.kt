@@ -9,6 +9,21 @@ object AlertStyleRegistry {
     fun getStyle(catId: String, title: String): AlertType {
         val trimmedTitle = title.trim()
         val lowerTitle = trimmedTitle.lowercase()
+
+        // --- 0th PRIORITY: Canonical backend relay keys (v1.7.7+) ---
+        if (trimmedTitle == "ROCKET" || trimmedTitle == "UAV" || trimmedTitle == "INFILTRATION") {
+            return AlertType.URGENT
+        }
+        if (trimmedTitle == "PRE_WARNING") {
+            return AlertType.CAUTION
+        }
+        if (trimmedTitle == "CALM") {
+            return AlertType.CALM
+        }
+        if (trimmedTitle == "OTHER") {
+            // Avoid misclassifying OTHER as CAUTION (which triggers pre-warning tone profile).
+            return AlertType.URGENT
+        }
         
         // --- 1st PRIORITY: OFFICIAL CAPTURED PHRASES (Source: User App Screenshots) ---
         
@@ -85,7 +100,7 @@ object AlertStyleRegistry {
             "13" -> AlertType.CALM
             "14" -> AlertType.CAUTION
             "all_clear" -> AlertType.CALM
-            else -> AlertType.CAUTION // Default to Caution if totally unknown
+            else -> AlertType.URGENT // Safety-first + avoids false pre-warning tone profile
         }
     }
 }
