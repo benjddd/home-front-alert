@@ -13,6 +13,11 @@ except ImportError:
     print("Please pip install shapely")
     sys.exit(1)
 
+def round_coords(coords):
+    if isinstance(coords[0], (int, float)):
+        return [round(c, 5) for c in coords]
+    return [round_coords(c) for c in coords]
+
 def main():
     outline_path = Path('backend/public/israel-outline.json')
     print(f"Loading existing borders from {outline_path}")
@@ -34,55 +39,52 @@ def main():
     raw = json.loads(z.read(name).decode('utf-8'))
 
     alert_polys = []
+    skipped = 0
     for zn, coords in raw.items():
-        if len(coords) < 3: continue
+        if not coords or len(coords) < 3:
+            skipped += 1
+            continue
+        # amitfin stores [lat, lng]; Shapely needs (lng, lat).
         ring = [(c[1], c[0]) for c in coords]
         if ring[0] != ring[-1]:
             ring.append(ring[0])
         try:
             poly = Polygon(ring)
+            # buffer(0) fixes self-intersections in INDIVIDUAL alert polygons only.
+            # We do NOT apply any buffer to the base outline — that would round
+            # coastline concavities like Haifa Bay.
             if not poly.is_valid:
                 poly = poly.buffer(0)
-            if poly.is_valid:
+            if poly.is_valid and not poly.is_empty:
                 alert_polys.append(poly)
-        except Exception as e:
-            pass
+            else:
+                skipped += 1
+        except Exception:
+            skipped += 1
 
-    print(f"Unioning {len(base_polys)} base polygons with {len(alert_polys)} alert zones...")
-    all_polys = base_polys + alert_polys
-    unioned = unary_union(all_polys)
+    print(f"Unioning {len(base_polys)} base polygons + {len(alert_polys)} alert zones (skipped {skipped})...")
+    unioned = unary_union(base_polys + alert_polys)
 
-    # Smooth and fill tiny gaps using buffer
-    print("Smoothing borders...")
-    # 0.005 degrees is ~500 meters
-    unioned = unioned.buffer(0.005, join_style=1).buffer(-0.005, join_style=1)
-    unioned = unioned.simplify(0.001, preserve_topology=True)
-
+    # No smoothing, no simplify — alert zones will be rendered on screen so
+    # every vertex counts.  Only round to 5-decimal precision (~1 m).
     out_features = []
     if unioned.geom_type == 'Polygon':
         out_features.append({
             "type": "Feature",
-            "properties": {"name_en": "Israel", "name_he": "ישראל"},
+            "properties": {"name_en": "Israel", "name_he": "\u05d9\u05e9\u05e8\u05d0\u05dc"},
             "geometry": mapping(unioned)
         })
     elif unioned.geom_type == 'MultiPolygon':
         for poly in unioned.geoms:
-            # filter out extremely tiny artifacts
-            if poly.area < 0.0001: continue
+            if poly.area < 0.00001:  # discard microscopic artefacts only
+                continue
             out_features.append({
                 "type": "Feature",
-                "properties": {"name_en": "Israel", "name_he": "ישראל"},
+                "properties": {"name_en": "Israel", "name_he": "\u05d9\u05e9\u05e8\u05d0\u05dc"},
                 "geometry": mapping(poly)
             })
 
     output = {"type": "FeatureCollection", "features": out_features}
-
-    # Round coordinates to 5 decimals for file size
-    def round_coords(coords):
-        if isinstance(coords[0], (int, float)):
-            return [round(c, 5) for c in coords]
-        return [round_coords(c) for c in coords]
-
     for f in output["features"]:
         f["geometry"]["coordinates"] = round_coords(f["geometry"]["coordinates"])
 
