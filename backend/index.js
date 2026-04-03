@@ -326,6 +326,20 @@ function handleSuccessfulConnection(data) {
         // Handle explicit clear if the 'type' indicates it (e.g., 'CLEAR' or 'CALM' or specific HFC category)
         if (type.toUpperCase().includes('CLEAR') || type.toUpperCase().includes('CALM')) {
             threatManager.handleExplicitClear(consolidatedCities, type);
+            console.log(`🟢 BATCHED CLEAR: ${consolidatedCities.length} zones for ${type}.`);
+            sendFCMClear({
+                id: entry.id,
+                type,
+                cities: consolidatedCities,
+                legacyTitle: entry.legacyTitle || '',
+                legacyCat: entry.legacyCat || ''
+            });
+            notifyMapServiceClear({
+                cities: consolidatedCities,
+                type,
+                legacyTitle: entry.legacyTitle || '',
+                legacyCat: entry.legacyCat || ''
+            });
             continue;
         }
 
@@ -384,21 +398,41 @@ function sendFCMAlert(alertData) {
     }
 }
 
-function sendFCMClear() {
-    const message = {
-        data: {
-            type: 'CLEAR',
-            canonicalType: 'CALM',
-            schemaVersion: '2',
-            time: new Date().toISOString()
-        },
-        android: { priority: 'high', ttl: 60 * 1000 },
-        topic: 'alerts'
-    };
+function sendFCMClear(alertData = {}) {
+    const CHUNK_SIZE = 100;
+    const citiesList = Array.isArray(alertData.cities) ? alertData.cities : [];
+    const chunks = citiesList.length > 0
+        ? Array.from({ length: Math.ceil(citiesList.length / CHUNK_SIZE) }, (_, index) => citiesList.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE))
+        : [[]];
 
-    admin.messaging().send(message)
-        .then(res => console.log('🚀 FCM: All-Clear sent.'))
-        .catch(err => console.error('❌ FCM: All-Clear error:', err.message));
+    chunks.forEach((chunk, index) => {
+        const hasZones = chunk.length > 0;
+        const message = {
+            data: {
+                alertId: String(alertData.id || ''),
+                type: 'CLEAR',
+                canonicalType: 'CALM',
+                legacyTitle: String(alertData.legacyTitle || ''),
+                legacyCat: String(alertData.legacyCat || ''),
+                schemaVersion: '2',
+                classificationPath: 'backend_canonical',
+                clearScope: hasZones ? 'zones' : 'global',
+                time: new Date().toISOString(),
+                is_dedup: 'true'
+            },
+            android: { priority: 'high', ttl: 60 * 1000 },
+            topic: 'alerts'
+        };
+
+        if (hasZones) {
+            message.data.cities = JSON.stringify(chunk);
+            message.data.chunkInfo = String(`${index + 1}/${chunks.length}`);
+        }
+
+        admin.messaging().send(message)
+            .then(() => console.log(`🚀 FCM: All-Clear sent (${index + 1}/${chunks.length}).`))
+            .catch(err => console.error('❌ FCM: All-Clear error:', err.message));
+    });
 }
 
 async function notifyMapServiceAlert(alertData) {
@@ -413,11 +447,17 @@ async function notifyMapServiceAlert(alertData) {
     } catch (e) { console.error("Map notify error:", e.message); }
 }
 
-async function notifyMapServiceClearAll() {
+async function notifyMapServiceClear(alertData = {}) {
     if (!MAP_SERVICE_URL) return;
     try {
         const client = await auth.getIdTokenClient(MAP_SERVICE_URL);
-        await client.request({ url: `${MAP_SERVICE_URL}/internal/alert`, method: 'POST', data: { action: 'clear_all' } });
+        const cities = Array.isArray(alertData.cities) ? alertData.cities : [];
+        if (cities.length === 0) return;
+        await client.request({
+            url: `${MAP_SERVICE_URL}/internal/alert`,
+            method: 'POST',
+            data: { action: 'clear', zones: cities, categoryDesc: alertData.type || '' }
+        });
     } catch (e) { console.error("Map clear error:", e.message); }
 }
 

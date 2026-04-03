@@ -140,7 +140,7 @@ app.post('/internal/alert', verifyOidcToken, (req, res) => {
     return res.json({ ok: true, action: 'clear_all' });
   }
   if (action === 'clear' && Array.isArray(zones)) {
-    mapState.clearZones(zones);
+    mapState.clearZones(zones, categoryDesc);
     return res.json({ ok: true, action: 'clear', count: zones.length });
   }
   if (Array.isArray(zones) && categoryDesc) {

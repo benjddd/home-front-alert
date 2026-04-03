@@ -21,7 +21,6 @@ const THREAT_STATUS = {
 class ThreatManager {
     constructor() {
         this.activeThreats = new Map(); // id -> Threat object
-        this.alertHistory = []; // Array of { timestamp, zoneCount }
         this._lastSaveAt = 0;  // Throttle disk writes for lastSeenAt refreshes
         this.loadState();
     }
@@ -41,12 +40,14 @@ class ThreatManager {
         let newInSnapshot = 0;
         if (targetThreat) {
             if (!targetThreat.zoneAddedAt) targetThreat.zoneAddedAt = new Map();
+            if (!targetThreat.zoneSeenAt) targetThreat.zoneSeenAt = new Map([...targetThreat.zoneAddedAt.entries()]);
             zones.forEach(z => {
                 if (!targetThreat.zones.has(z)) {
                     targetThreat.zones.add(z);
                     targetThreat.zoneAddedAt.set(z, now);
                     newInSnapshot++;
                 }
+                targetThreat.zoneSeenAt.set(z, now);
             });
             targetThreat.lastSeenAt = now;
             // Persist refreshed lastSeenAt at most once every STATE_SAVE_THROTTLE_MS
@@ -62,6 +63,7 @@ class ThreatManager {
                 type,
                 zones: new Set(zones),
                 zoneAddedAt: new Map(zones.map(z => [z, now])),
+                zoneSeenAt: new Map(zones.map(z => [z, now])),
                 startTime: now,
                 lastSeenAt: now,
                 status: THREAT_STATUS.ACTIVE
@@ -72,7 +74,6 @@ class ThreatManager {
         }
 
         if (newInSnapshot > 0) {
-            this.alertHistory.push({ timestamp: now, count: newInSnapshot });
             this.saveState();
         }
         return newInSnapshot;
@@ -80,22 +81,56 @@ class ThreatManager {
 
     /**
      * Explicit All-Clear handler.
-     * CALM/CLEAR type clears ALL active threats (end-of-event is a global signal).
-     * Other types only clear matching threats.
+     * CALM/CLEAR type clears matching active threats for the provided zones.
+     * Other types only clear matching threats of the same type for those zones.
      */
     handleExplicitClear(zones, type) {
         const now = Date.now();
+        const requestedZones = new Set(Array.isArray(zones) ? zones : []);
         let changed = false;
-        const isGlobalClear = !type || type === 'CALM' || type === 'CLEAR' || type.toUpperCase().includes('CALM') || type.toUpperCase().includes('CLEAR');
+        const clearingThreats = [];
+        const clearAnyType = !type || type === 'CALM' || type === 'CLEAR' || type.toUpperCase().includes('CALM') || type.toUpperCase().includes('CLEAR');
+        if (requestedZones.size === 0) return false;
         for (const [id, threat] of this.activeThreats) {
-            const typeMatch = isGlobalClear || threat.type === type;
-            if (typeMatch && threat.status === THREAT_STATUS.ACTIVE) {
+            if (threat.status !== THREAT_STATUS.ACTIVE) {
+                continue;
+            }
+            const typeMatch = clearAnyType || threat.type === type;
+            if (!typeMatch) {
+                continue;
+            }
+            const matchedZones = [...threat.zones].filter(zone => requestedZones.has(zone));
+            if (matchedZones.length === 0) {
+                continue;
+            }
+            if (matchedZones.length === threat.zones.size) {
                 threat.status = THREAT_STATUS.CLEARING;
                 threat.clearedAt = now;
                 console.log(`[threatManager] Explicit clear: ${id} (triggered by ${type})`);
                 changed = true;
+                continue;
             }
+            matchedZones.forEach(zone => {
+                threat.zones.delete(zone);
+                if (threat.zoneAddedAt) threat.zoneAddedAt.delete(zone);
+                if (threat.zoneSeenAt) threat.zoneSeenAt.delete(zone);
+            });
+            const clearingId = `${id}_CLEAR_${now}_${clearingThreats.length}`;
+            clearingThreats.push({
+                id: clearingId,
+                type: threat.type,
+                zones: new Set(matchedZones),
+                zoneAddedAt: new Map(),
+                zoneSeenAt: new Map(),
+                startTime: threat.startTime,
+                lastSeenAt: threat.lastSeenAt,
+                status: THREAT_STATUS.CLEARING,
+                clearedAt: now
+            });
+            console.log(`[threatManager] Explicit clear: ${id} cleared ${matchedZones.length} zones (triggered by ${type})`);
+            changed = true;
         }
+        clearingThreats.forEach(threat => this.activeThreats.set(threat.id, threat));
         if (changed) this.saveState();
         return changed;
     }
@@ -107,20 +142,30 @@ class ThreatManager {
         const now = Date.now();
         let changed = false;
 
-        // Cleanup history older than ALERT_HISTORY_WINDOW_MS
-        const cutoff = now - config.ALERT_HISTORY_WINDOW_MS;
-        this.alertHistory = this.alertHistory.filter(h => h.timestamp > cutoff);
-
         for (const [id, threat] of this.activeThreats) {
             if (threat.status === THREAT_STATUS.ACTIVE) {
-                // Auto-expire after THREAT_EXPIRY_MS of HFC silence.
-                // Per spec: silent expiry removes zones immediately (no green fade).
-                // Green fade is reserved for explicit all-clears only.
-                if (now > threat.lastSeenAt + config.THREAT_EXPIRY_MS) {
-                    this.activeThreats.delete(id);
-                    console.log(`[threatManager] Threat ${id} silently expired after ${config.THREAT_EXPIRY_MS / 60000}m — removed immediately.`);
+                if (!threat.zoneAddedAt) threat.zoneAddedAt = new Map();
+                if (!threat.zoneSeenAt) threat.zoneSeenAt = new Map([...threat.zoneAddedAt.entries()]);
+                const expiredZones = [...threat.zones].filter(zone => {
+                    const lastSeen = threat.zoneSeenAt.get(zone) || threat.lastSeenAt || threat.startTime || 0;
+                    return now > lastSeen + config.THREAT_EXPIRY_MS;
+                });
+                if (expiredZones.length > 0) {
+                    expiredZones.forEach(zone => {
+                        threat.zones.delete(zone);
+                        threat.zoneAddedAt.delete(zone);
+                        threat.zoneSeenAt.delete(zone);
+                    });
+                    console.log(`[threatManager] Threat ${id} silently expired ${expiredZones.length} zones after ${config.THREAT_EXPIRY_MS / 60000}m.`);
                     changed = true;
+                }
+                if (threat.zones.size === 0) {
+                    this.activeThreats.delete(id);
                     continue;
+                }
+                const zoneTimes = [...threat.zoneSeenAt.values()];
+                if (zoneTimes.length > 0) {
+                    threat.lastSeenAt = Math.max(...zoneTimes);
                 }
             } else if (threat.status === THREAT_STATUS.CLEARING) {
                 // Remove entirely after CLEARING_FADE_MS (green fade window)
@@ -136,7 +181,24 @@ class ThreatManager {
     }
 
     getRecentAlertCount() {
-        return this.alertHistory.reduce((sum, h) => sum + h.count, 0);
+        const now = Date.now();
+        const cutoff = now - config.ALERT_HISTORY_WINDOW_MS;
+        let count = 0;
+        for (const threat of this.activeThreats.values()) {
+            if (threat.status !== THREAT_STATUS.ACTIVE) {
+                continue;
+            }
+            const zoneSeenAt = threat.zoneSeenAt || threat.zoneAddedAt;
+            if (!zoneSeenAt) {
+                continue;
+            }
+            for (const timestamp of zoneSeenAt.values()) {
+                if (timestamp > cutoff) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     /**
@@ -165,6 +227,7 @@ class ThreatManager {
                 ...t,
                 zones: [...t.zones], // Serialize Set to Array
                 zoneAddedAt: t.zoneAddedAt ? [...t.zoneAddedAt.entries()] : [], // Serialize Map to [[k,v]]
+                zoneSeenAt: t.zoneSeenAt ? [...t.zoneSeenAt.entries()] : [],
             })), null, 2);
             fs.writeFileSync(STATE_FILE, data);
         } catch (e) {
@@ -180,6 +243,7 @@ class ThreatManager {
                 data.forEach(t => {
                     t.zones = new Set(t.zones); // Deserialize Array to Set
                     t.zoneAddedAt = new Map(t.zoneAddedAt || []); // Deserialize [[k,v]] to Map
+                    t.zoneSeenAt = new Map(t.zoneSeenAt || t.zoneAddedAt || []);
                     this.activeThreats.set(t.id, t);
                 });
                 console.log(`[threatManager] Loaded ${this.activeThreats.size} active threats from state.json`);
