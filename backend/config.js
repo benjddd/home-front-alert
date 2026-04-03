@@ -88,6 +88,8 @@ module.exports = {
         'ירי רקטות':        'ROCKET',
         'rocket':            'ROCKET',
         'missiles':          'ROCKET',
+        // "Enter the shelter now!" — treated as rocket-level urgent
+        'היכנסו למרחב מוגן עכשיו!': 'ROCKET',
         // UAV / drone
         'חדירת כלי טיס עוין': 'UAV',
         'כלי טיס עוין':        'UAV',
@@ -104,11 +106,20 @@ module.exports = {
         'הכינו עצמכם': 'PRE_WARNING',
         'pre-warning':  'PRE_WARNING',
         'pre_warning':  'PRE_WARNING',
-        // Other / natural events
-        'רעידת אדמה':          'OTHER',
-        'צונאמי':              'OTHER',
-        'אירוע רדיולוגי':      'OTHER',
+        // All-clear / end of event (normalise to CALM so dispatch logic catches them)
+        'האירוע הסתיים':                             'CALM',
+        'חזרה לשגרה':                                'CALM',
+        'השוהים במרחב המוגן יכולים לצאת':            'CALM',
+        'calm':                                       'CALM',
+        'clear':                                      'CALM',
+        'all_clear':                                  'CALM',
+        // Other / natural / security events
+        'רעידת אדמה':           'OTHER',
+        'צונאמי':               'OTHER',
+        'אירוע רדיולוגי':       'OTHER',
+        'אירוע קרינה':          'OTHER',
         'אירוע חומרים מסוכנים': 'OTHER',
-        'חשש לצונאמי':         'OTHER',
+        'חשש לצונאמי':          'OTHER',
+        'התרעה ביטחונית':       'OTHER',
     },
 };

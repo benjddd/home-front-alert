@@ -205,6 +205,9 @@ const map = new maplibregl.Map({
   container: 'map',
   style: {
     version: 8,
+    // Required for text/symbol layers (city/water/neighbor labels)
+    // Using MapLibre demo glyphs keeps stack lightweight and CDN-free for tiles.
+    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
     // No external tile sources — pure dark canvas.
     // Country outline is loaded separately as our own GeoJSON after map.on('load').
     sources: {},
@@ -402,13 +405,14 @@ function addHeatmapLayers(data) {
     1.0,  'rgba(183,28,28,0.55)',
   ], 0.58, 0.50);
 
-  // Amber glow for pre-warning — slightly reduced as well for parity
+  // Amber glow for pre-warning — less intense than red but clearly visible
   addHeatmap('prewarning', data.preWarningPoints, [
     0,    'rgba(0,0,0,0)',
-    0.2,  'rgba(249,168,37,0.05)',
-    0.5,  'rgba(249,168,37,0.20)',
-    1.0,  'rgba(245,127,23,0.50)',
-  ], 0.32, 0.24);
+    0.05, 'rgba(249,168,37,0.12)',
+    0.3,  'rgba(249,168,37,0.30)',
+    0.7,  'rgba(245,127,23,0.50)',
+    1.0,  'rgba(245,127,23,0.65)',
+  ], 0.50, 0.42);
 }
 
 // ── Tooltip ───────────────────────────────────────────────────────────────
@@ -519,7 +523,7 @@ map.on('load', async () => {
         filter: ['==', ['get', 'type'], 'water'],
         layout: {
           'text-field': appLang === 'he' ? ['get', 'name_he'] : ['get', 'name_en'],
-          'text-font': ['Open Sans Italic', 'Arial Unicode MS Regular'],
+          'text-font': ['Noto Sans Italic', 'Noto Sans Regular'],
           'text-size': 9,
           'text-anchor': 'center',
           'text-justify': 'center'
@@ -540,7 +544,7 @@ map.on('load', async () => {
         filter: ['==', ['get', 'type'], 'neighbor'],
         layout: {
           'text-field': appLang === 'he' ? ['get', 'name_he'] : ['get', 'name_en'],
-          'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+          'text-font': ['Noto Sans Regular'],
           'text-size': 11,
           'text-letter-spacing': 0.15,
           'text-anchor': 'center',
@@ -555,7 +559,7 @@ map.on('load', async () => {
         filter: ['==', ['get', 'type'], 'city'],
         layout: {
           'text-field': appLang === 'he' ? ['get', 'name_he'] : ['get', 'name_en'],
-          'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+          'text-font': ['Noto Sans Bold', 'Noto Sans Regular'],
           'text-size': ['match', ['get', 'rank'], 1, 11, 9],
           'text-anchor': 'center',
           'text-justify': 'center',
