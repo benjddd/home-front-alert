@@ -52,17 +52,25 @@
                 android:textSize="14sp"
                 android:textStyle="bold"
                 android:maxLines="1"
-                android:ellipsize="end" />
-                
+                android:ellipsize="end"
+                android:shadowColor="#B3000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="5" />
+
             <TextView
                 android:id="@+id/widget_zone_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Detecting zone..."
-                android:textColor="#B0B0B0"
+                android:textColor="#E0E0E0"
                 android:textSize="12sp"
                 android:maxLines="1"
-                android:ellipsize="end" />
+                android:ellipsize="end"
+                android:shadowColor="#99000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="4" />
         </LinearLayout>
     </LinearLayout>
 
@@ -77,6 +85,10 @@
         android:textColor="#E0E0E0"
         android:textSize="11sp"
         android:lines="3"
-        android:ellipsize="end" />
+        android:ellipsize="end"
+        android:shadowColor="#99000000"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="4" />
 
 </LinearLayout>

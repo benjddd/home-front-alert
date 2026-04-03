@@ -34,12 +34,7 @@ class StatusWidgetProvider : AppWidgetProvider() {
             val calc = ZoneDistanceCalculator(context)
             val localizedZone = calc.getLocalizedName(rawZone)
 
-            val statusColor = when (status) {
-                "RED" -> Color.parseColor("#FF3B30")
-                "ORANGE" -> Color.parseColor("#FF9500")
-                "YELLOW" -> Color.parseColor("#FFD60A")
-                else -> Color.parseColor("#34C759")
-            }
+            val statusColor = AlertColors.fromStatus(status)
 
             val statusResId = when (status) {
                 "RED" -> R.string.critical_status
@@ -56,7 +51,9 @@ class StatusWidgetProvider : AppWidgetProvider() {
             val zoneLabel = context.getString(R.string.status_saved_zone).split(":")[0]
             views.setTextViewText(R.id.widget_zone_text, "$zoneLabel: $localizedZone")
 
-            val bgAlpha = if (status == "GREEN") 20 else 50
+            // Glass background: dim for calm, more opaque for active states so text is readable.
+            // Text shadows in widget_layout.xml provide additional contrast on any wallpaper.
+            val bgAlpha = if (status == "GREEN") 35 else 85
             val bgColor = Color.argb(bgAlpha, Color.red(statusColor), Color.green(statusColor), Color.blue(statusColor))
             views.setInt(R.id.widget_container, "setBackgroundColor", bgColor)
 

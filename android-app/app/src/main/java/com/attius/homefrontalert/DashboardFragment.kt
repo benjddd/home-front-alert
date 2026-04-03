@@ -180,12 +180,7 @@ class DashboardFragment : Fragment() {
             tvRecentAlertsSummary.visibility = View.GONE
         }
         
-        val statusColor = when(status) {
-            "RED" -> Color.parseColor("#FF3B30")
-            "ORANGE" -> Color.parseColor("#FF9500")
-            "YELLOW" -> Color.parseColor("#FFD60A")
-            else -> Color.parseColor("#34C759")
-        }
+        val statusColor = AlertColors.fromStatus(status)
 
         updateDashboardBackground(statusColor)
         updateStatusTextAndIcons(status, statusColor)
@@ -212,10 +207,10 @@ class DashboardFragment : Fragment() {
                         tvLocationBadge.visibility = View.GONE
                     } else if (res.activeMode == LocationTrackingMode.GPS_LIVE) {
                         ivLocationStatus.setImageResource(R.drawable.ic_gps_antenna)
-                        ivLocationStatus.imageTintList = ColorStateList.valueOf(Color.parseColor("#FFD60A"))
+                        ivLocationStatus.imageTintList = ColorStateList.valueOf(AlertColors.THREAT)
                         tvLocationBadge.visibility = View.VISIBLE
                         tvLocationBadge.text = getString(R.string.status_gps_searching_short)
-                        tvLocationBadge.setTextColor(Color.parseColor("#FFD60A"))
+                        tvLocationBadge.setTextColor(AlertColors.THREAT)
                     } else {
                         ivLocationStatus.setImageResource(R.drawable.ic_manual_location)
                         val color = if (res.source == "SAVED") Color.parseColor("#808080") else Color.parseColor("#424242")

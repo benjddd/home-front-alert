@@ -287,20 +287,20 @@ object StatusManager {
             "YELLOW" -> {
                 builder.setContentTitle("Remote Threat Active")
                 builder.setContentText("Closest: $distStr | Total Active: ${snapshot.active10mCount}")
-                builder.setColor(android.graphics.Color.parseColor("#FFD60A"))
+                builder.setColor(AlertColors.THREAT)
                 builder.setPriority(androidx.core.app.NotificationCompat.PRIORITY_LOW) // Swipeable, silent in some OS
                 builder.setWhen(prefs.getLong("dash_status_start_ms", System.currentTimeMillis()))
             }
             "ORANGE" -> {
                 builder.setContentTitle("⚠️ Local Pre-Warning")
                 builder.setContentText("Alerts are expected in a few minutes in your area.")
-                builder.setColor(android.graphics.Color.parseColor("#FF9500"))
+                builder.setColor(AlertColors.WARNING)
                 builder.setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH) // Lock screen visible
                 builder.setWhen(snapshot.homeThreatObj?.optLong("t", System.currentTimeMillis()) ?: System.currentTimeMillis())
             }
             "RED" -> {
                 builder.setContentTitle("🚨 URGENT: SEEK SHELTER")
-                builder.setColor(android.graphics.Color.RED)
+                builder.setColor(AlertColors.CRITICAL)
                 builder.setPriority(androidx.core.app.NotificationCompat.PRIORITY_MAX)
                 builder.setOngoing(true) // Non-swipeable
                 
