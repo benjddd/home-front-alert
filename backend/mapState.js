@@ -81,7 +81,15 @@ function computeMapPayload(userZone) {
 
     // 1. Process ACTIVE Threats -> Clusters & Heatmap
     const activeThreats = allStates.filter(t => t.status === 'ACTIVE');
-    
+
+    // Build a flat zone→addedAt lookup across all active threats for recent-highlight
+    const zoneAddedAt = new Map();
+    activeThreats.forEach(t => {
+        if (t.zoneAddedAt) {
+            for (const [name, ts] of t.zoneAddedAt) zoneAddedAt.set(name, ts);
+        }
+    });
+
     // Group zones by type for clustering
     const byType = {};
     activeThreats.forEach(t => {
@@ -127,6 +135,13 @@ function computeMapPayload(userZone) {
                 renderStyle = 'union_full';
             }
 
+            const recentZoneGeometries = group
+                .filter(f => {
+                    const ts = zoneAddedAt.get(f.properties.name);
+                    return ts && (now - ts) < config.RECENT_ZONE_MS;
+                })
+                .map(f => f.geometry);
+
             clusters.push({
                 id: `${type}-${now}-${Math.random().toString(36).slice(2,7)}`,
                 alertType: type,
@@ -136,7 +151,7 @@ function computeMapPayload(userZone) {
                 zones: clusterZones,
                 geometry,
                 renderStyle,
-                hullGeometry: _convexHullBuffered(group, 0.1),
+                recentZoneGeometries,
             });
         }
     }
@@ -203,13 +218,6 @@ function _fullUnion(features) {
         const hull = concaveman(points.features.map(f => f.geometry.coordinates), 2, 0);
         return { type: 'Polygon', coordinates: [hull] };
     } catch { return _unionWithBuffer(features, 0.3); }
-}
-
-function _convexHullBuffered(features, bufferKm) {
-    try {
-        const hull = turf.convex(turf.featureCollection(features.map(f => turf.centroid(f))));
-        return hull ? turf.buffer(hull, bufferKm, { units: 'kilometers' }).geometry : null;
-    } catch { return null; }
 }
 
 /**

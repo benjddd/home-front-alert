@@ -40,9 +40,11 @@ class ThreatManager {
 
         let newInSnapshot = 0;
         if (targetThreat) {
+            if (!targetThreat.zoneAddedAt) targetThreat.zoneAddedAt = new Map();
             zones.forEach(z => {
                 if (!targetThreat.zones.has(z)) {
                     targetThreat.zones.add(z);
+                    targetThreat.zoneAddedAt.set(z, now);
                     newInSnapshot++;
                 }
             });
@@ -59,6 +61,7 @@ class ThreatManager {
                 id: newId,
                 type,
                 zones: new Set(zones),
+                zoneAddedAt: new Map(zones.map(z => [z, now])),
                 startTime: now,
                 lastSeenAt: now,
                 status: THREAT_STATUS.ACTIVE
@@ -159,7 +162,8 @@ class ThreatManager {
         try {
             const data = JSON.stringify([...this.activeThreats.values()].map(t => ({
                 ...t,
-                zones: [...t.zones] // Serialize Set to Array
+                zones: [...t.zones], // Serialize Set to Array
+                zoneAddedAt: t.zoneAddedAt ? [...t.zoneAddedAt.entries()] : [], // Serialize Map to [[k,v]]
             })), null, 2);
             fs.writeFileSync(STATE_FILE, data);
         } catch (e) {
@@ -174,6 +178,7 @@ class ThreatManager {
                 this.activeThreats.clear();
                 data.forEach(t => {
                     t.zones = new Set(t.zones); // Deserialize Array to Set
+                    t.zoneAddedAt = new Map(t.zoneAddedAt || []); // Deserialize [[k,v]] to Map
                     this.activeThreats.set(t.id, t);
                 });
                 console.log(`[threatManager] Loaded ${this.activeThreats.size} active threats from state.json`);

@@ -64,4 +64,13 @@ module.exports = {
      * Default: 12 km.
      */
     CLUSTER_DIST_KM: 12,
+
+    // ── Recent-zone highlight ───────────────────────────────────────────────
+
+    /**
+     * Zones added to a threat within this window (ms) are rendered with a
+     * brighter fill overlay on the map to draw attention to new activity.
+     * Default: 15 seconds.
+     */
+    RECENT_ZONE_MS: 15 * 1000,
 };
