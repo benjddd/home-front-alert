@@ -21,8 +21,8 @@ object AlertStyleRegistry {
             return AlertType.CALM
         }
         if (trimmedTitle == "OTHER") {
-            // Avoid misclassifying OTHER as CAUTION (which triggers pre-warning tone profile).
-            return AlertType.URGENT
+            // Known secondary events (earthquake, radiation, tsunami) — beep (CAUTION) is appropriate.
+            return AlertType.CAUTION
         }
         
         // --- 1st PRIORITY: OFFICIAL CAPTURED PHRASES (Source: User App Screenshots) ---
@@ -100,7 +100,7 @@ object AlertStyleRegistry {
             "13" -> AlertType.CALM
             "14" -> AlertType.CAUTION
             "all_clear" -> AlertType.CALM
-            else -> AlertType.URGENT // Safety-first + avoids false pre-warning tone profile
+            else -> AlertType.SILENT // Unclassified HFC category — silent, no state change, logged
         }
     }
 }

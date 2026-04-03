@@ -14,6 +14,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.fragment.app.Fragment
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import org.json.JSONObject
 
 class MapFragment : Fragment() {
 
@@ -28,7 +29,7 @@ class MapFragment : Fragment() {
             val lat    = intent.getDoubleExtra(StatusManager.EXTRA_LAT, 0.0)
             val lng    = intent.getDoubleExtra(StatusManager.EXTRA_LNG, 0.0)
             mapWebView.post {
-                mapWebView.evaluateJavascript("if(window.setUserZone) window.setUserZone('${zoneHe.replace("'", "\\'")}');", null)
+                mapWebView.evaluateJavascript("if(window.setUserZone) window.setUserZone(${JSONObject.quote(zoneHe)});", null)
                 if (lat != 0.0 && lng != 0.0) {
                     mapWebView.evaluateJavascript("if(window.onLocationUpdate) window.onLocationUpdate($lat,$lng);", null)
                 }
@@ -82,7 +83,7 @@ class MapFragment : Fragment() {
                     .getSharedPreferences("HomeFrontAlertsPrefs", android.content.Context.MODE_PRIVATE)
                     .getString("selected_area", null)
                 if (!userCity.isNullOrEmpty()) {
-                    view?.evaluateJavascript("if (window.setUserZone) window.setUserZone('$userCity');", null)
+                    view?.evaluateJavascript("if (window.setUserZone) window.setUserZone(${JSONObject.quote(userCity)});", null)
                 }
 
                 updateUserLocationOnMap()
@@ -106,8 +107,7 @@ class MapFragment : Fragment() {
         if (currentLoc.lat != 0.0 && currentLoc.lng != 0.0) {
             mapWebView.evaluateJavascript("if (window.onLocationUpdate) { window.onLocationUpdate(${currentLoc.lat}, ${currentLoc.lng}); }", null)
             // Also refresh zone string so badge reflects current zone on tab-return
-            val zone = currentLoc.zoneNameHe.replace("'", "\\'")
-            mapWebView.evaluateJavascript("if (window.setUserZone) window.setUserZone('$zone');", null)
+            mapWebView.evaluateJavascript("if (window.setUserZone) window.setUserZone(${JSONObject.quote(currentLoc.zoneNameHe)});", null)
         }
     }
 

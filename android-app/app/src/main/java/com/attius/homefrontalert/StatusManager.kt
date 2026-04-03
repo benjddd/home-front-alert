@@ -14,7 +14,8 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 object StatusManager {
     private const val PREFS_NAME = "HomeFrontAlertsPrefs"
     private const val THREAT_TIMEOUT_MS = 30 * 60 * 1000L
-    private const val CLEARING_FADE_MS = 5 * 60 * 1000L
+    // Must match backend/config.js CLEARING_FADE_MS (15 minutes)
+    private const val CLEARING_FADE_MS = 15 * 60 * 1000L
     private const val STATE_CLEARING = "CLEARING"
     const val ACTION_STATUS_CHANGED = "com.attius.homefrontalert.STATUS_CHANGED"
     const val ACTION_ZONE_CHANGED   = "com.attius.homefrontalert.ZONE_CHANGED"
@@ -459,7 +460,38 @@ object StatusManager {
         return true
     }
 
+    /**
+     * Clears all active threats — for use by FCM CLEAR handler.
+     * Internally reads the threat map and routes through processAlert(CALM)
+     * so the calm tone plays and zones enter the CLEARING fade state.
+     */
+    fun clearAll(context: Context, toneGenerator: DynamicToneGenerator?) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
+        val threats = org.json.JSONObject(threatsStr)
+        val activeZones = mutableListOf<String>()
+        val iter = threats.keys()
+        while (iter.hasNext()) {
+            val z = iter.next()
+            val obj = threats.optJSONObject(z) ?: continue
+            if (obj.optString("s") != STATE_CLEARING) {
+                activeZones.add(obj.optString("name", z))
+            }
+        }
+        if (activeZones.isNotEmpty()) {
+            processAlert(context, "clear-${System.currentTimeMillis()}", AlertType.CALM, activeZones, "[FCM-CLEAR]", toneGenerator, null)
+        } else {
+            updateStatus(context, "GREEN")
+        }
+    }
+
     fun processAlert(context: Context, id: String, type: AlertType, cities: List<String>, source: String, toneGenerator: DynamicToneGenerator?, rawBody: String? = null) {
+        // SILENT: unclassified HFC category — log only, no audio, no state change, no notification
+        if (type == AlertType.SILENT) {
+            Log.w("HomeFrontAlerts", "[$source] Unclassified alert type received — suppressing. Cities: ${cities.take(5)}")
+            return
+        }
+
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val nowTime = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
 
