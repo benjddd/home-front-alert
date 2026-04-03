@@ -17,10 +17,10 @@ const helmet    = require('helmet');
 const polygonCache = require('./polygonCache');
 const mapState     = require('./mapState');
 const axios        = require('axios');
-const { GoogleAuth, OAuth2Client } = require('google-auth-library');
+const { GoogleAuth } = require('google-auth-library');
 
 const auth = new GoogleAuth();
-const BACKEND_SERVICE_URL = process.env.BACKEND_SERVICE_URL || 'https://homefront-backend-cjnpwpm63q-zf.a.run.app';
+const BACKEND_SERVICE_URL = process.env.BACKEND_SERVICE_URL || 'https://homefront-backend-344391280523.me-west1.run.app';
 const client = new OAuth2Client();
 
 const app  = express();
@@ -35,9 +35,8 @@ app.use(helmet({
       styleSrc:   ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
       // No external tile servers — basemap is our own GeoJSON outline.
       // blob: needed for MapLibre's internal Web Worker comms.
-      // demotiles.maplibre.org: glyph PBF endpoint for symbol labels (cities/water/neighbors).
       imgSrc:     ["'self'", 'data:', 'blob:'],
-      connectSrc: ["'self'", 'blob:', 'https://demotiles.maplibre.org'],
+      connectSrc: ["'self'", 'blob:'],
       workerSrc:  ["'self'", 'blob:'],
     },
   },
@@ -68,10 +67,13 @@ app.get('/api/map-data', async (_req, res) => {
     res.json(response.data);
   } catch (err) {
     console.error('[map-server] Proxy error to Backend relay:', err.message);
-    // Return 503 so map.html shows its offline state rather than stale/empty data.
-    // The local mapState has no live HFC data (it only mirrors /internal/alert pushes)
-    // so serving it as a fallback would silently return an empty payload.
-    res.status(503).json({ error: 'backend unavailable' });
+    // Fallback: Compute locally if proxy fails (prevents absolute outage)
+    try {
+        const payload = mapState.computeMapPayload();
+        res.json(payload);
+    } catch (localErr) {
+        res.status(500).json({ error: 'synchronization failure' });
+    }
   }
 });
 
@@ -80,13 +82,6 @@ app.get('/api/map-data', async (_req, res) => {
 app.get('/api/country-outline', (_req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=86400');
   res.sendFile(path.join(__dirname, 'public', 'israel-outline.json'));
-});
-
-// Explicit route for supplemental basemap geometry (water/cities/neighbors).
-// Keeping an explicit endpoint avoids any ambiguity with static middleware/proxies.
-app.get('/geo-extras.json', (_req, res) => {
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.sendFile(path.join(__dirname, 'public', 'geo-extras.json'));
 });
 
 // Polygon cache status (internal health)

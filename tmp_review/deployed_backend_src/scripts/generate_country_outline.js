@@ -36,8 +36,7 @@ function fetch(url, hops = 0) {
 }
 
 function roundCoords(coords) {
-  // Keep higher precision (5 decimals ~ 1.1m) for cleaner coast/border fidelity.
-  if (typeof coords[0] === 'number') return coords.map(v => Math.round(v * 100000) / 100000);
+  if (typeof coords[0] === 'number') return coords.map(v => Math.round(v * 1000) / 1000);
   return coords.map(roundCoords);
 }
 function simplifyGeometry(geom) {
@@ -45,11 +44,10 @@ function simplifyGeometry(geom) {
 }
 
 async function main() {
-  // map_units has West Bank as a separate feature; countries.geojson merges it.
-  // Use 10m dataset for higher border/coast precision vs prior 50m.
-  const url = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_map_units.geojson';
+  // map_units has West Bank as a separate feature; countries.geojson merges it
+  const url = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_map_units.geojson';
 
-  console.log('⬇  Fetching Natural Earth 10m map_units…');
+  console.log('⬇  Fetching Natural Earth 50m map_units…');
   const buf = await fetch(url);
   console.log(`   ${(buf.length / 1024).toFixed(0)} KB downloaded`);
 

@@ -1,0 +1,144 @@
+C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\lib\third_party\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'me-west1-run.googleapis.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+{
+  "apiVersion": "serving.knative.dev/v1",
+  "kind": "Service",
+  "metadata": {
+    "annotations": {
+      "run.googleapis.com/build-enable-automatic-updates": "false",
+      "run.googleapis.com/build-id": "3bf3fe0e-0017-4ceb-a83c-f69e0ded9a7d",
+      "run.googleapis.com/build-image-uri": "me-west1-docker.pkg.dev/home-front-alert-hfc/cloud-run-source-deploy/homefront-backend",
+      "run.googleapis.com/build-name": "projects/344391280523/locations/me-west1/builds/3bf3fe0e-0017-4ceb-a83c-f69e0ded9a7d",
+      "run.googleapis.com/build-source-location": "gs://run-sources-home-front-alert-hfc-me-west1/services/homefront-backend/1775173726.643899-be5f0844092d4c969f4e19a31b95f9d0.zip#1775173727194878",
+      "run.googleapis.com/client-name": "gcloud",
+      "run.googleapis.com/client-version": "563.0.0",
+      "run.googleapis.com/ingress": "all",
+      "run.googleapis.com/ingress-status": "all",
+      "run.googleapis.com/maxScale": "3",
+      "run.googleapis.com/operation-id": "ae26d78b-bd83-425b-8613-c15f72faaaba",
+      "run.googleapis.com/urls": "[\"https://homefront-backend-344391280523.me-west1.run.app\",\"https://homefront-backend-cjnpwpm63q-zf.a.run.app\"]",
+      "serving.knative.dev/creator": "344391280523-compute@developer.gserviceaccount.com",
+      "serving.knative.dev/lastModifier": "344391280523-compute@developer.gserviceaccount.com"
+    },
+    "creationTimestamp": "2026-03-17T18:20:57.262630Z",
+    "generation": 35,
+    "labels": {
+      "cloud.googleapis.com/location": "me-west1",
+      "run.googleapis.com/satisfiesPzs": "true"
+    },
+    "name": "homefront-backend",
+    "namespace": "344391280523",
+    "resourceVersion": "AAZOjRunheQ",
+    "selfLink": "/apis/serving.knative.dev/v1/namespaces/344391280523/services/homefront-backend",
+    "uid": "d7ea9faf-523d-4443-bee6-06c6dfbeab03"
+  },
+  "spec": {
+    "template": {
+      "metadata": {
+        "annotations": {
+          "autoscaling.knative.dev/maxScale": "10",
+          "autoscaling.knative.dev/minScale": "1",
+          "run.googleapis.com/client-name": "gcloud",
+          "run.googleapis.com/client-version": "563.0.0",
+          "run.googleapis.com/cpu-throttling": "false",
+          "run.googleapis.com/startup-cpu-boost": "true"
+        },
+        "labels": {
+          "client.knative.dev/nonce": "onilpzlqzn",
+          "run.googleapis.com/startupProbeType": "Default"
+        }
+      },
+      "spec": {
+        "containerConcurrency": 80,
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "DASHBOARD_PASS",
+                "value": "tz-admin-2026"
+              },
+              {
+                "name": "API_KEY",
+                "value": "tz-api-2026"
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "production"
+              },
+              {
+                "name": "MAP_SERVICE_URL",
+                "value": "https://homefront-map-cjnpwpm63q-zf.a.run.app"
+              },
+              {
+                "name": "RELAY_SERVICE_ACCOUNT",
+                "value": "344391280523-compute@developer.gserviceaccount.com"
+              }
+            ],
+            "image": "me-west1-docker.pkg.dev/home-front-alert-hfc/backend-repo/homefront-backend:latest",
+            "ports": [
+              {
+                "containerPort": 8080,
+                "name": "http1"
+              }
+            ],
+            "resources": {
+              "limits": {
+                "cpu": "1000m",
+                "memory": "512Mi"
+              }
+            },
+            "startupProbe": {
+              "failureThreshold": 1,
+              "periodSeconds": 240,
+              "tcpSocket": {
+                "port": 8080
+              },
+              "timeoutSeconds": 240
+            }
+          }
+        ],
+        "serviceAccountName": "344391280523-compute@developer.gserviceaccount.com",
+        "timeoutSeconds": 300
+      }
+    },
+    "traffic": [
+      {
+        "latestRevision": true,
+        "percent": 100
+      }
+    ]
+  },
+  "status": {
+    "address": {
+      "url": "https://homefront-backend-cjnpwpm63q-zf.a.run.app"
+    },
+    "conditions": [
+      {
+        "lastTransitionTime": "2026-04-03T12:03:41.582820Z",
+        "status": "True",
+        "type": "Ready"
+      },
+      {
+        "lastTransitionTime": "2026-04-03T12:03:33.608645Z",
+        "status": "True",
+        "type": "ConfigurationsReady"
+      },
+      {
+        "lastTransitionTime": "2026-04-03T12:03:41.553955Z",
+        "status": "True",
+        "type": "RoutesReady"
+      }
+    ],
+    "latestCreatedRevisionName": "homefront-backend-00035-nfj",
+    "latestReadyRevisionName": "homefront-backend-00035-nfj",
+    "observedGeneration": 35,
+    "traffic": [
+      {
+        "latestRevision": true,
+        "percent": 100,
+        "revisionName": "homefront-backend-00035-nfj"
+      }
+    ],
+    "url": "https://homefront-backend-cjnpwpm63q-zf.a.run.app"
+  }
+}
