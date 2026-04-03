@@ -50,11 +50,8 @@ def main():
             ring.append(ring[0])
         try:
             poly = Polygon(ring)
-            # buffer(0) fixes self-intersections in INDIVIDUAL alert polygons only.
-            # We do NOT apply any buffer to the base outline — that would round
-            # coastline concavities like Haifa Bay.
-            if not poly.is_valid:
-                poly = poly.buffer(0)
+            # DO NOT buffer(0) — it smooths/rounds concave features.
+            # Skip invalid polygons instead.
             if poly.is_valid and not poly.is_empty:
                 alert_polys.append(poly)
             else:
@@ -65,8 +62,7 @@ def main():
     print(f"Unioning {len(base_polys)} base polygons + {len(alert_polys)} alert zones (skipped {skipped})...")
     unioned = unary_union(base_polys + alert_polys)
 
-    # No smoothing, no simplify — alert zones will be rendered on screen so
-    # every vertex counts.  Only round to 5-decimal precision (~1 m).
+    # No smoothing, no simplify. Only round to 5-decimal precision (~1 m).
     out_features = []
     if unioned.geom_type == 'Polygon':
         out_features.append({
