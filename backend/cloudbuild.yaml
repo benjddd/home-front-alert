@@ -19,7 +19,7 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--min-instances=1'
-      - '--max-instances=10'
+      - '--max-instances=1'
       - '--no-cpu-throttling'
       - '--update-env-vars=NODE_ENV=production,MAP_SERVICE_URL=https://homefront-map-cjnpwpm63q-zf.a.run.app,RELAY_SERVICE_ACCOUNT=344391280523-compute@developer.gserviceaccount.com'
 

@@ -159,11 +159,10 @@ setInterval(() => {
     // 2. Derive SSOT status for Dashboard/Map
     const currentStatus = mapState.getSystemStatus(null);
     
-    // 3. Simple Event-based Triggering for All-Clear
+    // 3. Log state transitions only. Explicit clears are dispatched from the
+    // HFC clear path so zone-scoped CLEARING state can live for the full fade.
     if (currentStatus === 'CALM' && prevStatus !== 'CALM') {
-        console.log("✅ State transition to CALM detected. Dispatching All-Clear.");
-        sendFCMClear();
-        notifyMapServiceClearAll();
+        console.log("✅ State transition to CALM detected.");
     } else if (currentStatus !== 'CALM' && prevStatus === 'CALM') {
         console.log(`📡 State transition to ${currentStatus} detected.`);
     }
