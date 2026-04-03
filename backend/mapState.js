@@ -23,20 +23,17 @@ const ALERT_TYPES = {
     OTHER:        { key: 'OTHER',       priority: 2, color: '#546E7A', border: '#37474F' },
 };
 
-// Defensive normalization: Hebrew HFC types → canonical keys (in case upstream didn't normalize)
-const _TYPE_FALLBACK = {
-    'ירי רקטות וטילים': 'ROCKET', 'ירי רקטות': 'ROCKET',
-    'חדירת כלי טיס עוין': 'UAV', 'כלי טיס עוין': 'UAV',
-    'חדירת מחבלים': 'INFILTRATION',
-    'התרעה מוקדמת': 'PRE_WARNING',
-};
+// Defensive normalization: uses the same ALERT_TYPE_MAP as index.js (SSOT in config).
 function _resolveType(raw) {
-    if (ALERT_TYPES[raw]) return raw;
-    if (_TYPE_FALLBACK[raw]) return _TYPE_FALLBACK[raw];
-    for (const [pattern, canonical] of Object.entries(_TYPE_FALLBACK)) {
-        if (raw.includes(pattern)) return canonical;
+    if (ALERT_TYPES[raw]) return raw; // already canonical
+    const map = config.ALERT_TYPE_MAP;
+    if (map[raw]) return map[raw];
+    const lower = raw.toLowerCase();
+    if (map[lower]) return map[lower];
+    for (const [pattern, canonical] of Object.entries(map)) {
+        if (raw.includes(pattern) || pattern.includes(raw)) return canonical;
     }
-    return raw; // let caller fall back to OTHER
+    return raw; // caller falls back to OTHER via ALERT_TYPES[type] || ALERT_TYPES.OTHER
 }
 
 /**

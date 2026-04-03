@@ -73,4 +73,38 @@ module.exports = {
      * Default: 15 seconds.
      */
     RECENT_ZONE_MS: 15 * 1000,
+
+    // ── Alert type normalization ────────────────────────────────────────────
+
+    /**
+     * SSOT mapping of raw HFC/FCM alert type strings → canonical keys.
+     * Used by both index.js (normalizeAlertType) and mapState.js (_resolveType).
+     * Hebrew strings: official HFC API phrases.
+     * English strings: FCM canonicalType values + legacy English aliases.
+     */
+    ALERT_TYPE_MAP: {
+        // Rocket / missile
+        'ירי רקטות וטילים': 'ROCKET',
+        'ירי רקטות':        'ROCKET',
+        'rocket':            'ROCKET',
+        'missiles':          'ROCKET',
+        // UAV / drone
+        'חדירת כלי טיס עוין': 'UAV',
+        'כלי טיס עוין':        'UAV',
+        'uav':                  'UAV',
+        'drone':                'UAV',
+        // Infiltration
+        'חדירת מחבלים': 'INFILTRATION',
+        'infiltration':  'INFILTRATION',
+        // Pre-warning
+        'התרעה מוקדמת': 'PRE_WARNING',
+        'pre-warning':   'PRE_WARNING',
+        'pre_warning':   'PRE_WARNING',
+        // Other / natural events
+        'רעידת אדמה':          'OTHER',
+        'צונאמי':              'OTHER',
+        'אירוע רדיולוגי':      'OTHER',
+        'אירוע חומרים מסוכנים': 'OTHER',
+        'חשש לצונאמי':         'OTHER',
+    },
 };

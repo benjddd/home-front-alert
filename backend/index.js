@@ -76,8 +76,8 @@ app.use((req, res, next) => {
     const apiKey = req.headers['x-api-key'];
     const validKey = process.env.API_KEY;
 
-    // Health, Privacy, Tester, and Dashboard paths are public or have their own auth
-    const publicPaths = ['/health', '/privacy', '/apply-tester', '/apply-tester/status', '/dashboard', '/dashboard/data', '/dashboard/delete', '/dashboard/sync-all', '/dashboard/play-status'];
+    // Health and Privacy are fully public
+    const publicPaths = ['/health', '/privacy'];
     if (publicPaths.some(p => req.path.startsWith(p))) return next();
 
     if (!validKey) {
@@ -120,71 +120,19 @@ try {
     console.error("❌ Firebase: Initialization failed critical error.", e);
 }
 
-// --- Google Play Automation ---
-async function addTesterToPlayStore(email) {
-    const packageName = "com.attius.homefrontalert";
-    const trackName = "alpha";
-    const auth = new google.auth.GoogleAuth({
-        scopes: ['https://www.googleapis.com/auth/androidpublisher']
-    });
-
-    try {
-        const authClient = await auth.getClient();
-        const edit = await play.edits.insert({ auth: authClient, packageName });
-        const editId = edit.data.id;
-
-        const currentTesters = await play.edits.testers.get({ auth: authClient, editId, packageName, track: trackName });
-        const emails = currentTesters.data.emails || [];
-
-        if (!emails.includes(email.toLowerCase())) {
-            emails.push(email.toLowerCase());
-            await play.edits.testers.update({
-                auth: authClient, editId, packageName, track: trackName,
-                requestBody: { emails }
-            });
-            await play.edits.commit({ auth: authClient, editId, packageName });
-            console.log(`✅ Play Store Sync: ${email} added.`);
-            return true;
-        }
-        return true; // Already there
-    } catch (e) {
-        console.error("❌ Play Store Sync Error:", e.response?.data?.error || e.message);
-        return false;
-    }
-}
-
-// --- Alert Type Normalization (HFC Hebrew → Canonical Keys for ALERT_TYPES) ---
-const ALERT_TYPE_MAP = {
-    'ירי רקטות וטילים': 'ROCKET',
-    'ירי רקטות': 'ROCKET',
-    'rocket': 'ROCKET',
-    'missiles': 'ROCKET',
-    'חדירת כלי טיס עוין': 'UAV',
-    'כלי טיס עוין': 'UAV',
-    'uav': 'UAV',
-    'drone': 'UAV',
-    'חדירת מחבלים': 'INFILTRATION',
-    'infiltration': 'INFILTRATION',
-    'התרעה מוקדמת': 'PRE_WARNING',
-    'pre-warning': 'PRE_WARNING',
-    'pre_warning': 'PRE_WARNING',
-    'רעידת אדמה': 'OTHER',
-    'צונאמי': 'OTHER',
-    'אירוע רדיולוגי': 'OTHER',
-    'אירוע חומרים מסוכנים': 'OTHER',
-    'חשש לצונאמי': 'OTHER',
-};
-
+// --- Alert Type Normalization (HFC Hebrew → Canonical Keys) ---
+// ALERT_TYPE_MAP is the SSOT — defined in config.js, shared with mapState.js.
 function normalizeAlertType(rawType) {
     if (!rawType) return 'OTHER';
     const trimmed = rawType.trim();
+    const map = config.ALERT_TYPE_MAP;
     // Direct match
-    if (ALERT_TYPE_MAP[trimmed]) return ALERT_TYPE_MAP[trimmed];
+    if (map[trimmed]) return map[trimmed];
     // Case-insensitive match
     const lower = trimmed.toLowerCase();
-    if (ALERT_TYPE_MAP[lower]) return ALERT_TYPE_MAP[lower];
+    if (map[lower]) return map[lower];
     // Substring match for partial Hebrew descriptions
-    for (const [pattern, canonical] of Object.entries(ALERT_TYPE_MAP)) {
+    for (const [pattern, canonical] of Object.entries(map)) {
         if (trimmed.includes(pattern) || pattern.includes(trimmed)) return canonical;
     }
     console.warn(`[normalizeAlertType] Unknown type "${rawType}" → OTHER`);
@@ -263,11 +211,6 @@ app.get('/alerts', (req, res) => {
             last_sync: lastSuccessfulPoll 
         } 
     });
-});
-
-app.get('/alerts/history', (req, res) => {
-    // Historical list logic can be expanded here if needed
-    res.json([]);
 });
 
 app.post('/test-fcm', (req, res) => {

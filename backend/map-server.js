@@ -67,13 +67,10 @@ app.get('/api/map-data', async (_req, res) => {
     res.json(response.data);
   } catch (err) {
     console.error('[map-server] Proxy error to Backend relay:', err.message);
-    // Fallback: Compute locally if proxy fails (prevents absolute outage)
-    try {
-        const payload = mapState.computeMapPayload();
-        res.json(payload);
-    } catch (localErr) {
-        res.status(500).json({ error: 'synchronization failure' });
-    }
+    // Return 503 so map.html shows its offline state rather than stale/empty data.
+    // The local mapState has no live HFC data (it only mirrors /internal/alert pushes)
+    // so serving it as a fallback would silently return an empty payload.
+    res.status(503).json({ error: 'backend unavailable' });
   }
 });
 
