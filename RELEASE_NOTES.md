@@ -24,7 +24,7 @@
 - `performInitialSetupIfNeeded` now correctly defaults Pro to FCM mode and Standard to Direct HFC
 
 ### Infrastructure
-- Firebase project consolidated: everything now under `home-front-alert-hfc` / `homefrontcommand@attius.com`
+- Firebase project consolidated: everything now under `home-front-alert-hfc`
 - `home-front-alert` Firebase project (old, orphaned) to be archived
 
 ---

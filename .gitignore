@@ -9,6 +9,7 @@
 # Environment and secret files
 .env
 .env.*
+!.env.example
 secrets.properties
 keystore.properties
 signing.properties
