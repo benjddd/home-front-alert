@@ -286,8 +286,8 @@ function addClusterLayers(cluster) {
   // ── Outer glow (toned down) ────────────────────────────────────────────
   map.addLayer({ id: glowId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.10 } });
 
-  // ── Main fill (toned down) ────────────────────────────────────────────
-  map.addLayer({ id: fillId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.38 } });
+  // ── Main fill (warm red, readable on dark background) ─────────────────
+  map.addLayer({ id: fillId,   type: 'fill', source: sid, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.60 } });
 
   // ── Crisp border (full opacity — unchanged) ──────────────────────────────
   map.addLayer({ id: borderId, type: 'line', source: sid, paint: { 'line-color': cluster.border, 'line-width': 2.2, 'line-opacity': 0.92 } });
@@ -364,8 +364,8 @@ function updateClearingZones(zones) {
 // Radius and intensity are zoom-interpolated so the glow scales naturally.
 
 function addHeatmapLayers(data) {
-  // Tighter radius: hugs the polygons more closely
-  const radiusExpr = ['interpolate', ['linear'], ['zoom'], 5, 10, 10, 35, 14, 80];
+  // Radius: tighter than original but still visible glow beyond polygon edges
+  const radiusExpr = ['interpolate', ['linear'], ['zoom'], 5, 18, 10, 55, 14, 120];
   const weightExpr = ['coalesce', ['get', 'weight'], 1];
 
   function addHeatmap(id, geojson, colorStops, intensity, maxOpacity) {
@@ -388,14 +388,14 @@ function addHeatmapLayers(data) {
     managedSources.add(srcId);
   }
 
-  // Red glow for urgent (ROCKET/UAV/etc)
+  // Red glow for urgent (ROCKET/UAV/etc) — balanced intensity
   addHeatmap('urgent', data.urgentPoints, [
     0,    'rgba(0,0,0,0)',
-    0.05, 'rgba(211,47,47,0.15)', // Glow visible even for single alerts (density = 0.05)
-    0.3,  'rgba(211,47,47,0.40)',
-    0.7,  'rgba(183,28,28,0.60)',
-    1.0,  'rgba(183,28,28,0.75)',
-  ], 0.5, 0.45);
+    0.05, 'rgba(220,50,50,0.25)',
+    0.3,  'rgba(210,50,50,0.60)',
+    0.6,  'rgba(190,30,30,0.80)',
+    1.0,  'rgba(183,28,28,0.90)',
+  ], 0.8, 0.70);
 
   // Amber glow for pre-warning — Lowered intensity 0.4
   addHeatmap('prewarning', data.preWarningPoints, [
