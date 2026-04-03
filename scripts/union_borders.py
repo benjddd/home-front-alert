@@ -6,7 +6,7 @@ import ssl
 from pathlib import Path
 
 try:
-    from shapely.geometry import Polygon, shape, mapping
+    from shapely.geometry import Polygon, MultiPolygon, shape, mapping
     from shapely.ops import unary_union
 except ImportError:
     import sys
@@ -26,7 +26,11 @@ def main():
     base_polys = []
     for f in outline_data.get('features', []):
         try:
-            base_polys.append(shape(f['geometry']))
+            geom = shape(f['geometry'])
+            if geom.geom_type == 'Polygon':
+                base_polys.append(geom)
+            elif geom.geom_type == 'MultiPolygon':
+                base_polys.extend(list(geom.geoms))
         except Exception as e:
             print("Skipping invalid base geom:", e)
 
@@ -50,8 +54,6 @@ def main():
             ring.append(ring[0])
         try:
             poly = Polygon(ring)
-            # DO NOT buffer(0) — it smooths/rounds concave features.
-            # Skip invalid polygons instead.
             if poly.is_valid and not poly.is_empty:
                 alert_polys.append(poly)
             else:
@@ -59,26 +61,39 @@ def main():
         except Exception:
             skipped += 1
 
-    print(f"Unioning {len(base_polys)} base polygons + {len(alert_polys)} alert zones (skipped {skipped})...")
-    unioned = unary_union(base_polys + alert_polys)
+    print(f"Unioning {len(base_polys)} base polygons + {len(alert_polys)} alert zones...")
+    
+    # Force precision on all input polygons to fix tiny coordinate system misalignments
+    # 1e-5 ≈ 1 meter, enough to snap slightly misaligned points to the same grid
+    all_polys = [p.simplify(1e-5, preserve_topology=False) for p in (base_polys + alert_polys)]
+    
+    # Perform the union
+    unioned = unary_union(all_polys)
 
-    # No smoothing, no simplify. Only round to 5-decimal precision (~1 m).
+    # Re-structure as a single FeatureCollection
     out_features = []
-    if unioned.geom_type == 'Polygon':
+    
+    def process_geom(geom):
+        if geom.geom_type == 'Polygon':
+            return [geom]
+        elif geom.geom_type == 'MultiPolygon':
+            return list(geom.geoms)
+        elif geom.geom_type == 'GeometryCollection':
+            polys = []
+            for g in geom.geoms:
+                polys.extend(process_geom(g))
+            return polys
+        return []
+
+    final_polys = process_geom(unioned)
+
+    for poly in final_polys:
+        if poly.area < 0.00001: continue
         out_features.append({
             "type": "Feature",
             "properties": {"name_en": "Israel", "name_he": "\u05d9\u05e9\u05e8\u05d0\u05dc"},
-            "geometry": mapping(unioned)
+            "geometry": mapping(poly)
         })
-    elif unioned.geom_type == 'MultiPolygon':
-        for poly in unioned.geoms:
-            if poly.area < 0.00001:  # discard microscopic artefacts only
-                continue
-            out_features.append({
-                "type": "Feature",
-                "properties": {"name_en": "Israel", "name_he": "\u05d9\u05e9\u05e8\u05d0\u05dc"},
-                "geometry": mapping(poly)
-            })
 
     output = {"type": "FeatureCollection", "features": out_features}
     for f in output["features"]:
@@ -86,7 +101,7 @@ def main():
 
     outline_path.write_text(json.dumps(output, separators=(',', ':')), encoding='utf-8')
     size_kb = len(outline_path.read_bytes()) / 1024
-    print(f"Done! Saved to {outline_path} ({size_kb:.1f} KB)")
+    print(f"Done! Saved {len(out_features)} polygons to {outline_path} ({size_kb:.1f} KB)")
 
 if __name__ == '__main__':
     main()
