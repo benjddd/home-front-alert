@@ -233,7 +233,15 @@ app.post('/test-fcm', (req, res) => {
     res.json({ ok: true, dryRun: false, alert: testAlert });
 });
 
-// ... [Keep Closed Testing and Dashboard endpoints as they are] ...
+// Dashboard status: password-protected so the web dashboard can poll live alert state
+app.get('/dashboard/status', dashboardAuth, (req, res) => {
+    res.json({
+        status: mapState.getSystemStatus(null),
+        recent_alerts_10m: mapState.getRecentAlertCount(),
+        connected: isConnected,
+        last_sync: lastSuccessfulPoll,
+    });
+});
 
 // --- Poller Logic ---
 const interval = config.POLL_INTERVAL_MS;

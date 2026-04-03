@@ -46,6 +46,33 @@
         .btn-status { background: #444; margin-bottom: 20px; }
         .synced-tag { color: #4CAF50; font-size: 12px; font-weight: bold; }
         .pending-tag { color: #ff9800; font-size: 12px; }
+
+        /* ── Alert status widget ── */
+        #alertStatus { margin: 16px 0; }
+        .status-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+        .status-pill .dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+            animation: sdot 1.6s ease-in-out infinite;
+        }
+        @keyframes sdot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.35)} }
+        .status-pill.threat  { background: rgba(255,215,64,0.12); border: 1px solid rgba(255,215,64,0.4); color: #FFD740; }
+        .status-pill.threat .dot  { background: #FFD740; box-shadow: 0 0 5px #FFD740; }
+        .status-pill.warning { background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.4); color: #FBBF24; }
+        .status-pill.warning .dot { background: #FBBF24; box-shadow: 0 0 5px #FBBF24; }
+        .status-pill.critical { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.5); color: #EF4444; }
+        .status-pill.critical .dot { background: #EF4444; box-shadow: 0 0 6px #EF4444; animation-duration: 0.9s; }
+        #criticalBanner {
+            display: none; margin-top: 12px; padding: 16px 20px; border-radius: 10px;
+            background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4);
+            color: #EF4444;
+        }
+        #criticalBanner .banner-title { font-size: 18px; font-weight: 700; letter-spacing: 0.05em; }
+        #criticalBanner .banner-elapsed { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 4px; }
+        #criticalBanner .banner-sub { font-size: 12px; color: #b3b3b3; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -58,7 +85,16 @@
     </div>
 
     <div id="mainContent" style="display: none;">
-        <header style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 20px;">
+
+        <!-- ── Live alert status ── -->
+        <div id="alertStatus"></div>
+        <div id="criticalBanner">
+            <div class="banner-title">⚠️ LOCAL ALERT ACTIVE</div>
+            <div class="banner-elapsed" id="elapsedTimer">00:00</div>
+            <div class="banner-sub">Time since CRITICAL status detected</div>
+        </div>
+
+        <header style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 20px; margin-top: 16px;">
             <div>
                 <h1>Admin: Tzeva Artzi</h1>
                 <p id="stats">Loading stats...</p>
@@ -87,6 +123,56 @@
         let p = "";
         let globalData = [];
 
+        // ── Alert status polling ──────────────────────────────────────────
+        let _criticalSince = null;
+        let _statusInterval = null;
+
+        function _fmtElapsed(ms) {
+            const s = Math.floor(ms / 1000);
+            const m = Math.floor(s / 60);
+            const h = Math.floor(m / 60);
+            if (h > 0) return `${String(h).padStart(2,'0')}:${String(m%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+            return `${String(m).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+        }
+
+        function _tickElapsed() {
+            if (!_criticalSince) return;
+            document.getElementById('elapsedTimer').textContent = _fmtElapsed(Date.now() - _criticalSince);
+        }
+
+        async function fetchAlertStatus() {
+            try {
+                const res = await fetch(`/dashboard/status?pass=${p}`);
+                if (!res.ok) return;
+                const d = await res.json();
+                const status = d.status || 'CALM';
+                const statusEl = document.getElementById('alertStatus');
+                const banner = document.getElementById('criticalBanner');
+
+                if (status === 'CRITICAL') {
+                    if (!_criticalSince) { _criticalSince = Date.now(); _tickElapsed(); }
+                    statusEl.innerHTML = `<span class="status-pill critical"><span class="dot"></span>LOCAL ALERT — CRITICAL</span>`;
+                    banner.style.display = 'block';
+                } else if (status === 'WARNING') {
+                    _criticalSince = null; banner.style.display = 'none';
+                    statusEl.innerHTML = `<span class="status-pill warning"><span class="dot"></span>PRE-WARNING IN ZONE</span>`;
+                } else if (status === 'THREAT') {
+                    _criticalSince = null; banner.style.display = 'none';
+                    const label = d.recent_alerts_10m > 0 ? `REMOTE THREAT · ${d.recent_alerts_10m} alerts/10m` : 'REMOTE THREAT';
+                    statusEl.innerHTML = `<span class="status-pill threat"><span class="dot"></span>${label}</span>`;
+                } else {
+                    _criticalSince = null; banner.style.display = 'none';
+                    statusEl.innerHTML = '';
+                }
+            } catch {}
+        }
+
+        function startStatusPolling() {
+            fetchAlertStatus();
+            setInterval(_tickElapsed, 1000);
+            _statusInterval = setInterval(fetchAlertStatus, 5000);
+        }
+
         async function login() {
             p = document.getElementById('passInput').value;
             await fetchData();
@@ -107,6 +193,7 @@
                 document.getElementById('authOverlay').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
                 render(data);
+                if (!_statusInterval) startStatusPolling();
             } catch (e) {
                 document.getElementById('authError').innerText = "Network Error: " + e.message;
                 document.getElementById('authError').style.display = 'block';
