@@ -199,18 +199,7 @@ class SettingsActivity : AppCompatActivity() {
             sharedPrefs.edit().putBoolean("show_advanced_settings", isChecked).apply()
         }
 
-        // 6c. Alert TTL (Smart Deduplication)
-        val etAlertTtl = findViewById<EditText>(R.id.etAlertTtl)
-        val currentTtl = sharedPrefs.getLong("alert_ttl_seconds", 180L)
-        etAlertTtl.setText(currentTtl.toString())
-        etAlertTtl.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                val input = s?.toString()?.toLongOrNull() ?: 180L
-                sharedPrefs.edit().putLong("alert_ttl_seconds", input).apply()
-            }
-        })
+        // Alert TTL — no longer user-configurable (stays in SharedPrefs code at 180s default)
 
         // 6b. Alert Source Selector (PRO only)
         val cardAlertSource = findViewById<androidx.cardview.widget.CardView>(R.id.cardAlertSource)
@@ -257,20 +246,7 @@ class SettingsActivity : AppCompatActivity() {
         if (BuildConfig.IS_PAID) cardShield.visibility = android.view.View.GONE
 
 
-        // 6d. Map Service URL override
-        val etMapUrl = findViewById<EditText>(R.id.etMapServiceUrl)
-        val defaultMapUrl = "https://homefront-map-cjnpwpm63q-zf.a.run.app/map"
-        etMapUrl?.setText(sharedPrefs.getString("map_service_url", defaultMapUrl))
-        etMapUrl?.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                val input = s?.toString()?.trim() ?: return
-                if (isAllowedMapServiceUrl(input)) {
-                    sharedPrefs.edit().putString("map_service_url", input).apply()
-                }
-            }
-        })
+        // Map Service URL — removed (map is now bundled locally)
 
         // 7. Dynamic UI Refresh (Zone Status)
         val tvShieldLog = findViewById<TextView>(R.id.tvHybridLog)
@@ -546,13 +522,6 @@ class SettingsActivity : AppCompatActivity() {
         }
         val color = if (isShieldActive) AlertColors.THREAT else Color.parseColor("#606060")
         tvConnectivityDetail.setTextColor(color)
-    }
-
-    private fun isAllowedMapServiceUrl(input: String): Boolean {
-        val uri = android.net.Uri.parse(input)
-        val host = uri.host?.lowercase() ?: return false
-        if (uri.scheme != "https") return false
-        return host == "homefront-map-cjnpwpm63q-zf.a.run.app" || host == "localhost" || host == "127.0.0.1"
     }
 
     private fun refreshSettingsUI() {
