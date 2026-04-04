@@ -68,7 +68,6 @@ function getSystemStatus(userZone) {
  */
 function computeMapPayload(userZone) {
     const now = Date.now();
-    threatManager.tick(); // Ensure logical states are fresh
     const allStates = threatManager.getStates();
 
     const rawClusters = [];

@@ -15,6 +15,15 @@ app.set('trust proxy', 1); // Trust Cloud Run Load Balancer
 const MAP_SERVICE_URL = process.env.MAP_SERVICE_URL; 
 // MAP_SHARED_SECRET is deprecated and no longer required for prod in favour of OIDC
 
+function getAcceptedSecrets(multiValueName, singleValueName) {
+    const values = [process.env[multiValueName], process.env[singleValueName]]
+        .filter(Boolean)
+        .flatMap(value => String(value).split(/[\s,]+/))
+        .map(value => value.trim())
+        .filter(Boolean);
+    return [...new Set(values)];
+}
+
 // Security Hardening — custom CSP needed for dashboard iframes / inline scripts
 app.use(helmet({
     contentSecurityPolicy: {
@@ -57,15 +66,15 @@ app.use(limiter);
 // Dashboard Password Check Utility
 const dashboardAuth = (req, res, next) => {
     const pass = req.headers['x-dashboard-pass'];
-    const correctPass = process.env.DASHBOARD_PASS;
+    const acceptedPasswords = getAcceptedSecrets('DASHBOARD_PASSES', 'DASHBOARD_PASS');
 
-    if (!correctPass) {
-        console.error("CRITICAL: DASHBOARD_PASS environment variable is not set.");
+    if (acceptedPasswords.length === 0) {
+        console.error("CRITICAL: dashboard credentials are not configured.");
         return res.status(500).json({ error: "Server Configuration Error" });
     }
 
-    if (pass !== correctPass) {
-        console.warn(`Unauthorized access attempt. Received pass length: ${pass?.length ?? 0}`);
+    if (!pass || !acceptedPasswords.includes(pass)) {
+        console.warn('Unauthorized dashboard access attempt.');
         return res.status(401).json({ error: "Unauthorized" });
     }
     next();
@@ -74,19 +83,19 @@ const dashboardAuth = (req, res, next) => {
 // Auth middleware for sensitive endpoints
 app.use((req, res, next) => {
     const apiKey = req.headers['x-api-key'];
-    const validKey = process.env.API_KEY;
+    const acceptedApiKeys = getAcceptedSecrets('API_KEYS', 'API_KEY');
 
     // Health and Privacy are fully public
     const publicPaths = ['/health', '/privacy'];
     if (publicPaths.some(p => req.path.startsWith(p))) return next();
 
-    if (!validKey) {
-        console.error("CRITICAL: API_KEY environment variable is not set.");
+    if (acceptedApiKeys.length === 0) {
+        console.error("CRITICAL: API credentials are not configured.");
         return res.status(500).json({ error: "Server Configuration Error" });
     }
 
     const isSensitive = req.path === '/alerts' || req.path === '/test-fcm';
-    if (isSensitive && apiKey !== validKey) {
+    if (isSensitive && (!apiKey || !acceptedApiKeys.includes(apiKey))) {
         return res.status(403).json({ error: "Forbidden: Valid API Key required" });
     }
     next();
