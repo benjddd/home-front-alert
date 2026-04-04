@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Single Source of Truth for the application's alert status and current location.
@@ -19,14 +21,14 @@ object StatusManager {
     private const val CLEARING_FADE_MS_DEFAULT = 15 * 60 * 1000L
     private const val STATE_CLEARING = "CLEARING"
     const val ACTION_STATUS_CHANGED = "com.attius.homefrontalert.STATUS_CHANGED"
-    const val ACTION_ZONE_CHANGED   = "com.attius.homefrontalert.ZONE_CHANGED"
-    const val ACTION_MAP_REFRESH    = "com.attius.homefrontalert.MAP_REFRESH"
-    const val EXTRA_ZONE_HE         = "zone_he"
-    const val EXTRA_LAT             = "lat"
-    const val EXTRA_LNG             = "lng"
-    private val signaledCitiesPerAlert = mutableMapOf<String, MutableSet<String>>()
-    private val globalSignaledCities = mutableMapOf<String, Long>()
-    
+    const val ACTION_ZONE_CHANGED = "com.attius.homefrontalert.ZONE_CHANGED"
+    const val ACTION_MAP_REFRESH = "com.attius.homefrontalert.MAP_REFRESH"
+    const val EXTRA_ZONE_HE = "zone_he"
+    const val EXTRA_LAT = "lat"
+    const val EXTRA_LNG = "lng"
+    private val signaledCitiesPerAlert = ConcurrentHashMap<String, MutableSet<String>>()
+    private val globalSignaledCities = ConcurrentHashMap<String, Long>()
+
     data class HandledAlert(
         val id: String,
         val type: AlertType,
@@ -45,7 +47,7 @@ object StatusManager {
     fun getActiveThreatsSnapshot(context: Context): ActiveThreatsSnapshot {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
-        
+
         var active10mCount = 0
         var closestDist10m = Double.MAX_VALUE
         var localRemaining = -1L
@@ -56,12 +58,12 @@ object StatusManager {
             val threats = org.json.JSONObject(threatsStr)
             val res = AppLocationManager.getInstance(context).resolveCurrentLocation()
             val homeZone = normalizeCity(res.zoneNameHe)
-            
+
             val iter = threats.keys()
             val tenMinsMs = 10 * 60 * 1000L
             val now = System.currentTimeMillis()
-            
-            while(iter.hasNext()) {
+
+            while (iter.hasNext()) {
                 val z = iter.next()
                 val obj = threats.getJSONObject(z)
                 val state = obj.optString("s", "URGENT")
@@ -69,7 +71,7 @@ object StatusManager {
 
                 val t = obj.optLong("t", 0L)
                 val isHome = normalizeCity(z) == homeZone
-                
+
                 if (isHome) {
                     homeThreatObj = obj
                     val duration = obj.optInt("c", 0)
@@ -78,20 +80,21 @@ object StatusManager {
                         if (rem > 0) localRemaining = rem
                     }
                 }
-                
+
                 if (now - t <= tenMinsMs) {
                     active10mCount++
                     recentZones.add(Pair(obj.optString("name", z), t))
                 }
             }
-            
+
             if (recentZones.isNotEmpty()) {
                 val calc = ZoneDistanceCalculator(context)
                 val justNames = recentZones.map { it.first }
                 val dists = calc.calculateDistancesToAlerts(res.lat, res.lng, justNames)
                 if (dists.isNotEmpty()) closestDist10m = dists.min()
             }
-        } catch(e: Exception) {}
+        } catch (e: Exception) {
+        }
 
         return ActiveThreatsSnapshot(active10mCount, closestDist10m, localRemaining, homeThreatObj, recentZones)
     }
@@ -99,7 +102,7 @@ object StatusManager {
     fun updateStatus(context: Context, newStatus: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val oldStatus = prefs.getString("dash_status", "GREEN")
-        
+
         if (newStatus == oldStatus) return
 
         prefs.edit().apply {
@@ -153,7 +156,6 @@ object StatusManager {
         }
     }
 
-
     fun normalizeCity(city: String): String {
         return city.replace(Regex("[^\\u0590-\\u05FF0-9]"), "")
     }
@@ -167,11 +169,11 @@ object StatusManager {
         val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
         var threats = org.json.JSONObject(threatsStr)
         val homeZone = normalizeCity(prefs.getString("current_home_zone", "") ?: "")
-        
+
         val now = System.currentTimeMillis()
-        
+
         val iter = threats.keys()
-        while(iter.hasNext()) {
+        while (iter.hasNext()) {
             val z = iter.next()
             val obj = threats.getJSONObject(z)
             val state = obj.optString("s", "URGENT")
@@ -188,24 +190,24 @@ object StatusManager {
                 }
             }
         }
-        
+
         // Persist cleaned map only if changed
         val cleanedThreatsStr = threats.toString()
         val mapChanged = cleanedThreatsStr != threatsStr
         if (mapChanged) {
             prefs.edit().putString("active_threat_map", cleanedThreatsStr).apply()
         }
-        
+
         // Simpler PRUNING: If registry gets too large, clear oldest entries to maintain memory safety
         if (signaledCitiesPerAlert.size > 100) {
-           val oldestKey = signaledCitiesPerAlert.keys.firstOrNull()
-           if (oldestKey != null) signaledCitiesPerAlert.remove(oldestKey)
+            val oldestKey = signaledCitiesPerAlert.keys.firstOrNull()
+            if (oldestKey != null) signaledCitiesPerAlert.remove(oldestKey)
         }
-        
+
         var hasActiveThreats = false
         var newStatus = "GREEN"
         val iterKeys = threats.keys()
-        while(iterKeys.hasNext()) {
+        while (iterKeys.hasNext()) {
             val zoneKey = iterKeys.next()
             val obj = threats.getJSONObject(zoneKey)
             val style = obj.optString("s", "URGENT")
@@ -238,7 +240,7 @@ object StatusManager {
 
     fun syncUiComponents(context: Context) {
         StatusWidgetProvider.updateAllWidgets(context)
-        
+
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         if (prefs.getBoolean("shield_active", false)) {
             val status = prefs.getString("dash_status", "GREEN") ?: "GREEN"
@@ -256,10 +258,10 @@ object StatusManager {
                 Log.e("HomeFrontAlerts", "UI Sync failed", e)
             }
         }
-        
+
         updateActiveAlertNotification(context)
     }
-    
+
     // Handler to flip RED state notifications from Countdown to Count-up
     private val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var flipRunnable: Runnable? = null
@@ -268,7 +270,7 @@ object StatusManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val status = prefs.getString("dash_status", "GREEN") ?: "GREEN"
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        
+
         if (status == "GREEN") {
             manager.cancel(LocalPollingService.ALERT_NOTIFICATION_ID)
             flipRunnable?.let { uiHandler.removeCallbacks(it) }
@@ -276,15 +278,15 @@ object StatusManager {
             return
         }
 
-        val intent = android.content.Intent(context, MainActivity::class.java).apply { 
-            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK 
+        val intent = android.content.Intent(context, MainActivity::class.java).apply {
+            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
-        val pendingIntent = android.app.PendingIntent.getActivity(context, 0, intent, 
+        val pendingIntent = android.app.PendingIntent.getActivity(context, 0, intent,
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) android.app.PendingIntent.FLAG_IMMUTABLE else 0)
 
         val snapshot = getActiveThreatsSnapshot(context)
         val distStr = if (snapshot.closestDist10m != Double.MAX_VALUE) String.format("%.1f km", snapshot.closestDist10m) else "Remote"
-        
+
         val builder = androidx.core.app.NotificationCompat.Builder(context, LocalPollingService.ALERT_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentIntent(pendingIntent)
@@ -303,23 +305,23 @@ object StatusManager {
                 builder.setWhen(prefs.getLong("dash_status_start_ms", System.currentTimeMillis()))
             }
             "ORANGE" -> {
-                builder.setContentTitle("⚠️ Local Pre-Warning")
+                builder.setContentTitle(" Local Pre-Warning")
                 builder.setContentText("Alerts are expected in a few minutes in your area.")
                 builder.setColor(AlertColors.WARNING)
                 builder.setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH) // Lock screen visible
                 builder.setWhen(snapshot.homeThreatObj?.optLong("t", System.currentTimeMillis()) ?: System.currentTimeMillis())
             }
             "RED" -> {
-                builder.setContentTitle("🚨 URGENT: SEEK SHELTER")
+                builder.setContentTitle(" URGENT: SEEK SHELTER")
                 builder.setColor(AlertColors.CRITICAL)
                 builder.setPriority(androidx.core.app.NotificationCompat.PRIORITY_MAX)
                 builder.setOngoing(true) // Non-swipeable
-                
+
                 val t = snapshot.homeThreatObj?.optLong("t", System.currentTimeMillis()) ?: System.currentTimeMillis()
                 val c = snapshot.homeThreatObj?.optInt("c", 0) ?: 0
                 val endTime = t + (c * 1000L)
                 val remSeconds = (endTime - System.currentTimeMillis()) / 1000L
-                
+
                 if (remSeconds > 0) {
                     // Stage 1: Countdown
                     if (android.os.Build.VERSION.SDK_INT >= 24) {
@@ -328,7 +330,7 @@ object StatusManager {
                     builder.setWhen(endTime)
                     builder.setContentText("Local Alert! Time to shelter:")
                     builder.setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText("Local Alert! Time to shelter.\nTotal Zones Affected: ${snapshot.active10mCount}"))
-                    
+
                     // Schedule flip to count-up when countdown hits zero
                     flipRunnable = Runnable { updateActiveAlertNotification(context) }
                     uiHandler.postDelayed(flipRunnable!!, (remSeconds * 1000) + 500)
@@ -343,10 +345,9 @@ object StatusManager {
                 }
             }
         }
-        
+
         manager.notify(LocalPollingService.ALERT_NOTIFICATION_ID, builder.build())
     }
-
 
     /**
      * Unified Polling Engine: Can be called by Service or Activity.
@@ -382,7 +383,9 @@ object StatusManager {
                     }
                 }
             }
-        } catch (e: Exception) { hfcStatus = "HFC: Fail" }
+        } catch (e: Exception) {
+            hfcStatus = "HFC: Fail"
+        }
 
         if (!success) {
             sharedPrefs.edit().putString("shield_last_log", "[$now] Shield Offline | $hfcStatus").apply()
@@ -392,28 +395,29 @@ object StatusManager {
     private fun handlePollResult(context: android.content.Context, body: String, sourceTag: String, _statusInfo: String, toneGenerator: DynamicToneGenerator?): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         val nowTime = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
-        
+
         val clean = body.trim()
         var isEffectivelyEmpty = clean.isEmpty() || clean == "null" || clean == "[]" || clean == "{}"
-        
+
         // Deep check for Backend structured format: {"active": {}, ...}
         if (!isEffectivelyEmpty && clean.startsWith("{")) {
             try {
                 val jsonObj = org.json.JSONObject(clean)
                 val active = if (jsonObj.has("active")) jsonObj.get("active") else null
-                
+
                 // baseline if missing 'active' or if 'active' is an empty object/array
-                val isEmptyActive = active == null || 
-                                    (active is org.json.JSONObject && active.length() == 0) || 
-                                    (active is org.json.JSONArray && active.length() == 0) ||
-                                    active.toString() == "{}" || active.toString() == "[]"
-                
+                val isEmptyActive = active == null ||
+                        (active is org.json.JSONObject && active.length() == 0) ||
+                        (active is org.json.JSONArray && active.length() == 0) ||
+                        active.toString() == "{}" || active.toString() == "[]"
+
                 if (isEmptyActive) {
                     isEffectivelyEmpty = true
                 }
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+            }
         }
-        
+
         if (isEffectivelyEmpty) {
             val baselineKey = if (sourceTag.contains("HFC")) "empty_sample_hfc" else "empty_sample_backend"
             prefs.edit().putString("shield_last_log", "[$nowTime] $sourceTag OK (Baseline)").apply()
@@ -425,13 +429,13 @@ object StatusManager {
 
         // --- Data Found ---
         prefs.edit().putLong("shield_last_success_ms", System.currentTimeMillis()).apply()
-        
+
         try {
             val root = org.json.JSONObject(body)
             val jsonObject = if (root.has("active") && !root.isNull("active")) {
                 val active = root.get("active")
-                if (active is org.json.JSONObject) active 
-                else if (active is org.json.JSONArray && active.length() > 0) active.getJSONObject(0) 
+                if (active is org.json.JSONObject) active
+                else if (active is org.json.JSONArray && active.length() > 0) active.getJSONObject(0)
                 else null
             } else if (root.has("cat")) root else null
 
@@ -444,9 +448,9 @@ object StatusManager {
                 if (citiesArray != null && citiesArray.length() > 0) {
                     val cities = mutableListOf<String>()
                     for (i in 0 until citiesArray.length()) cities.add(citiesArray.getString(i))
-                    
+
                     val type = AlertStyleRegistry.getStyle(cat, title)
-                    
+
                     // If it's an "All Clear" (CALM) event, it's effectively a baseline for telemetry purposes
                     if (type == AlertType.CALM) {
                         val baselineKey = if (sourceTag.contains("HFC")) "empty_sample_hfc" else "empty_sample_backend"
@@ -455,7 +459,7 @@ object StatusManager {
                     }
 
                     processAlert(context, alertId, type, cities, sourceTag, toneGenerator, body)
-                    
+
                     // Update log after processing
                     if (type != AlertType.CALM) {
                         prefs.edit().putString("shield_last_log", "[$nowTime] $sourceTag DATA!").apply()
@@ -466,7 +470,7 @@ object StatusManager {
         } catch (e: Exception) {
             Log.e("HomeFrontAlerts", "Poll result processing error: ${e.message}")
         }
-        
+
         return true
     }
 
@@ -526,12 +530,14 @@ object StatusManager {
         val nowTime = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
 
         // 1. Centralized incremental signaling (dedup within IDs and global TTL)
-        val signaledSet = signaledCitiesPerAlert.getOrPut(id) { mutableSetOf() }
+        val signaledSet = signaledCitiesPerAlert.computeIfAbsent(id) {
+            Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+        }
         val ttlSeconds = prefs.getLong("alert_ttl_seconds", 180L)
         val ttlMs = ttlSeconds * 1000L
         val nowMs = System.currentTimeMillis()
         val forceAudioZones = mutableSetOf<String>()
-        
+
         // 2. Update Raw History Log (Diagnostics SSOT)
         val history = prefs.getString("raw_alert_history", "") ?: ""
         val displayBody = rawBody?.trim()?.take(250)?.replace("\n", " ") ?: "$type @ ${cities.take(3).joinToString(", ")}"

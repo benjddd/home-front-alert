@@ -17,6 +17,11 @@ import com.google.firebase.messaging.FirebaseMessaging
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        @Volatile
+        private var nativeHealthCheckThread: Thread? = null
+    }
+
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(LocaleHelper.onAttach(newBase))
     }
@@ -30,8 +35,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tabLayout: TabLayout
 
     private val uiHandler = Handler(Looper.getMainLooper())
-
-    private var nativeHealthCheckThread: Thread? = null
     
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "shield_active") {
@@ -143,7 +146,7 @@ class MainActivity : AppCompatActivity() {
             val lastFcmMs = sharedPrefs.getLong("last_fcm_heartbeat_ms", System.currentTimeMillis())
             if (System.currentTimeMillis() - lastFcmMs > 20 * 60 * 1000L) {
                 android.util.Log.i("HomeFrontAlerts", "Heartbeat stale on resume. Eval immediately.")
-                evaluateFailoverCondition()
+                evaluateFailoverCondition(applicationContext)
             }
         }
     }
@@ -155,8 +158,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        nativeHealthCheckThread?.interrupt()
-        nativeHealthCheckThread = null
+        if (isFinishing) {
+            nativeHealthCheckThread?.interrupt()
+            nativeHealthCheckThread = null
+        }
         super.onDestroy()
     }
 
@@ -231,9 +236,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun startNativeHealthCheckLoop() {
         if (nativeHealthCheckThread?.isAlive == true) return
+        val appContext = applicationContext
         nativeHealthCheckThread = kotlin.concurrent.thread(start = true) {
             while (!Thread.currentThread().isInterrupted) {
-                evaluateFailoverCondition()
+                evaluateFailoverCondition(appContext)
                 try {
                     Thread.sleep(2 * 60 * 1000L)
                 } catch (e: InterruptedException) {
@@ -243,12 +249,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun evaluateFailoverCondition() {
+    private fun evaluateFailoverCondition(context: Context) {
         try {
-            if (sharedPrefs.getInt("connectivity_mode", 0) != 0) return
-            if (sharedPrefs.getBoolean("shield_active", false)) return
+            val prefs = context.getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
+            if (prefs.getInt("connectivity_mode", 0) != 0) return
+            if (prefs.getBoolean("shield_active", false)) return
 
-            val lastFcmMs = sharedPrefs.getLong("last_fcm_heartbeat_ms", System.currentTimeMillis())
+            val lastFcmMs = prefs.getLong("last_fcm_heartbeat_ms", System.currentTimeMillis())
             val elapsedMs = System.currentTimeMillis() - lastFcmMs
             val timeoutMs = 20L * 60L * 1000L 
             
@@ -273,10 +280,10 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (isHealthy) {
-                    sharedPrefs.edit().putLong("last_fcm_heartbeat_ms", System.currentTimeMillis()).apply()
+                    prefs.edit().putLong("last_fcm_heartbeat_ms", System.currentTimeMillis()).apply()
                 } else {
                     android.util.Log.w("HomeFrontAlerts", "HealthCheck: Proxy is DEAD. Triggering failover to Direct HFC Shield!")
-                    sharedPrefs.edit().putBoolean("shield_active", true).apply()
+                    prefs.edit().putBoolean("shield_active", true).apply()
                 }
             }
         } catch (e: Exception) {

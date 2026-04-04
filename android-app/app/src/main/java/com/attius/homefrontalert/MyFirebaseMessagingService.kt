@@ -8,6 +8,7 @@ import org.json.JSONArray
 import android.content.Context
 import android.content.Intent
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import java.util.concurrent.ConcurrentHashMap
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -21,7 +22,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     companion object {
-        private val chunkBuffers = mutableMapOf<String, MutableMap<Int, List<String>>>()
+        private val chunkBuffers = ConcurrentHashMap<String, MutableMap<Int, List<String>>>()
         private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     }
 
@@ -56,6 +57,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
             if (alertType == "CLEAR") {
                 val clearScope = alertData["clearScope"]?.trim().orEmpty()
+                val clearAlertId = alertData["alertId"]?.trim().orEmpty()
                 val citiesJsonStr = alertData["cities"]
                 val clearZones = mutableListOf<String>()
                 if (citiesJsonStr != null) {
@@ -77,7 +79,11 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                     Log.w("HomeFrontAlerts", "FCM CLEAR received without zones; ignoring non-global clear payload.")
                     StatusManager.maintainState(this)
                 }
-                chunkBuffers.clear()
+                if (clearScope == "global") {
+                    chunkBuffers.clear()
+                } else if (clearAlertId.isNotEmpty()) {
+                    chunkBuffers.remove(clearAlertId)
+                }
                 LocalBroadcastManager.getInstance(this)
                     .sendBroadcast(Intent(StatusManager.ACTION_MAP_REFRESH))
                 return
@@ -122,7 +128,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                         val totalChunks = parts[1].toIntOrNull() ?: 1
 
                         if (totalChunks > 1) {
-                            chunkBuffers.getOrPut(alertId) { mutableMapOf() }[chunkIdx] = chunkCities
+                            val buffer = chunkBuffers.computeIfAbsent(alertId) { ConcurrentHashMap() }
+                            buffer[chunkIdx] = chunkCities
                             
                             val processFullPayload = Runnable {
                                 val buffer = chunkBuffers.remove(alertId) ?: return@Runnable
@@ -135,11 +142,10 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                             }
 
                             // If this is the FIRST chunk received for this alert, set a safety fallback timer
-                            if (chunkBuffers[alertId]!!.size == 1) {
+                            if (buffer.size == 1) {
                                 handler.postDelayed(processFullPayload, 2000) // Wait up to 2.0s for remaining chunks before processing what we have
                             }
 
-                            val buffer = chunkBuffers[alertId]!!
                             if (buffer.size == totalChunks) {
                                 // We have all chunks, process immediately (the timeout runnable will become a no-op)
                                 processFullPayload.run()

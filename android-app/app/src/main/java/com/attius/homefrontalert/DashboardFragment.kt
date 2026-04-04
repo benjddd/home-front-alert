@@ -42,6 +42,7 @@ class DashboardFragment : Fragment() {
     private lateinit var distanceCalculator: ZoneDistanceCalculator
 
     private val uiHandler = Handler(Looper.getMainLooper())
+    @Volatile
     private var isResolvingLocation = false
     private var isLastAlertZonesExpanded = false
 
@@ -193,7 +194,7 @@ class DashboardFragment : Fragment() {
                     
                     if (res.source == "GPS") {
                         ivLocationStatus.setImageResource(R.drawable.ic_gps_antenna)
-                        ivLocationStatus.imageTintList = ColorStateList.valueOf(Color.parseColor("#34C759"))
+                        ivLocationStatus.imageTintList = ColorStateList.valueOf(AlertColors.CALM)
                         tvLocationBadge.visibility = View.GONE
                     } else if (res.activeMode == LocationTrackingMode.GPS_LIVE) {
                         ivLocationStatus.setImageResource(R.drawable.ic_gps_antenna)
@@ -226,7 +227,7 @@ class DashboardFragment : Fragment() {
         }
         layoutDashboardContent.background = border
 
-        val glowAlpha = if (statusColor == Color.parseColor("#34C759")) 20 else 50
+        val glowAlpha = if (statusColor == AlertColors.CALM) 20 else 50
         val glowColor = Color.argb(glowAlpha, Color.red(statusColor), Color.green(statusColor), Color.blue(statusColor))
         vStatusRing.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
@@ -255,27 +256,32 @@ class DashboardFragment : Fragment() {
 
     private fun refreshLastAlertHistory() {
         if (!isAdded) return
+        val context = context ?: return
         val zones = sharedPrefs.getString("last_alert_zones", null)
         val dist = sharedPrefs.getFloat("last_alert_dist", -1f)
         val time = sharedPrefs.getLong("last_alert_time", 0L)
         val alertType = sharedPrefs.getString("last_alert_type", "") ?: ""
         
-        if (zones != null && time > 0) {
-            cardLastAlert.visibility = View.VISIBLE
-            val rawZoneList = zones.split(", ")
-            
-            val top10CitiesHe = listOf("ירושלים", "תל אביב", "חיפה", "ראשון לציון", "פתח תקווה", "אשדוד", "נתניה", "בני ברק", "באר שבע", "חולון")
+        if (zones == null || time <= 0) {
+            cardLastAlert.visibility = View.GONE
+            return
+        }
+
+        val rawZoneList = zones.split(", ")
+        val top10CitiesHe = listOf("ירושלים", "תל אביב", "חיפה", "ראשון לציון", "פתח תקווה", "אשדוד", "נתניה", "בני ברק", "באר שבע", "חולון")
+        val moreText = if (LocaleHelper.getLanguage(context) == "iw" || LocaleHelper.getLanguage(context) == "he") "עוד" else "more"
+
+        kotlin.concurrent.thread(start = true) {
             val res = locationManager.resolveCurrentLocation()
             val sortedByDistance = rawZoneList.sortedBy { z -> distanceCalculator.getDistanceToZone(res.lat, res.lng, z) ?: Double.MAX_VALUE }
-            
             val topCitiesInPayload = rawZoneList.filter { z -> top10CitiesHe.any { city -> z.contains(city) } }.toSet()
             val nearest5 = sortedByDistance.take(5).toSet()
-            
+
             val prioritySet = mutableSetOf<String>().apply {
                 addAll(topCitiesInPayload)
                 addAll(nearest5)
             }
-            
+
             val remainingSorted = sortedByDistance.filter { !prioritySet.contains(it) }
             val finalPriorityList = prioritySet.toMutableList()
             var fillIndex = 0
@@ -283,47 +289,48 @@ class DashboardFragment : Fragment() {
                 finalPriorityList.add(remainingSorted[fillIndex])
                 fillIndex++
             }
-            
+
             val tail = remainingSorted.drop(fillIndex)
             val displayList = finalPriorityList.map { distanceCalculator.getLocalizedName(it, true) }.toMutableList()
-            
+
             var collapsedTail = ""
             var expandedTail = ""
-            
+
             if (tail.size <= 5) {
                 tail.forEach { displayList.add(distanceCalculator.getLocalizedName(it, true)) }
             } else {
                 val tailLoc = tail.map { distanceCalculator.getLocalizedName(it, true) }
-                val moreText = if (LocaleHelper.getLanguage(requireContext()) == "iw" || LocaleHelper.getLanguage(requireContext()) == "he") "עוד" else "more"
                 collapsedTail = "... (+${tail.size} $moreText)"
                 expandedTail = "... ${tailLoc.joinToString(", ")}"
             }
-            
+
             val collapsedText = displayList.joinToString("\n") + (if (collapsedTail.isEmpty()) "" else "\n$collapsedTail")
             val expandedText = displayList.joinToString("\n") + (if (expandedTail.isEmpty()) "" else "\n$expandedTail")
-            
-            tvLastAlertZones.text = if (isLastAlertZonesExpanded) expandedText else collapsedText
-            tvLastAlertZones.setOnClickListener {
-                if (expandedTail.isNotEmpty()) {
-                    isLastAlertZonesExpanded = !isLastAlertZonesExpanded
-                    tvLastAlertZones.text = if (isLastAlertZonesExpanded) expandedText else collapsedText
+
+            if (!isAdded) return@thread
+            uiHandler.post {
+                if (!isAdded) return@post
+                cardLastAlert.visibility = View.VISIBLE
+                tvLastAlertZones.text = if (isLastAlertZonesExpanded) expandedText else collapsedText
+                tvLastAlertZones.setOnClickListener {
+                    if (expandedTail.isNotEmpty()) {
+                        isLastAlertZonesExpanded = !isLastAlertZonesExpanded
+                        tvLastAlertZones.text = if (isLastAlertZonesExpanded) expandedText else collapsedText
+                    }
                 }
+
+                val diffMs = System.currentTimeMillis() - time
+                val diffMin = diffMs / 60000
+                val timeText = when {
+                    diffMin < 1 -> getString(R.string.just_now)
+                    diffMin < 60 -> getString(R.string.detected_ago, "${diffMin}${getString(R.string.unit_minutes_short)}")
+                    else -> android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(time))
+                }
+                val distText = if (dist < 0) getString(R.string.remote_alert) else getString(R.string.distance, String.format("%.1f", dist))
+                val translatedType = LocaleHelper.translateAlertType(context, alertType)
+                val prefix = if (translatedType.isNotEmpty()) "$translatedType • " else ""
+                tvLastAlertInfo.text = "$prefix$timeText • $distText"
             }
-            
-            val diffMs = System.currentTimeMillis() - time
-            val diffMin = diffMs / 60000
-            val timeText = when {
-                diffMin < 1 -> getString(R.string.just_now)
-                diffMin < 60 -> getString(R.string.detected_ago, "${diffMin}${getString(R.string.unit_minutes_short)}")
-                else -> android.text.format.DateFormat.getTimeFormat(requireContext()).format(java.util.Date(time))
-            }
-            val distText = if (dist < 0) getString(R.string.remote_alert) else getString(R.string.distance, String.format("%.1f", dist))
-            
-            val translatedType = LocaleHelper.translateAlertType(requireContext(), alertType)
-            val prefix = if (translatedType.isNotEmpty()) "$translatedType • " else ""
-            tvLastAlertInfo.text = "$prefix$timeText • $distText"
-        } else {
-            cardLastAlert.visibility = View.GONE
         }
     }
 }

@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -64,6 +65,7 @@ class MapFragment : Fragment() {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
+        mapWebView.webChromeClient = WebChromeClient()
 
         mapWebView.setOnTouchListener { view, event ->
             // Prevent parent ViewPager2 from stealing the pinch/drag gesture
@@ -128,5 +130,15 @@ class MapFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         updateUserLocationOnMap()
+    }
+
+    override fun onDestroyView() {
+        mapWebView.stopLoading()
+        mapWebView.loadUrl("about:blank")
+        mapWebView.webChromeClient = null
+        mapWebView.webViewClient = WebViewClient()
+        mapWebView.removeAllViews()
+        mapWebView.destroy()
+        super.onDestroyView()
     }
 }
