@@ -2,7 +2,7 @@
 <resources>
     <string name="launcher_name">Tzeva Artzi</string>
     <string name="app_name">Tzeva Artzi - Home Front Alerts</string>
-    <string name="monitoring_title">Tzeva Artzi - Home Front Alerts</string>
+    <string name="monitoring_title">Tzeva Artzi</string>
     <string name="current_status">CURRENT STATUS</string>
     <string name="no_alerts">NO ALERTS</string>
     <string name="critical_status">CRITICAL</string>
@@ -92,4 +92,11 @@
     <string name="settings_bulb_ip_hint">Bulb IP (e.g. 192.168.1.15)</string>
     <string name="settings_bulb_token_hint">Xiaomi Crypto Token (Optional)</string>
     <string name="settings_bulb_discover">Auto Discover</string>
+    <string name="settings_advanced_experimental">Developer Settings (Experimental)</string>
+    <string name="settings_dedup_title">Smart Sync Deduplication</string>
+    <string name="settings_dedup_desc">Prevents redundant beeps for sequential HFC alerts in the same area.</string>
+    <string name="settings_dedup_ttl_label">Area Wait Time (Alert TTL)</string>
+    <string name="settings_dedup_unit_sec">sec</string>
+    <string name="settings_map_url_title">Map Service URL</string>
+    <string name="settings_map_url_hint">https://…/map</string>
 </resources>

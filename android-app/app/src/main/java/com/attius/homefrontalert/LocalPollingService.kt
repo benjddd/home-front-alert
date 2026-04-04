@@ -21,8 +21,10 @@ import java.net.URL
 import java.util.*
 
 /**
- * A highly-optimized, localized connectivity shield that bypasses Firebase 
- * to provided calculated sub-second latency for critical life-safety alerts.
+ * Foreground service that polls HFC directly at 2-second intervals when
+ * Firebase delivery is unavailable or the user has selected Direct mode.
+ * Runs silently in the background — the foreground notification is kept
+ * at IMPORTANCE_MIN and carries no user-facing branding.
  */
 class LocalPollingService : Service() {
 
@@ -48,7 +50,7 @@ class LocalPollingService : Service() {
         locationManager.startTracking()
         toneGenerator = DynamicToneGenerator(this)
         createNotificationChannel()
-        val notification = createStatusNotification("Direct Shield Active", "GREEN")
+        val notification = createStatusNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
         } else {
@@ -77,7 +79,7 @@ class LocalPollingService : Service() {
             }
         }
         
-        Log.i("HomeFrontAlerts", "Connectivity Shield Service Started")
+        Log.i("HomeFrontAlerts", "LocalPollingService started")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -104,10 +106,10 @@ class LocalPollingService : Service() {
             // 1. Quiet Background Status Channel (The "App is running" notification)
             val shieldChannel = NotificationChannel(
                 SHIELD_CHANNEL_ID,
-                "Connectivity Shield (Background Status)",
-                NotificationManager.IMPORTANCE_MIN // MIN means it hides at the very bottom of the shade
+                "Alert Status",
+                NotificationManager.IMPORTANCE_MIN
             ).apply {
-                description = "Shows that the app is actively monitoring in the background."
+                description = "Shows current alert status while the app is monitoring in the background."
                 setShowBadge(false)
             }
             manager.createNotificationChannel(shieldChannel)
@@ -128,33 +130,50 @@ class LocalPollingService : Service() {
     }
 
     private fun updateForegroundNotification(status: String) {
-        val sharedPrefs = getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
-        val zone = sharedPrefs.getString("current_home_zone", "Detecting...")
-        
-        // This is purely the background status text now. No flashing threat data here.
-        val statusText = if (status == "GREEN") "Monitoring Network" else "Threat Activity Detected"
-        val content = "Zone: $zone | Status: $statusText"
-        
-        val notification = createStatusNotification(content, status)
+        val notification = createStatusNotification(status)
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
     }
 
-    private fun createStatusNotification(content: String, status: String): Notification {
+    private fun createStatusNotification(status: String = "GREEN"): Notification {
         val prefs = getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
         val startTime = prefs.getLong("shield_start_ms", System.currentTimeMillis())
-        val intent = Intent(this, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK }
-        val pendingIntent = PendingIntent.getActivity(this, 0, intent, if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
-        
+
+        val rawZone = prefs.getString("current_home_zone", "") ?: ""
+        val zone = ZoneDistanceCalculator(this).getLocalizedName(rawZone)
+
+        val statusLabel = when (status) {
+            "RED"    -> getString(R.string.critical_status)
+            "ORANGE" -> getString(R.string.warning_status)
+            "YELLOW" -> getString(R.string.threat_status)
+            else     -> getString(R.string.no_alerts)
+        }
+
+        val contentText = if (status == "GREEN") {
+            "$statusLabel • $zone"
+        } else {
+            val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
+            val count = try { org.json.JSONObject(threatsStr).length() } catch (e: Exception) { 0 }
+            if (count > 0) "$statusLabel • $zone • $count ${if (count == 1) "zone" else "zones"}"
+            else "$statusLabel • $zone"
+        }
+
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+        )
+
         return NotificationCompat.Builder(this, SHIELD_CHANNEL_ID)
-            .setContentTitle("Active Protection")
-            .setContentText(content)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setColor(Color.parseColor("#34C759")) // Greenish tint
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setUsesChronometer(true)
             .setWhen(startTime)
-            .setColorized(false) 
+            .setColorized(false)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .build()

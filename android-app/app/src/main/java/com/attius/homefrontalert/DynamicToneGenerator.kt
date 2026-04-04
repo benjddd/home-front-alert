@@ -19,9 +19,10 @@ import android.media.session.PlaybackState
 import android.media.VolumeProvider
 
 enum class AlertType {
-    URGENT,   // Rocket / UAV
-    CAUTION,  // Pre-warning (approximate alerts)
-    CALM      // All Clear (incident finished)
+    URGENT,   // Rocket / UAV / Infiltration — whisper tone, maximum notification
+    CAUTION,  // Pre-warning or known secondary events (earthquake, radiation) — wobble tone
+    CALM,     // All Clear (incident finished) — resolve tone, clears threat map
+    SILENT    // Unclassified / unknown category — no audio, no state change, logged only
 }
 
 enum class WaveType { SINE, TRIANGLE }
@@ -151,6 +152,7 @@ class DynamicToneGenerator(private val context: Context) {
         type: AlertType = AlertType.URGENT,
         isLocal: Boolean = false
     ) {
+        if (type == AlertType.SILENT) return
         if (distancesKm.isEmpty() && type == AlertType.URGENT) return
 
         activateMediaSession()
@@ -175,6 +177,7 @@ class DynamicToneGenerator(private val context: Context) {
                 AlertType.URGENT  -> playUrgentSequence(distancesKm, finalVolume, isLocal)
                 AlertType.CAUTION -> playCautionSequence(finalVolume, isLocal)
                 AlertType.CALM    -> playCalmTone(finalVolume)
+                AlertType.SILENT  -> { /* no audio for unclassified events */ }
             }
         }
     }

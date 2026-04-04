@@ -1,69 +1,55 @@
 package com.attius.homefrontalert
 
-import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.content.Intent
-import android.content.res.ColorStateList
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.widget.ImageButton
-import android.widget.ImageView
 import android.widget.TextView
-import androidx.constraintlayout.widget.ConstraintLayout
-import com.attius.homefrontalert.BuildConfig
+import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.Fragment
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import androidx.viewpager2.widget.ViewPager2
+import com.google.android.material.tabs.TabLayout
+import com.google.android.material.tabs.TabLayoutMediator
 import com.google.firebase.messaging.FirebaseMessaging
-import androidx.cardview.widget.CardView
 
 class MainActivity : AppCompatActivity() {
+
+    companion object {
+        @Volatile
+        private var nativeHealthCheckThread: Thread? = null
+    }
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(LocaleHelper.onAttach(newBase))
     }
 
-    private lateinit var tvDashStatus: TextView
-    private lateinit var tvDashTimer: TextView
-    private lateinit var tvLocationBadge: TextView
-    private lateinit var tvLocationZone: TextView
-    private lateinit var ivLocationStatus: ImageView
-    private lateinit var vStatusDot: android.view.View
-    private lateinit var ivShield: ImageView
-    private lateinit var vStatusRing: android.view.View
-    private lateinit var layoutDashboardContent: ConstraintLayout
-    private lateinit var tvDashCountdown: TextView
-
-    private lateinit var tvLastAlertZones: TextView
-    private lateinit var tvLastAlertInfo: TextView
-    private lateinit var cardLastAlert: androidx.cardview.widget.CardView
     private lateinit var sharedPrefs: android.content.SharedPreferences
-    private lateinit var locationManager: AppLocationManager
-    private lateinit var distanceCalculator: ZoneDistanceCalculator
-    private lateinit var toneGenerator: DynamicToneGenerator
+    lateinit var locationManager: AppLocationManager
+    lateinit var distanceCalculator: ZoneDistanceCalculator
+    lateinit var toneGenerator: DynamicToneGenerator
 
+    private lateinit var viewPager: ViewPager2
+    private lateinit var tabLayout: TabLayout
 
     private val uiHandler = Handler(Looper.getMainLooper())
-    private var isResolvingLocation = false
-    private var isLastAlertZonesExpanded = false
     
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "shield_active") {
             uiHandler.post { 
-                refreshDashboardState()
                 setVersionBadge()
                 startPollingServiceIfEnabled()
             }
         }
     }
-
-    private val uiUpdater = object : Runnable {
+    private val stateMaintenanceRunnable = object : Runnable {
         override fun run() {
-            refreshDashboardState()
-            uiHandler.postDelayed(this, 1000)
+            StatusManager.maintainState(this@MainActivity)
+            uiHandler.postDelayed(this, StatusManager.STATE_MAINTENANCE_INTERVAL_MS)
         }
     }
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,15 +64,11 @@ class MainActivity : AppCompatActivity() {
         distanceCalculator = ZoneDistanceCalculator(this)
         toneGenerator = DynamicToneGenerator(this)
 
-        // Subscribe to FCM alerts topic — Pro only (primary delivery path)
         if (BuildConfig.IS_PAID) {
             FirebaseMessaging.getInstance().subscribeToTopic("alerts")
                 .addOnCompleteListener { task ->
                     if (task.isSuccessful) android.util.Log.d("HomeFrontAlerts", "FCM: Subscribed to 'alerts' topic.")
                 }
-                
-            // Start the periodic health check (Auto-Failover) using a simple background thread
-            // to bypass the WorkManager PKIX certification download issues on this network.
             startNativeHealthCheckLoop()
         }
 
@@ -96,7 +78,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, TOSActivity::class.java))
         }
 
-        bindViews()
+        setupViewPager()
         startPollingServiceIfEnabled()
 
         findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
@@ -112,20 +94,40 @@ class MainActivity : AppCompatActivity() {
                 .setTitle(R.string.help_title)
                 .setMessage(android.text.Html.fromHtml(getString(R.string.help_content)))
                 .setPositiveButton("OK", null)
+                .setNeutralButton("Credits / Thanks") { _, _ -> startActivity(Intent(this, ThanksActivity::class.java)) }
                 .show()
         }
 
-        refreshDashboardState()
         setVersionBadge()
+    }
+    
+    private fun setupViewPager() {
+        viewPager = findViewById(R.id.viewPager)
+        tabLayout = findViewById(R.id.tabLayout)
+
+        val adapter = object : FragmentStateAdapter(this) {
+            override fun getItemCount(): Int = 2
+            override fun createFragment(position: Int): Fragment {
+                return if (position == 0) DashboardFragment() else MapFragment()
+            }
+        }
+        viewPager.adapter = adapter
+        
+        val mapTitle = if (LocaleHelper.getLanguage(this) == "iw") "מפה" else "Map"
+        val dashTitle = if (LocaleHelper.getLanguage(this) == "iw") "התרעות" else "Alerts"
+
+        TabLayoutMediator(tabLayout, viewPager) { tab, position ->
+            tab.text = if (position == 0) dashTitle else mapTitle
+        }.attach()
     }
 
     private fun performInitialSetupIfNeeded() {
         if (!sharedPrefs.getBoolean("initial_setup_v135", false)) {
             sharedPrefs.edit().apply {
-                putFloat("alert_volume", 0.5f) // As agreed
+                putFloat("alert_volume", 0.5f) 
                 putString("tracking_mode", LocationTrackingMode.GPS_LIVE.name)
                 putString("fixed_zone_he", AppLocationManager.DEFAULT_ZONE_HE)
-                putBoolean("shield_active", !BuildConfig.IS_PAID) // Pro: FCM (false) | Standard: Direct HFC (true)
+                putBoolean("shield_active", !BuildConfig.IS_PAID)
                 putBoolean("initial_setup_v135", true)
                 putLong("dash_status_start_ms", System.currentTimeMillis())
                 apply()
@@ -133,39 +135,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun bindViews() {
-        tvDashStatus = findViewById(R.id.tvDashStatus)
-        tvDashTimer = findViewById(R.id.tvDashTimer)
-        tvLocationBadge = findViewById(R.id.tvLocationBadge)
-        tvLocationZone = findViewById(R.id.tvLocationZone)
-        ivLocationStatus = findViewById(R.id.ivLocationStatus)
-        vStatusDot = findViewById(R.id.vStatusDot)
-        ivShield = findViewById(R.id.ivShield)
-        vStatusRing = findViewById(R.id.vStatusRing)
-        layoutDashboardContent = findViewById(R.id.layoutDashboardContent)
-        tvDashCountdown = findViewById(R.id.tvDashCountdown)
-        
-        tvLastAlertZones = findViewById(R.id.tvLastAlertZones)
-        tvLastAlertInfo = findViewById(R.id.tvLastAlertInfo)
-        cardLastAlert = findViewById(R.id.cardLastAlert)
-
-        tvLocationBadge.setOnClickListener { showLocationExplanation() }
-        tvLocationZone.setOnClickListener { showLocationExplanation() }
-        ivLocationStatus.setOnClickListener { showLocationExplanation() }
-    }
-
     override fun onResume() {
         super.onResume()
         sharedPrefs.registerOnSharedPreferenceChangeListener(prefsListener)
         locationManager.startTracking()
-        uiHandler.post(uiUpdater)
+        StatusManager.maintainState(this)
+        uiHandler.post(stateMaintenanceRunnable)
         
-        // Proactive evaluation of heartbeat upon returning to app
         if (BuildConfig.IS_PAID && !sharedPrefs.getBoolean("shield_active", false)) {
             val lastFcmMs = sharedPrefs.getLong("last_fcm_heartbeat_ms", System.currentTimeMillis())
             if (System.currentTimeMillis() - lastFcmMs > 20 * 60 * 1000L) {
                 android.util.Log.i("HomeFrontAlerts", "Heartbeat stale on resume. Eval immediately.")
-                evaluateFailoverCondition()
+                evaluateFailoverCondition(applicationContext)
             }
         }
     }
@@ -173,103 +154,18 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         sharedPrefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
-        uiHandler.removeCallbacks(uiUpdater)
+        uiHandler.removeCallbacks(stateMaintenanceRunnable)
     }
 
-    private fun refreshDashboardState() {
-        val status = sharedPrefs.getString("dash_status", "GREEN") ?: "GREEN"
-        val startTime = sharedPrefs.getLong("dash_status_start_ms", System.currentTimeMillis())
-        
-        if (status != "GREEN" && System.currentTimeMillis() - startTime > 1800000) {
-            StatusManager.updateStatus(this, "GREEN")
-            return
+    override fun onDestroy() {
+        if (isFinishing) {
+            nativeHealthCheckThread?.interrupt()
+            nativeHealthCheckThread = null
         }
-
-        val elapsedSec = (System.currentTimeMillis() - startTime) / 1000
-        val unitS = getString(R.string.unit_seconds_short)
-        val unitM = getString(R.string.unit_minutes_short)
-        val unitH = getString(R.string.unit_hours_short)
-        
-        val dispTimer = when {
-            elapsedSec < 60 -> "${elapsedSec}$unitS"
-            elapsedSec < 3600 -> String.format("%d:%02d", elapsedSec / 60, elapsedSec % 60)
-            else -> String.format("%d$unitH %d$unitM", elapsedSec / 3600, (elapsedSec % 3600) / 60)
-        }
-        
-        val timerPrefix = if (status == "GREEN") getString(R.string.monitoring_for) else getString(R.string.active_for)
-        tvDashTimer.text = "$timerPrefix $dispTimer"
-
-        // Centralized SSOT parsing
-        val snapshot = StatusManager.getActiveThreatsSnapshot(this)
-        val localRemaining = snapshot.localRemaining
-        val alertsCount10m = snapshot.active10mCount
-        val closestDist10m = snapshot.closestDist10m
-
-        val tvRecentAlertsSummary = findViewById<TextView>(R.id.tvRecentAlertsSummary)
-        if (alertsCount10m > 0) {
-            tvRecentAlertsSummary.visibility = android.view.View.VISIBLE
-            val distText = if (closestDist10m == Double.MAX_VALUE) getString(R.string.remote_alert) else String.format("%.1f km", closestDist10m)
-            tvRecentAlertsSummary.text = getString(R.string.recent_alerts_summary, alertsCount10m, distText)
-        } else {
-            tvRecentAlertsSummary.visibility = android.view.View.GONE
-        }
-        
-        val statusColor = when(status) {
-            "RED" -> Color.parseColor("#FF3B30")
-            "ORANGE" -> Color.parseColor("#FF9500")
-            "YELLOW" -> Color.parseColor("#FFD60A")
-            else -> Color.parseColor("#34C759")
-        }
-
-        updateDashboardBackground(statusColor)
-        updateStatusTextAndIcons(status, statusColor)
-        refreshLocationStatus()
-        refreshLastAlertHistory()
-        StatusWidgetProvider.updateAllWidgets(this)
+        super.onDestroy()
     }
 
-    private fun refreshLocationStatus() {
-        if (isResolvingLocation) return
-        isResolvingLocation = true
-        
-        // Run location resolution in a background thread
-        kotlin.concurrent.thread(start = true) {
-            try {
-                val res = locationManager.resolveCurrentLocation()
-                val localizedName = distanceCalculator.getLocalizedName(res.zoneNameHe)
-                
-                uiHandler.post {
-                    tvLocationZone.text = localizedName
-                    
-                    if (res.source == "GPS") {
-                        // Real-time Locked GPS
-                        ivLocationStatus.setImageResource(R.drawable.ic_gps_antenna)
-                        ivLocationStatus.imageTintList = ColorStateList.valueOf(Color.parseColor("#34C759"))
-                        tvLocationBadge.visibility = android.view.View.GONE
-                    } else if (res.activeMode == LocationTrackingMode.GPS_LIVE) {
-                        // GPS Mode but using a fallback (Searching/Stale)
-                        ivLocationStatus.setImageResource(R.drawable.ic_gps_antenna)
-                        ivLocationStatus.imageTintList = ColorStateList.valueOf(Color.parseColor("#FFD60A"))
-                        tvLocationBadge.visibility = android.view.View.VISIBLE
-                        tvLocationBadge.text = getString(R.string.status_gps_searching_short) // Need to add this
-                        tvLocationBadge.setTextColor(Color.parseColor("#FFD60A"))
-                    } else {
-                        // Fixed / Manual Mode
-                        ivLocationStatus.setImageResource(R.drawable.ic_manual_location)
-                        val color = if (res.source == "SAVED") Color.parseColor("#808080") else Color.parseColor("#424242")
-                        ivLocationStatus.imageTintList = ColorStateList.valueOf(color)
-                        tvLocationBadge.visibility = android.view.View.GONE
-                    }
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("HomeFrontAlerts", "Location thread failed", e)
-            } finally {
-                isResolvingLocation = false
-            }
-        }
-    }
-
-    private fun showLocationExplanation() {
+    fun showLocationExplanation() {
         val lm = getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
         val isGpsEnabled = lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) || 
                           lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)
@@ -311,44 +207,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateDashboardBackground(statusColor: Int) {
-        val cardBg = Color.parseColor("#181818")
-        val borderPx = (2 * resources.displayMetrics.density).toInt()
-        val border = GradientDrawable().apply {
-            setColor(cardBg)
-            setStroke(borderPx, statusColor)
-            cornerRadius = 24f * resources.displayMetrics.density
-        }
-        layoutDashboardContent.background = border
-
-        val glowAlpha = if (statusColor == Color.parseColor("#34C759")) 20 else 50
-        val glowColor = Color.argb(glowAlpha, Color.red(statusColor), Color.green(statusColor), Color.blue(statusColor))
-        vStatusRing.background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(glowColor)
-        }
-    }
-
-    private fun updateStatusTextAndIcons(status: String, statusColor: Int) {
-        tvDashStatus.text = when(status) {
-            "RED" -> getString(R.string.critical_status)
-            "ORANGE" -> getString(R.string.warning_status)
-            "YELLOW" -> getString(R.string.threat_status)
-            else -> getString(R.string.no_alerts)
-        }
-        tvDashStatus.setTextColor(statusColor)
-        vStatusDot.backgroundTintList = android.content.res.ColorStateList.valueOf(statusColor)
-        
-        if (status == "GREEN") {
-            ivShield.colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix().apply { setSaturation(0.2f) })
-            ivShield.alpha = 0.7f
-        } else {
-            ivShield.clearColorFilter()
-            ivShield.alpha = 1.0f 
-        }
-    }
-
-
     private fun startPollingServiceIfEnabled() {
         val hasTos = sharedPrefs.getBoolean("tos_accepted", false)
         val hasLocation = androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -373,92 +231,15 @@ class MainActivity : AppCompatActivity() {
         } else {
             tvVersionBadge.visibility = android.view.View.GONE
         }
-
-        // Always show alpha badge for internal testing phase
         tvAlphaBadge.visibility = android.view.View.VISIBLE
-        
-        // Failover Badge logic completely removed.
-    }
-
-    private fun refreshLastAlertHistory() {
-        val zones = sharedPrefs.getString("last_alert_zones", null)
-        val dist = sharedPrefs.getFloat("last_alert_dist", -1f)
-        val time = sharedPrefs.getLong("last_alert_time", 0L)
-        val alertType = sharedPrefs.getString("last_alert_type", "") ?: ""
-        
-        if (zones != null && time > 0) {
-            cardLastAlert.visibility = android.view.View.VISIBLE
-            val rawZoneList = zones.split(", ")
-            
-            val top10CitiesHe = listOf("ירושלים", "תל אביב", "חיפה", "ראשון לציון", "פתח תקווה", "אשדוד", "נתניה", "בני ברק", "באר שבע", "חולון")
-            val res = locationManager.resolveCurrentLocation()
-            val sortedByDistance = rawZoneList.sortedBy { z -> distanceCalculator.getDistanceToZone(res.lat, res.lng, z) ?: Double.MAX_VALUE }
-            
-            val topCitiesInPayload = rawZoneList.filter { z -> top10CitiesHe.any { city -> z.contains(city) } }.toSet()
-            val nearest5 = sortedByDistance.take(5).toSet()
-            
-            val prioritySet = mutableSetOf<String>().apply {
-                addAll(topCitiesInPayload)
-                addAll(nearest5)
-            }
-            
-            val remainingSorted = sortedByDistance.filter { !prioritySet.contains(it) }
-            val finalPriorityList = prioritySet.toMutableList()
-            var fillIndex = 0
-            while (finalPriorityList.size < 10 && fillIndex < remainingSorted.size) {
-                finalPriorityList.add(remainingSorted[fillIndex])
-                fillIndex++
-            }
-            
-            val tail = remainingSorted.drop(fillIndex)
-            val displayList = finalPriorityList.map { distanceCalculator.getLocalizedName(it, true) }.toMutableList()
-            
-            var collapsedTail = ""
-            var expandedTail = ""
-            
-            if (tail.size <= 5) {
-                tail.forEach { displayList.add(distanceCalculator.getLocalizedName(it, true)) }
-            } else {
-                val tailLoc = tail.map { distanceCalculator.getLocalizedName(it, true) }
-                val moreText = if (LocaleHelper.getLanguage(this) == "iw" || LocaleHelper.getLanguage(this) == "he") "עוד" else "more"
-                collapsedTail = "... (+${tail.size} $moreText)"
-                expandedTail = "... ${tailLoc.joinToString(", ")}"
-            }
-            
-            val collapsedText = if (collapsedTail.isEmpty()) displayList.joinToString("\n") else displayList.joinToString("\n") + "\n" + collapsedTail
-            val expandedText = if (expandedTail.isEmpty()) displayList.joinToString("\n") else displayList.joinToString("\n") + "\n" + expandedTail
-            
-            tvLastAlertZones.text = if (isLastAlertZonesExpanded) expandedText else collapsedText
-            tvLastAlertZones.setOnClickListener {
-                if (expandedTail.isNotEmpty()) {
-                    isLastAlertZonesExpanded = !isLastAlertZonesExpanded
-                    tvLastAlertZones.text = if (isLastAlertZonesExpanded) expandedText else collapsedText
-                }
-            }
-            
-            val diffMs = System.currentTimeMillis() - time
-            val diffMin = diffMs / 60000
-            val timeText = when {
-                diffMin < 1 -> getString(R.string.just_now)
-                diffMin < 60 -> getString(R.string.detected_ago, "${diffMin}${getString(R.string.unit_minutes_short)}")
-                else -> android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date(time))
-            }
-            val distText = if (dist < 0) getString(R.string.remote_alert) else getString(R.string.distance, String.format("%.1f", dist))
-            
-            val translatedType = LocaleHelper.translateAlertType(this, alertType)
-            val prefix = if (translatedType.isNotEmpty()) "$translatedType • " else ""
-            tvLastAlertInfo.text = "$prefix$timeText • $distText"
-        } else {
-            cardLastAlert.visibility = android.view.View.GONE
-        }
     }
 
     private fun startNativeHealthCheckLoop() {
-        kotlin.concurrent.thread(start = true) {
-            while (true) {
-                evaluateFailoverCondition()
-                
-                // Sleep for 2 minutes before evaluating the heartbeat timer again
+        if (nativeHealthCheckThread?.isAlive == true) return
+        val appContext = applicationContext
+        nativeHealthCheckThread = kotlin.concurrent.thread(start = true) {
+            while (!Thread.currentThread().isInterrupted) {
+                evaluateFailoverCondition(appContext)
                 try {
                     Thread.sleep(2 * 60 * 1000L)
                 } catch (e: InterruptedException) {
@@ -468,30 +249,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun evaluateFailoverCondition() {
+    private fun evaluateFailoverCondition(context: Context) {
         try {
-            // Only evaluate failover if we are in AUTO mode (0)
-            if (sharedPrefs.getInt("connectivity_mode", 0) != 0) return
-            
-            val isCurrentlyInFailover = sharedPrefs.getBoolean("shield_active", false)
-            if (isCurrentlyInFailover) return
+            val prefs = context.getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
+            if (prefs.getInt("connectivity_mode", 0) != 0) return
+            if (prefs.getBoolean("shield_active", false)) return
 
-            // The backend sends a KEEPALIVE FCM every 10 minutes.
-            // We wait 20 minutes before assuming it's dead.
-            val lastFcmMs = sharedPrefs.getLong("last_fcm_heartbeat_ms", System.currentTimeMillis())
+            val lastFcmMs = prefs.getLong("last_fcm_heartbeat_ms", System.currentTimeMillis())
             val elapsedMs = System.currentTimeMillis() - lastFcmMs
-            val timeoutMs = 20L * 60L * 1000L // 20 minutes
+            val timeoutMs = 20L * 60L * 1000L 
             
             if (elapsedMs > timeoutMs) {
-                // We haven't heard from FCM in 20+ minutes. Suspect outage.
                 android.util.Log.w("HomeFrontAlerts", "FCM Heartbeat missing for ${elapsedMs/60000} mins. Suspect outage.")
                 
-                // Jitter: 0 to 5 minutes random sleep to prevent Thundering Herd DDoS on the backend
                 val jitterMs = (0..300000).random().toLong()
-                android.util.Log.w("HomeFrontAlerts", "Applying jitter of ${jitterMs/1000}s before checking health.")
                 Thread.sleep(jitterMs)
                 
-                // Now do the ONE single HTTP ping to confirm it's actually dead
                 var isHealthy = false
                 try {
                     val url = java.net.URL("${BuildConfig.BACKEND_URL}/health")
@@ -507,20 +280,16 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (isHealthy) {
-                    android.util.Log.i("HomeFrontAlerts", "HealthCheck: Proxy is HEALTHY. (FCM might be delayed but backend is up).")
-                    // We can reset the heartbeat to prevent immediately pinging again
-                    sharedPrefs.edit().putLong("last_fcm_heartbeat_ms", System.currentTimeMillis()).apply()
+                    prefs.edit().putLong("last_fcm_heartbeat_ms", System.currentTimeMillis()).apply()
                 } else {
                     android.util.Log.w("HomeFrontAlerts", "HealthCheck: Proxy is DEAD. Triggering failover to Direct HFC Shield!")
-                    sharedPrefs.edit().putBoolean("shield_active", true).apply()
-                    // UI listener handles starting the service
+                    prefs.edit().putBoolean("shield_active", true).apply()
                 }
             }
         } catch (e: Exception) {
             android.util.Log.e("HomeFrontAlerts", "Failover eval error", e)
         }
     }
-
 
     private fun showVolumeDialog() {
         val linearLayout = android.widget.LinearLayout(this).apply {
@@ -573,10 +342,8 @@ class MainActivity : AppCompatActivity() {
             sharedPrefs.edit().putFloat("alert_volume", currentVol).apply()
             toneGenerator.updateLiveVolume(currentVol)
             
-            // Do not consume the event, allow the system to adjust actual media volume as well
             return super.onKeyDown(keyCode, event)
         }
         return super.onKeyDown(keyCode, event)
     }
-
 }

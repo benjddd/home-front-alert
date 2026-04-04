@@ -29,8 +29,8 @@ android {
         applicationId = "com.attius.homefrontalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 30
-        versionName = "1.7.6"
+        versionCode = 31
+        versionName = "1.7.7"
 
         buildConfigField("String", "BACKEND_URL", "\"$backendUrlEnv\"")
         buildConfigField("String", "API_KEY", "\"$apiKeyEnv\"")
@@ -74,11 +74,14 @@ android {
     // exactly before the build starts to avoid Google Drive sync locks.
     tasks.register("cleanDesktopInit") {
         doLast {
-            println("🛡️ Purging desktop.ini files from resources...")
-            val resDir = file("src/main/res")
-            resDir.walkBottomUp().forEach { file ->
-                if (file.name == "desktop.ini") {
-                    file.delete()
+            println("🛡️ Purging desktop.ini files from ALL directories...")
+            projectDir.walkBottomUp().forEach { file ->
+                if (file.name.equals("desktop.ini", ignoreCase = true)) {
+                    try {
+                        file.delete()
+                    } catch (e: Exception) {
+                        println("⚠️ Could not delete ${file.absolutePath}")
+                    }
                 }
             }
         }
@@ -151,4 +154,6 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.1.0")
 }
 
+
+// Build output default (restored for faster builds and to avoid Google Drive sync locks)
 project.layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/homefrontalert/app/build"))

@@ -9,6 +9,21 @@ object AlertStyleRegistry {
     fun getStyle(catId: String, title: String): AlertType {
         val trimmedTitle = title.trim()
         val lowerTitle = trimmedTitle.lowercase()
+
+        // --- 0th PRIORITY: Canonical backend relay keys (v1.7.7+) ---
+        if (trimmedTitle == "ROCKET" || trimmedTitle == "UAV" || trimmedTitle == "INFILTRATION") {
+            return AlertType.URGENT
+        }
+        if (trimmedTitle == "PRE_WARNING") {
+            return AlertType.CAUTION
+        }
+        if (trimmedTitle == "CALM") {
+            return AlertType.CALM
+        }
+        if (trimmedTitle == "OTHER") {
+            // Known secondary events (earthquake, radiation, tsunami) — beep (CAUTION) is appropriate.
+            return AlertType.CAUTION
+        }
         
         // --- 1st PRIORITY: OFFICIAL CAPTURED PHRASES (Source: User App Screenshots) ---
         
@@ -40,8 +55,10 @@ object AlertStyleRegistry {
             trimmedTitle == "רעידת אדמה" ||
             trimmedTitle == "צונאמי" ||
             trimmedTitle == "אירוע קרינה" ||
+            trimmedTitle == "אירוע רדיולוגי" ||
+            trimmedTitle == "חשש לצונאמי" ||
             trimmedTitle == "התרעה ביטחונית") {
-            return AlertType.URGENT // Safety-first for hazardous/security events
+            return AlertType.CAUTION
         }
 
 
@@ -85,7 +102,7 @@ object AlertStyleRegistry {
             "13" -> AlertType.CALM
             "14" -> AlertType.CAUTION
             "all_clear" -> AlertType.CALM
-            else -> AlertType.CAUTION // Default to Caution if totally unknown
+            else -> AlertType.SILENT // Unclassified HFC category — silent, no state change, logged
         }
     }
 }

@@ -333,7 +333,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Developer Settings (Experimental)"
+                    android:text="@string/settings_advanced_experimental"
                     android:textColor="#FFAC33"
                     android:textStyle="bold"
                     android:textSize="12sp"
@@ -530,6 +530,7 @@
                                 android:layout_marginStart="2dp" />
                         </LinearLayout>
                     </LinearLayout>
+                </androidx.cardview.widget.CardView>
 
                 <!-- ── ALERT LOGIC (SMART DEDUPLICATION) ── -->
                 <androidx.cardview.widget.CardView
@@ -547,7 +548,7 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Smart Sync Deduplication"
+                            android:text="@string/settings_dedup_title"
                             android:textStyle="bold"
                             android:textColor="#FFFFFF"
                             android:textSize="13sp"
@@ -555,7 +556,7 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Prevents redundant beeps for sequential HFC alerts in the same area."
+                            android:text="@string/settings_dedup_desc"
                             android:textColor="#555566"
                             android:textSize="10sp"
                             android:layout_marginBottom="14dp" />
@@ -569,7 +570,7 @@
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="Area Wait Time (Alert TTL)"
+                                android:text="@string/settings_dedup_ttl_label"
                                 android:textColor="#FFFFFF"
                                 android:textSize="12sp" />
                             <EditText
@@ -587,7 +588,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="sec"
+                                android:text="@string/settings_dedup_unit_sec"
                                 android:textColor="#606060"
                                 android:textSize="10sp"
                                 android:layout_marginStart="4dp" />
@@ -595,7 +596,40 @@
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
 
-
+                <!-- CARD: MAP SERVICE URL -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:backgroundTint="#1E1E1E"
+                    android:elevation="4dp">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="16dp"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/settings_map_url_title"
+                            android:textColor="#CCCCCC"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="8dp" />
+                        <EditText
+                            android:id="@+id/etMapServiceUrl"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="@string/settings_map_url_hint"
+                            android:textColor="#FFFFFF"
+                            android:textColorHint="#666666"
+                            android:backgroundTint="#333333"
+                            android:inputType="textUri"
+                            android:singleLine="true"
+                            android:textSize="12sp"
+                            android:paddingStart="8dp" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
 
                 <!-- CARD B: SYSTEM DIAGNOSTICS (unified) -->
                 <androidx.cardview.widget.CardView

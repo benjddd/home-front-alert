@@ -1,0 +1,44 @@
+steps:
+  # ============================================================
+  # homefront-map: Serves the MapLibre HTML page + polygon API
+  # Separate from the alert relay so a map bug never affects FCM
+  # min-instances=0: scales to zero between user sessions
+  # ============================================================
+
+  # 1. Build
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '$_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/homefront-map:latest', '-f', 'Dockerfile.map', '.']
+
+  # 2. Push
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '$_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/homefront-map:latest']
+
+  # 3. Deploy — scale-to-zero, 512 MiB for polygon cache
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'homefront-map'
+      - '--image=$_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/homefront-map:latest'
+      - '--region=$_REGION'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--min-instances=0'
+      - '--max-instances=10'
+      - '--memory=512Mi'
+      - '--update-env-vars=NODE_ENV=production,BACKEND_SERVICE_URL=$_BACKEND_SERVICE_URL,MAP_SERVICE_AUDIENCE=$_MAP_SERVICE_AUDIENCE,RELAY_SERVICE_ACCOUNT=$_RELAY_SERVICE_ACCOUNT'
+
+images:
+  - '$_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/homefront-map:latest'
+
+substitutions:
+  _REGION: me-west1
+  _AR_HOSTNAME: me-west1-docker.pkg.dev
+  _AR_REPOSITORY: backend-repo
+  _BACKEND_SERVICE_URL: https://homefront-backend-cjnpwpm63q-zf.a.run.app
+  _MAP_SERVICE_AUDIENCE: https://homefront-map-cjnpwpm63q-zf.a.run.app
+  _RELAY_SERVICE_ACCOUNT: 344391280523-compute@developer.gserviceaccount.com
+
+options:
+  logging: CLOUD_LOGGING_ONLY

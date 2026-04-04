@@ -135,7 +135,7 @@ gcloud run deploy homefront-backend \
 cd proxy-microsite
 firebase deploy --only hosting --project=home-front-alert-hfc
 ```
-> Requires Firebase CLI login as `homefrontcommand@attius.com`.
+> Requires Firebase CLI login as the project admin account (see internal project docs).
 
 ---
 

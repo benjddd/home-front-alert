@@ -54,6 +54,11 @@
             android:label="Terms of Conditions"
             android:exported="false" />
 
+        <activity
+            android:name=".ThanksActivity"
+            android:label="Acknowledgments"
+            android:exported="false" />
+
         <!-- 
              FCM SERVICE: 
              Crucial for receiving rocket alerts via Google's messaging network.

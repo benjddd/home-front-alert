@@ -102,7 +102,7 @@ class SettingsActivity : AppCompatActivity() {
             if (isChecked) {
                 val hasLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                 if (!hasLocation) {
-                    Toast.makeText(this, "Location permission required for Direct Shield", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Location permission required for direct monitoring", Toast.LENGTH_LONG).show()
                     switchShieldActive.isChecked = false
                     requestCriticalPermissions()
                     return@setOnCheckedChangeListener
@@ -257,6 +257,20 @@ class SettingsActivity : AppCompatActivity() {
         if (BuildConfig.IS_PAID) cardShield.visibility = android.view.View.GONE
 
 
+        // 6d. Map Service URL override
+        val etMapUrl = findViewById<EditText>(R.id.etMapServiceUrl)
+        val defaultMapUrl = "https://homefront-map-cjnpwpm63q-zf.a.run.app/map"
+        etMapUrl?.setText(sharedPrefs.getString("map_service_url", defaultMapUrl))
+        etMapUrl?.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val input = s?.toString()?.trim() ?: return
+                if (isAllowedMapServiceUrl(input)) {
+                    sharedPrefs.edit().putString("map_service_url", input).apply()
+                }
+            }
+        })
 
         // 7. Dynamic UI Refresh (Zone Status)
         val tvShieldLog = findViewById<TextView>(R.id.tvHybridLog)
@@ -265,7 +279,7 @@ class SettingsActivity : AppCompatActivity() {
         val tvFcmHistory = findViewById<TextView>(R.id.tvFcmHistory)
         val tvResolvedZone = findViewById<TextView>(R.id.tvResolvedZone)
         val tvLastSync = findViewById<TextView>(R.id.tvLastSync)
-        
+
         val logHandler = Handler(Looper.getMainLooper())
         val logUpdater = object : Runnable {
             override fun run() {
@@ -275,7 +289,7 @@ class SettingsActivity : AppCompatActivity() {
                 val bBack = sharedPrefs.getString("empty_sample_backend", "Waiting...")
                 tvEmptySample?.text = "HFC: $bHfc\nProxy: $bBack"
                 tvFcmHistory?.text = sharedPrefs.getString("fcm_diagnostic_log", "Waiting for FCM...")
-                
+
                 val lastSuccess = sharedPrefs.getLong("shield_last_success_ms", 0)
                 if (lastSuccess > 0) {
                     val diff = (System.currentTimeMillis() - lastSuccess) / 1000
@@ -284,48 +298,34 @@ class SettingsActivity : AppCompatActivity() {
                     tvLastSync?.text = "Last Success: Never"
                 }
 
-                // Run location resolution in a background thread
                 if (isResolvingLocation) return
                 isResolvingLocation = true
-                
+
                 kotlin.concurrent.thread(start = true) {
                     try {
                         val lm = getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
                         val isGpsEnabled = lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
                         val locationEnabled = isGpsEnabled
-    
+
                         val res = locationManager.resolveCurrentLocation()
                         val localizedZone = distanceCalculator.getLocalizedName(res.zoneNameHe)
-                        
+
                         val hasLocationPerm = ContextCompat.checkSelfPermission(this@SettingsActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                        
-                        val statusText = when(res.source) {
-                            "GPS" -> getString(R.string.status_gps_locked, localizedZone)
-                            "SAVED" -> {
-                                if (res.isFallback && res.activeMode == LocationTrackingMode.GPS_LIVE) 
-                                    getString(R.string.status_gps_searching, localizedZone) 
-                                else 
-                                    getString(R.string.status_saved_zone, localizedZone)
-                            }
-                            else -> getString(R.string.status_default_zone, localizedZone)
-                        }
-    
+
                         Handler(Looper.getMainLooper()).post {
-                            // SSOT Safety check: Ensure the mode hasn't changed while we were calculating
                             val currentMode = locationManager.getTrackingMode()
                             var finalRes = res
                             if (currentMode == LocationTrackingMode.FIXED_ZONE && res.activeMode == LocationTrackingMode.GPS_LIVE) {
-                                // Background thread was stale, re-resolve for Fixed mode (fast)
                                 finalRes = locationManager.resolveCurrentLocation()
                             }
 
                             val finalLocalizedZone = distanceCalculator.getLocalizedName(finalRes.zoneNameHe)
-                            val finalStatusText = when(finalRes.source) {
+                            val finalStatusText = when (finalRes.source) {
                                 "GPS" -> getString(R.string.status_gps_locked, finalLocalizedZone)
                                 "SAVED" -> {
-                                    if (finalRes.isFallback && finalRes.activeMode == LocationTrackingMode.GPS_LIVE) 
-                                        getString(R.string.status_gps_searching, finalLocalizedZone) 
-                                    else 
+                                    if (finalRes.isFallback && finalRes.activeMode == LocationTrackingMode.GPS_LIVE)
+                                        getString(R.string.status_gps_searching, finalLocalizedZone)
+                                    else
                                         getString(R.string.status_saved_zone, finalLocalizedZone)
                                 }
                                 else -> {
@@ -337,7 +337,7 @@ class SettingsActivity : AppCompatActivity() {
                             }
 
                             var displayString = "$finalStatusText\n(Lat: ${String.format("%.4f", finalRes.lat)}, Lng: ${String.format("%.4f", finalRes.lng)})"
-                            
+
                             if (finalRes.activeMode == LocationTrackingMode.GPS_LIVE) {
                                 val sats = "Sats: ${AppLocationManager.satellitesUsed}/${AppLocationManager.satellitesInView}"
                                 val snr = "SNR: ${String.format("%.0f", AppLocationManager.avgSnr)}"
@@ -348,11 +348,11 @@ class SettingsActivity : AppCompatActivity() {
                             if (finalRes.source == "GPS") {
                                 displayString += "\n(${finalRes.provider} | Acc: ${String.format("%.0fm", finalRes.accuracy)})"
                             }
-                            var textColor = if (finalRes.isFallback) android.graphics.Color.parseColor("#FFD60A") else android.graphics.Color.parseColor("#34C759")
-    
+                            var textColor = if (finalRes.isFallback) AlertColors.THREAT else AlertColors.CALM
+
                             if (!hasLocationPerm) {
                                 displayString = "⚠️ Location Permission Denied\n(Click to fix in Settings)"
-                                textColor = android.graphics.Color.parseColor("#FF5252") // Reddish
+                                textColor = android.graphics.Color.parseColor("#FF5252")
                                 tvResolvedZone?.setOnClickListener { openAppSettings() }
                             } else if (!locationEnabled && currentMode == LocationTrackingMode.GPS_LIVE) {
                                 displayString = "⚠️ GPS is OFF in System Settings\n(Click to fix)"
@@ -361,16 +361,16 @@ class SettingsActivity : AppCompatActivity() {
                             } else {
                                 tvResolvedZone?.setOnClickListener(null)
                             }
-                            
+
                             tvResolvedZone?.text = displayString
                             tvResolvedZone?.setTextColor(textColor)
-                            refreshSettingsUI() // Keep UI synced
+                            refreshSettingsUI()
                         }
                     } finally {
                         isResolvingLocation = false
                     }
                 }
-                
+
                 logHandler.postDelayed(this, 1500)
             }
         }
@@ -544,8 +544,15 @@ class SettingsActivity : AppCompatActivity() {
             2 -> getString(R.string.status_battery_cloud)
             else -> ""
         }
-        val color = if (isShieldActive) Color.parseColor("#FFD60A") else Color.parseColor("#606060")
+        val color = if (isShieldActive) AlertColors.THREAT else Color.parseColor("#606060")
         tvConnectivityDetail.setTextColor(color)
+    }
+
+    private fun isAllowedMapServiceUrl(input: String): Boolean {
+        val uri = android.net.Uri.parse(input)
+        val host = uri.host?.lowercase() ?: return false
+        if (uri.scheme != "https") return false
+        return host == "homefront-map-cjnpwpm63q-zf.a.run.app" || host == "localhost" || host == "127.0.0.1"
     }
 
     private fun refreshSettingsUI() {
