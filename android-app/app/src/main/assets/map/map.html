@@ -247,22 +247,26 @@ window.loadBasemap = function(outline, extras) {
     }
 
     if (extrasData) {
-      if (extrasData.water) {
-        map.addSource('water-src', { type: 'geojson', data: extrasData.water });
-        map.addLayer({ id: 'water-fill', type: 'fill', source: 'water-src',
-          paint: { 'fill-color': '#0a0a18', 'fill-opacity': 0.8 } });
-      }
-      if (extrasData.cities) {
-        map.addSource('cities-src', { type: 'geojson', data: extrasData.cities });
-        map.addLayer({ id: 'city-dots', type: 'circle', source: 'cities-src',
-          paint: { 'circle-radius': 2.5, 'circle-color': '#555570', 'circle-opacity': 0.7 } });
-      }
-      if (extrasData.neighbors) {
-        map.addSource('neighbors-src', { type: 'geojson', data: extrasData.neighbors });
-        map.addLayer({ id: 'neighbor-fill', type: 'fill', source: 'neighbors-src',
-          paint: { 'fill-color': '#111122', 'fill-opacity': 0.6 } });
-        if (map.getLayer('country-fill')) map.moveLayer('neighbor-fill', 'country-fill');
-      }
+      map.addSource('extras-src', { type: 'geojson', data: extrasData });
+
+      // Water bodies (Kinneret, Dead Sea)
+      map.addLayer({ id: 'water-fill', type: 'fill', source: 'extras-src',
+        filter: ['==', ['get', 'type'], 'water'],
+        paint: { 'fill-color': '#0a0a18', 'fill-opacity': 0.8 } });
+
+      // City dots
+      map.addLayer({ id: 'city-dots', type: 'circle', source: 'extras-src',
+        filter: ['==', ['get', 'type'], 'city'],
+        paint: {
+          'circle-radius': ['match', ['get', 'rank'], 1, 3, 2],
+          'circle-color': ['match', ['get', 'rank'], 1, '#9aa3ad', '#6f7780'],
+          'circle-opacity': ['match', ['get', 'rank'], 1, 0.8, 0.6],
+        } });
+
+      // Neighbor anchors
+      map.addLayer({ id: 'neighbor-dots', type: 'circle', source: 'extras-src',
+        filter: ['==', ['get', 'type'], 'neighbor'],
+        paint: { 'circle-radius': 1.6, 'circle-color': '#5f6770', 'circle-opacity': 0.55 } });
     }
 
     basemapLoaded = true;
