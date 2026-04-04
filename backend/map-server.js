@@ -17,9 +17,7 @@ const helmet    = require('helmet');
 const polygonCache = require('./polygonCache');
 const mapState     = require('./mapState');
 const axios        = require('axios');
-const { GoogleAuth, OAuth2Client } = require('google-auth-library');
-
-const auth = new GoogleAuth();
+const { OAuth2Client } = require('google-auth-library');
 const BACKEND_SERVICE_URL = process.env.BACKEND_SERVICE_URL || 'https://homefront-backend-cjnpwpm63q-zf.a.run.app';
 const client = new OAuth2Client();
 
@@ -60,10 +58,9 @@ app.get('/api/map-data', async (_req, res) => {
   res.setHeader('Content-Type', 'application/json');
 
   try {
-    const oidcClient = await auth.getIdTokenClient(BACKEND_SERVICE_URL);
-    const response = await oidcClient.request({
-      url: `${BACKEND_SERVICE_URL}/api/map-data`,
-      method: 'GET'
+    const response = await axios.get(`${BACKEND_SERVICE_URL}/api/map-data`, {
+      timeout: 8000,
+      validateStatus: (status) => status === 200,
     });
     res.json(response.data);
   } catch (err) {

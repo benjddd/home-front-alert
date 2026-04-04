@@ -97,31 +97,16 @@
         <header style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 20px; margin-top: 16px;">
             <div>
                 <h1>Admin: Tzeva Artzi</h1>
-                <p id="stats">Loading stats...</p>
+                <p id="stats">Status dashboard</p>
             </div>
             <div style="display:flex; gap:10px;">
-                <button class="btn-sync" onclick="exportCSV()" style="background: #4CAF50;">📥 Export Pending to CSV & Mark Synced</button>
                 <button onclick="fetchData()">Refresh</button>
             </div>
         </header>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Play Sync</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="dataTable"></tbody>
-        </table>
     </div>
 
     <script>
         let p = "";
-        let globalData = [];
 
         // ── Alert status polling ──────────────────────────────────────────
         let _criticalSince = null;
@@ -142,7 +127,9 @@
 
         async function fetchAlertStatus() {
             try {
-                const res = await fetch(`/dashboard/status?pass=${p}`);
+                const res = await fetch('/dashboard/status', {
+                    headers: { 'X-Dashboard-Pass': p }
+                });
                 if (!res.ok) return;
                 const d = await res.json();
                 const status = d.status || 'CALM';
@@ -181,82 +168,12 @@
         async function fetchData() {
             document.getElementById('authError').style.display = 'none';
             try {
-                const res = await fetch(`/dashboard/data?pass=${p}`);
-                if (!res.ok) {
-                    const errText = await res.text();
-                    document.getElementById('authError').innerText = "Status: " + res.status + " - " + errText;
-                    document.getElementById('authError').style.display = 'block';
-                    return;
-                }
-                const data = await res.json();
-                globalData = data;
                 document.getElementById('authOverlay').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
-                render(data);
                 if (!_statusInterval) startStatusPolling();
             } catch (e) {
                 document.getElementById('authError').innerText = "Network Error: " + e.message;
                 document.getElementById('authError').style.display = 'block';
-            }
-        }
-
-        function render(data) {
-            const tbody = document.getElementById('dataTable');
-            tbody.innerHTML = "";
-            document.getElementById('stats').innerText = `${data.length} Total Registered Testers`;
-            data.forEach(item => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${new Date(item.appliedAt?._seconds * 1000).toLocaleDateString()}</td>
-                    <td>${item.name}</td>
-                    <td>${item.email}</td>
-                    <td class="${item.synced ? 'synced-tag' : 'pending-tag'}">${item.synced ? '✅ SYNCED' : '⏳ PENDING'}</td>
-                    <td><button style="padding: 5px 10px; font-size: 12px; background: #555;" onclick="deleteTester('${item.id}')">Delete</button></td>
-                `;
-                tbody.appendChild(row);
-            });
-        }
-
-        async function deleteTester(id) {
-            if(!confirm("Delete this tester from database?")) return;
-            try {
-                const res = await fetch(`/dashboard/delete/${id}?pass=${p}`, { method: 'DELETE' });
-                if(res.ok) fetchData();
-                else alert("Delete failed.");
-            } catch(e) { alert("Error: " + e.message); }
-        }
-
-        async function exportCSV() {
-            const pending = globalData.filter(d => !d.synced);
-            if (pending.length === 0) {
-                alert("No pending testers to export!");
-                return;
-            }
-
-            if (!confirm(`Export ${pending.length} pending testers to CSV and mark them as synced?`)) return;
-
-            // Generate CSV (Format: email,name)
-            let csvContent = "data:text/csv;charset=utf-8,";
-            pending.forEach(row => {
-               csvContent += `${row.email},${row.name}\r\n`;
-            });
-
-            // Trigger Download
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `testers-${new Date().toISOString().split('T')[0]}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            // Mark as synced on server
-            try {
-                const res = await fetch(`/dashboard/sync-all?pass=${p}`, { method: 'POST' });
-                const result = await res.json();
-                fetchData();
-            } catch (e) {
-                alert("Saved CSV, but failed to update status on server: " + e.message);
             }
         }
     </script>
