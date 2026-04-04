@@ -119,6 +119,7 @@
 
 // ── Config ──────────────────────────────────────────────────────────────
 const CLEAR_FADE_MS = 15 * 60 * 1000;
+const CLEAR_BASE_OPACITY = 0.45;
 const RECENT_ZONE_MS = 15 * 1000;
 
 const ALERT_COLORS = {
@@ -202,7 +203,7 @@ const text = document.getElementById('status-text');
 // ── User Location ───────────────────────────────────────────────────────
 let userMarker = null;
 window.onLocationUpdate = function(lat, lng) {
-  if (!lat || !lng) return;
+  if (lat == null || lng == null) return;
   const el = document.createElement('div');
   el.className = 'user-dot';
   if (userMarker) userMarker.remove();
@@ -430,7 +431,13 @@ map.on('load', () => {
 // ── Core Render Function ────────────────────────────────────────────────
 // Called by Android JS bridge on every alert/clear event
 window.onThreatUpdate = function(data) {
-  const d = typeof data === 'string' ? JSON.parse(data) : data;
+  let d;
+  try {
+    d = typeof data === 'string' ? JSON.parse(data) : data;
+  } catch (e) {
+    console.error('onThreatUpdate: invalid JSON', e);
+    return;
+  }
   if (!mapReady) {
     pendingUpdate = d;
     return;
@@ -457,7 +464,7 @@ function renderFromThreatMap(threats, status) {
     if (state === 'CLEARING') {
       const ct = entry.ct || 0;
       if (ct > 0 && (now - ct) < CLEAR_FADE_MS) {
-        const opacity = Math.max(0, 0.45 * (1 - (now - ct) / CLEAR_FADE_MS));
+        const opacity = Math.max(0, CLEAR_BASE_OPACITY * (1 - (now - ct) / CLEAR_FADE_MS));
         newClearingFeatures.push({
           ...poly,
           properties: { ...poly.properties, state: 'CLEARING', ct, alertType: 'CLEARING', opacity },
@@ -522,7 +529,12 @@ function renderFromThreatMap(threats, status) {
   map.getSource('heat-uav-src').setData({ type: 'FeatureCollection', features: heatUavFeatures });
 
   // Merge new clearing features with existing (preserve ongoing fades)
-  clearingFeatures = newClearingFeatures;
+  const newKeys = new Set(newClearingFeatures.map(f => f.properties.zone || f.properties.name));
+  const preserved = clearingFeatures.filter(f => {
+    const key = f.properties.zone || f.properties.name;
+    return !newKeys.has(key) && (Date.now() - f.properties.ct) < CLEAR_FADE_MS;
+  });
+  clearingFeatures = [...preserved, ...newClearingFeatures];
   map.getSource('clearing-src').setData({ type: 'FeatureCollection', features: clearingFeatures });
 
   // Status badge
@@ -562,7 +574,7 @@ function tickClearingFade() {
     for (const f of clearingFeatures) {
       const elapsed = now - f.properties.ct;
       if (elapsed >= CLEAR_FADE_MS) { changed = true; continue; }
-      const newOpacity = Math.max(0, 0.3 * (1 - elapsed / CLEAR_FADE_MS));
+      const newOpacity = Math.max(0, CLEAR_BASE_OPACITY * (1 - elapsed / CLEAR_FADE_MS));
       if (f.properties.opacity === undefined || Math.abs(f.properties.opacity - newOpacity) > 0.005) {
         f.properties.opacity = newOpacity;
         changed = true;

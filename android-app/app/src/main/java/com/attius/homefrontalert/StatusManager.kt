@@ -560,60 +560,63 @@ object StatusManager {
             prefs.edit().putString("raw_alert_history", lines.take(10).joinToString("\n")).apply()
         }
 
-        // 3. Update SSOT threat map
-        val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
-        val threats = org.json.JSONObject(threatsStr)
+        // 3. Update SSOT threat map (synchronized to prevent concurrent read-modify-write races
+        //    between FCM service and poll cycle)
         val calculator = ZoneDistanceCalculator(context)
+        synchronized(this) {
+            val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
+            val threats = org.json.JSONObject(threatsStr)
 
-        cities.forEach { zone ->
-            val normZone = normalizeCity(zone)
-            if (type == AlertType.CALM) {
-                // Explicit CALM transitions matching active zones into CLEARING (fade phase).
-                val existing = threats.optJSONObject(normZone)
-                if (existing != null) {
-                    val alreadyClearing = existing.optString("s") == STATE_CLEARING
-                    existing.put("s", STATE_CLEARING)
-                    if (!alreadyClearing) existing.put("ct", nowMs)
-                    threats.put(normZone, existing)
-                }
-                // Cleanup legacy raw-keyed entries if they exist (but not the normZone entry we just set)
-                if (zone != normZone) threats.remove(zone)
-            } else {
-                val existing = threats.optJSONObject(normZone)
-                val existingState = existing?.optString("s", "CAUTION") ?: ""
-                val existingSeverity = when (existingState) {
-                    "URGENT" -> 1
-                    "CAUTION" -> 0
-                    else -> -1
-                }
-                val incomingSeverity = if (type == AlertType.URGENT) 1 else 0
-                val isEscalation = incomingSeverity > existingSeverity
-                val isReactivation = existingState == STATE_CLEARING
-
-                if (isEscalation || isReactivation) {
-                    forceAudioZones.add(normZone)
-                }
-
-                val obj = org.json.JSONObject()
-                obj.put("t", nowMs)
-                obj.put("c", calculator.getZoneCountdown(zone))
-                obj.put("name", zone) // Store raw name for display if needed
-                if (!canonicalType.isNullOrEmpty()) obj.put("ctype", canonicalType)
-
-                if (existing != null && !isReactivation && incomingSeverity <= existingSeverity) {
-                    // Preserve one-way severity (never downgrade).
-                    obj.put("s", existingState)
-                    val prevClearedAt = existing.optLong("ct", 0L)
-                    if (prevClearedAt > 0L) obj.put("ct", prevClearedAt)
+            cities.forEach { zone ->
+                val normZone = normalizeCity(zone)
+                if (type == AlertType.CALM) {
+                    // Explicit CALM transitions matching active zones into CLEARING (fade phase).
+                    val existing = threats.optJSONObject(normZone)
+                    if (existing != null) {
+                        val alreadyClearing = existing.optString("s") == STATE_CLEARING
+                        existing.put("s", STATE_CLEARING)
+                        if (!alreadyClearing) existing.put("ct", nowMs)
+                        threats.put(normZone, existing)
+                    }
+                    // Cleanup legacy raw-keyed entries if they exist (but not the normZone entry we just set)
+                    if (zone != normZone) threats.remove(zone)
                 } else {
-                    // New threat / escalation / reactivation.
-                    obj.put("s", type.name)
-                    obj.put("ct", org.json.JSONObject.NULL)
+                    val existing = threats.optJSONObject(normZone)
+                    val existingState = existing?.optString("s", "CAUTION") ?: ""
+                    val existingSeverity = when (existingState) {
+                        "URGENT" -> 1
+                        "CAUTION" -> 0
+                        else -> -1
+                    }
+                    val incomingSeverity = if (type == AlertType.URGENT) 1 else 0
+                    val isEscalation = incomingSeverity > existingSeverity
+                    val isReactivation = existingState == STATE_CLEARING
+
+                    if (isEscalation || isReactivation) {
+                        forceAudioZones.add(normZone)
+                    }
+
+                    val obj = org.json.JSONObject()
+                    obj.put("t", nowMs)
+                    obj.put("c", calculator.getZoneCountdown(zone))
+                    obj.put("name", zone) // Store raw name for display if needed
+                    if (!canonicalType.isNullOrEmpty()) obj.put("ctype", canonicalType)
+
+                    if (existing != null && !isReactivation && incomingSeverity <= existingSeverity) {
+                        // Preserve one-way severity (never downgrade).
+                        obj.put("s", existingState)
+                        val prevClearedAt = existing.optLong("ct", 0L)
+                        if (prevClearedAt > 0L) obj.put("ct", prevClearedAt)
+                    } else {
+                        // New threat / escalation / reactivation.
+                        obj.put("s", type.name)
+                        obj.put("ct", org.json.JSONObject.NULL)
+                    }
+                    threats.put(normZone, obj)
                 }
-                threats.put(normZone, obj)
             }
+            prefs.edit().putString("active_threat_map", threats.toString()).commit()
         }
-        prefs.edit().putString("active_threat_map", threats.toString()).apply()
 
         val newCitiesForAudio = cities.filter { city ->
             val norm = normalizeCity(city)

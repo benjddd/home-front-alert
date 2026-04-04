@@ -65,6 +65,7 @@ try {
     }
 } catch (e) {
     console.error('❌ Firebase init failed:', e.message);
+    process.exit(1);
 }
 
 // ── Alert Type Normalization ────────────────────────────────────────────
@@ -105,7 +106,7 @@ app.post('/test-fcm', (req, res) => {
     const apiKey = req.headers['x-api-key'];
     const acceptedKeys = (process.env.API_KEYS || process.env.API_KEY || '')
         .split(/[\s,]+/).filter(Boolean);
-    if (acceptedKeys.length > 0 && !acceptedKeys.includes(apiKey)) {
+    if (acceptedKeys.length === 0 || !acceptedKeys.includes(apiKey)) {
         return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -149,7 +150,7 @@ async function poll() {
             data = (res.status === 204 || !res.data) ? [] : res.data;
             activeSource = 'Official API';
         } catch (e) {
-            // HFC request failed — will retry next cycle
+            console.warn('HFC poll failed:', e.message);
         }
 
         if (data !== null) {

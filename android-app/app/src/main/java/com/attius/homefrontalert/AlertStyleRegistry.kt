@@ -65,11 +65,10 @@ object AlertStyleRegistry {
         // --- 3rd PRIORITY: KEYWORD FALLBACK ---
 
         // CALM Keywords
-        if (lowerTitle.contains("רגיעה") || 
-            lowerTitle.contains("סיום") || 
-            lowerTitle.contains("clear") || 
-            lowerTitle.contains("הסתיים") ||
-            lowerTitle.contains("הסתיים האירוע")) {
+        if (lowerTitle.contains("רגיעה") ||
+            lowerTitle.contains("סיום") ||
+            lowerTitle.contains("clear") ||
+            lowerTitle.contains("הסתיים")) {
             return AlertType.CALM
         }
 

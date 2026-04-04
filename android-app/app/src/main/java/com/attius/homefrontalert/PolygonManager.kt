@@ -6,6 +6,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONObject
 import java.util.zip.ZipInputStream
 
 /**
@@ -96,9 +97,9 @@ object PolygonManager {
             return
         }
 
+        val conn = URL(DOWNLOAD_URL).openConnection() as HttpURLConnection
         try {
             Log.i(TAG, "Downloading latest polygons from GitHub...")
-            val conn = URL(DOWNLOAD_URL).openConnection() as HttpURLConnection
             conn.connectTimeout = 15000
             conn.readTimeout = 15000
             conn.requestMethod = "GET"
@@ -123,10 +124,21 @@ object PolygonManager {
                 return
             }
 
+            // Validate JSON to prevent JS injection via compromised upstream
+            try {
+                JSONObject(json)
+            } catch (e: Exception) {
+                Log.e(TAG, "Downloaded polygon data is not valid JSON, rejecting", e)
+                return
+            }
+
             val cacheFile = File(appContext.filesDir, CACHE_FILE)
             val tmpFile = File(appContext.filesDir, "$CACHE_FILE.tmp")
             tmpFile.writeText(json)
-            tmpFile.renameTo(cacheFile)
+            if (!tmpFile.renameTo(cacheFile)) {
+                tmpFile.copyTo(cacheFile, overwrite = true)
+                tmpFile.delete()
+            }
 
             cachedJson = json
             zoneCount = countZones(json)
@@ -134,6 +146,8 @@ object PolygonManager {
             Log.i(TAG, "Polygon refresh complete: $zoneCount zones")
         } catch (e: Exception) {
             Log.w(TAG, "Polygon refresh failed: ${e.message}")
+        } finally {
+            conn.disconnect()
         }
     }
 

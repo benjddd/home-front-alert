@@ -99,4 +99,7 @@
     <string name="settings_dedup_unit_sec">שנ\'</string>
     <string name="settings_map_url_title">כתובת שירות המפה</string>
     <string name="settings_map_url_hint">https://…/map</string>
+    <string name="yeelight_searching">מחפש…</string>
+    <string name="yeelight_found">נמצא Yeelight ב-%s</string>
+    <string name="yeelight_not_found">לא נמצא מכשיר Yeelight</string>
 </resources>
