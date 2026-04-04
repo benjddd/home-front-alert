@@ -431,18 +431,16 @@ map.on('load', () => {
 // ── Core Render Function ────────────────────────────────────────────────
 // Called by Android JS bridge on every alert/clear event
 window.onThreatUpdate = function(data) {
-  let d;
   try {
-    d = typeof data === 'string' ? JSON.parse(data) : data;
+    const d = typeof data === 'string' ? JSON.parse(data) : data;
+    if (!mapReady) {
+      pendingUpdate = d;
+      return;
+    }
+    renderFromThreatMap(d.threats || {}, d.status || 'GREEN');
   } catch (e) {
-    console.error('onThreatUpdate: invalid JSON', e);
-    return;
+    console.error('onThreatUpdate failed:', e);
   }
-  if (!mapReady) {
-    pendingUpdate = d;
-    return;
-  }
-  renderFromThreatMap(d.threats || {}, d.status || 'GREEN');
 };
 
 function renderFromThreatMap(threats, status) {

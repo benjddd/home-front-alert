@@ -314,7 +314,7 @@
                     android:text="@string/advanced_toggle"
                     android:textColor="#606060"
                     android:textSize="12sp" />
-                <Switch
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/switchShowAdvanced"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
