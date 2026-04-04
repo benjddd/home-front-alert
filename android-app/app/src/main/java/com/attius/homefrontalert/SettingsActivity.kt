@@ -360,8 +360,6 @@ class SettingsActivity : AppCompatActivity() {
         val rootUrl = BuildConfig.BACKEND_URL
         var backendResult = "Proxy: Checking..."
         var hfcResult = "Direct HFC: Checking..."
-        var lastAlertProof = ""
-        
         try {
             val url = URL("$rootUrl/health")
             val conn = url.openConnection() as HttpURLConnection
@@ -380,26 +378,7 @@ class SettingsActivity : AppCompatActivity() {
             hfcResult = if (conn.responseCode == 200 || conn.responseCode == 204) "🟢 Direct HFC: OK" else "🟡 Direct HFC: Blocked"
         } catch (e: Exception) { hfcResult = "🔴 Direct HFC: Unavailable" }
 
-        // Proof of Backend History Capability
-        try {
-            val url = URL("$rootUrl/alerts/history")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.setRequestProperty("X-API-Key", BuildConfig.API_KEY)
-            conn.setRequestProperty("User-Agent", "TzevaArtzi/${BuildConfig.VERSION_NAME}")
-            conn.connectTimeout = 5000
-            if (conn.responseCode == 200) {
-                val body = conn.inputStream.bufferedReader().use { it.readText() }
-                val arr = org.json.JSONArray(body)
-                if (arr.length() > 0) {
-                    val last = arr.getJSONObject(0)
-                    val title = if (last.has("type")) last.getString("type") else last.optString("title", "Unknown")
-                    val time = if (last.has("serverTime")) last.getString("serverTime") else last.optString("time", "...")
-                    lastAlertProof = "\n✨ Last Proof: $title @ $time"
-                }
-            }
-        } catch (e: Exception) {}
-
-        return "$backendResult\n$hfcResult$lastAlertProof"
+        return "$backendResult\n$hfcResult"
     }
 
     private fun setupSoundTestSection() {

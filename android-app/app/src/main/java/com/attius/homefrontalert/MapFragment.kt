@@ -34,7 +34,7 @@ class MapFragment : Fragment() {
 
     private lateinit var mapWebView: WebView
     private lateinit var locationManager: AppLocationManager
-    private var pageReady = false
+    @Volatile private var pageReady = false
 
     private val zoneReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -74,8 +74,6 @@ class MapFragment : Fragment() {
         settings.domStorageEnabled = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
         settings.allowFileAccess = true
-        @Suppress("DEPRECATION")
-        settings.allowFileAccessFromFileURLs = true
         mapWebView.webChromeClient = WebChromeClient()
 
         mapWebView.setOnTouchListener { view, _ ->
@@ -108,6 +106,7 @@ class MapFragment : Fragment() {
                     try {
                         val json = PolygonManager.getPolygonsJson(ctx)
                         mapWebView.post {
+                            if (!isAdded || view == null) return@post
                             mapWebView.evaluateJavascript("if(window.loadPolygons) window.loadPolygons($json);", null)
                             Log.i(TAG, "Polygons injected (${PolygonManager.getZoneCount()} zones)")
                             injectThreatData()
@@ -125,6 +124,30 @@ class MapFragment : Fragment() {
                 view: WebView?,
                 request: android.webkit.WebResourceRequest?
             ): Boolean = true
+
+            // Intercept fetch() requests for local assets — file:// CORS blocks fetch API
+            override fun shouldInterceptRequest(
+                view: WebView?,
+                request: android.webkit.WebResourceRequest?
+            ): android.webkit.WebResourceResponse? {
+                val url = request?.url?.toString() ?: return null
+                val prefix = "file:///android_asset/"
+                if (!url.startsWith(prefix)) return null
+                val assetPath = url.removePrefix(prefix)
+                return try {
+                    val stream = view?.context?.assets?.open(assetPath) ?: return null
+                    val mimeType = when {
+                        assetPath.endsWith(".json") -> "application/json"
+                        assetPath.endsWith(".js") -> "application/javascript"
+                        assetPath.endsWith(".css") -> "text/css"
+                        assetPath.endsWith(".html") -> "text/html"
+                        else -> "application/octet-stream"
+                    }
+                    android.webkit.WebResourceResponse(mimeType, "UTF-8", stream)
+                } catch (e: Exception) {
+                    null
+                }
+            }
         }
 
         mapWebView.loadUrl(LOCAL_MAP_URL)
@@ -140,7 +163,11 @@ class MapFragment : Fragment() {
         val prefs = ctx.getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
         val threatMap = prefs.getString("active_threat_map", "{}") ?: "{}"
         val status = StatusManager.getCurrentStatusString(ctx)
-        val json = """{"threats":$threatMap,"status":"$status","ts":${System.currentTimeMillis()}}"""
+        val json = JSONObject().apply {
+            put("threats", JSONObject(threatMap))
+            put("status", status)
+            put("ts", System.currentTimeMillis())
+        }.toString()
         mapWebView.post {
             mapWebView.evaluateJavascript("if(window.onThreatUpdate) window.onThreatUpdate($json);", null)
         }

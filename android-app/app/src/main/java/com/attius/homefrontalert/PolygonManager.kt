@@ -27,7 +27,7 @@ object PolygonManager {
 
     @Volatile
     private var cachedJson: String? = null
-    private var zoneCount: Int = 0
+    @Volatile private var zoneCount: Int = 0
 
     /**
      * Returns the polygon JSON string. Loads from internal cache if fresh,

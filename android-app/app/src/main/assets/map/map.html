@@ -113,12 +113,12 @@ const ALERT_COLORS = {
   CAUTION: { fill: '#FBBF24', border: '#F59E0B' },
 };
 
-let STATUS_LABELS = {
+const STATUS_LABELS = {
   he: { no_alerts: 'אין התרעות', threat: 'איום מרוחק', warning: 'אזהרה', critical: 'קריטי' },
   en: { no_alerts: 'NO ALERTS', threat: 'REMOTE THREAT', warning: 'WARNING', critical: 'CRITICAL' },
 };
 
-let ALERT_LABELS = {
+const ALERT_LABELS = {
   he: { URGENT: 'ירי רקטות וטילים / חדירה', CAUTION: 'התרעה מוקדמת' },
   en: { URGENT: 'Rocket / Missile / Hostile', CAUTION: 'Pre-Warning' },
 };
@@ -251,13 +251,13 @@ map.on('load', async () => {
         map.moveLayer('neighbor-fill', 'country-fill');
       }
     }
-  } catch (e) {}
+  } catch (e) { console.warn('[map] geo-extras load failed', e); }
 
   // 3. Alert layers (added once, data updated dynamically)
   map.addSource('clearing-src', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'clearing-fill', type: 'fill', source: 'clearing-src',
-    paint: { 'fill-color': '#388E3C', 'fill-opacity': 0.3 },
+    paint: { 'fill-color': '#388E3C', 'fill-opacity': ['number', ['get', 'opacity'], 0.3] },
   });
   map.addLayer({
     id: 'clearing-border', type: 'line', source: 'clearing-src',
@@ -284,31 +284,55 @@ map.on('load', async () => {
     paint: { 'line-color': '#DC2626', 'line-width': 1.5, 'line-opacity': 0.9 },
   });
 
-  // Recent-zone highlight overlay (on top)
+  // Recent-zone highlight overlay (on top) — fill + bright border for visibility
   map.addSource('recent-src', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'recent-fill', type: 'fill', source: 'recent-src',
-    paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.2 },
+    paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.25 },
+  });
+  map.addLayer({
+    id: 'recent-border', type: 'line', source: 'recent-src',
+    paint: { 'line-color': '#FFFFFF', 'line-width': 2.5, 'line-opacity': 0.7 },
   });
 
-  // Heatmap layer
-  map.addSource('heat-src', { type: 'geojson', data: EMPTY_FC });
+  // Heatmap layers — separate for urgent (red) and caution (amber)
+  map.addSource('heat-urgent-src', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
-    id: 'heat-layer', type: 'heatmap', source: 'heat-src',
+    id: 'heat-urgent', type: 'heatmap', source: 'heat-urgent-src',
     paint: {
       'heatmap-weight': ['get', 'weight'],
       'heatmap-intensity': 0.6,
       'heatmap-radius': 30,
-      'heatmap-opacity': 0.4,
+      'heatmap-opacity': 0.5,
       'heatmap-color': [
         'interpolate', ['linear'], ['heatmap-density'],
         0, 'rgba(0,0,0,0)',
-        0.2, 'rgba(255,200,0,0.3)',
-        0.5, 'rgba(255,120,0,0.5)',
-        1.0, 'rgba(255,40,0,0.7)',
+        0.2, 'rgba(239,68,68,0.18)',
+        0.5, 'rgba(239,68,68,0.38)',
+        0.8, 'rgba(220,38,38,0.58)',
+        1.0, 'rgba(200,20,20,0.72)',
       ],
     },
-  }, 'clearing-fill'); // below alert fills
+  }, 'clearing-fill');
+
+  map.addSource('heat-caution-src', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'heat-caution', type: 'heatmap', source: 'heat-caution-src',
+    paint: {
+      'heatmap-weight': ['get', 'weight'],
+      'heatmap-intensity': 0.5,
+      'heatmap-radius': 30,
+      'heatmap-opacity': 0.45,
+      'heatmap-color': [
+        'interpolate', ['linear'], ['heatmap-density'],
+        0, 'rgba(0,0,0,0)',
+        0.2, 'rgba(251,191,36,0.16)',
+        0.5, 'rgba(251,191,36,0.38)',
+        0.8, 'rgba(245,158,11,0.58)',
+        1.0, 'rgba(245,158,11,0.72)',
+      ],
+    },
+  }, 'clearing-fill');
 
   // Click handlers for tooltips
   for (const layerId of ['urgent-fill', 'caution-fill', 'clearing-fill']) {
@@ -349,7 +373,8 @@ function renderFromThreatMap(threats, status) {
   const cautionFeatures = [];
   const newClearingFeatures = [];
   const recentFeatures = [];
-  const heatFeatures = [];
+  const heatUrgentFeatures = [];
+  const heatCautionFeatures = [];
 
   for (const [zoneName, entry] of Object.entries(threats)) {
     const state = entry.s;
@@ -360,9 +385,10 @@ function renderFromThreatMap(threats, status) {
     if (state === 'CLEARING') {
       const ct = entry.ct || 0;
       if (ct > 0 && (now - ct) < CLEAR_FADE_MS) {
+        const opacity = Math.max(0, 0.3 * (1 - (now - ct) / CLEAR_FADE_MS));
         newClearingFeatures.push({
           ...poly,
-          properties: { ...poly.properties, state: 'CLEARING', ct, alertType: 'CLEARING' },
+          properties: { ...poly.properties, state: 'CLEARING', ct, alertType: 'CLEARING', opacity },
         });
       }
       continue;
@@ -381,17 +407,21 @@ function renderFromThreatMap(threats, status) {
       cautionFeatures.push(feature);
     }
 
-    // Heatmap centroid
+    // Heatmap centroid — separate by alert type
     const ring = poly.geometry.coordinates[0];
     let cx = 0, cy = 0;
     for (const [x, y] of ring) { cx += x; cy += y; }
     cx /= ring.length; cy /= ring.length;
-    const weight = alertType === 'URGENT' ? 4 : 1;
-    heatFeatures.push({
+    const heatPoint = {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [cx, cy] },
-      properties: { weight },
-    });
+      properties: { weight: alertType === 'URGENT' ? 4 : 1 },
+    };
+    if (alertType === 'URGENT') {
+      heatUrgentFeatures.push(heatPoint);
+    } else {
+      heatCautionFeatures.push(heatPoint);
+    }
 
     // Recent highlight
     if (entry.t && (now - entry.t) < RECENT_ZONE_MS) {
@@ -403,7 +433,8 @@ function renderFromThreatMap(threats, status) {
   map.getSource('urgent-src').setData({ type: 'FeatureCollection', features: urgentFeatures });
   map.getSource('caution-src').setData({ type: 'FeatureCollection', features: cautionFeatures });
   map.getSource('recent-src').setData({ type: 'FeatureCollection', features: recentFeatures });
-  map.getSource('heat-src').setData({ type: 'FeatureCollection', features: heatFeatures });
+  map.getSource('heat-urgent-src').setData({ type: 'FeatureCollection', features: heatUrgentFeatures });
+  map.getSource('heat-caution-src').setData({ type: 'FeatureCollection', features: heatCautionFeatures });
 
   // Merge new clearing features with existing (preserve ongoing fades)
   clearingFeatures = newClearingFeatures;
@@ -437,35 +468,39 @@ function updateStatusBadge(status) {
   }
 }
 
-// ── Clearing Fade Animation ─────────────────────────────────────────────
+// ── Clearing Fade Animation (per-feature opacity) ───────────────────────
 function tickClearingFade() {
   if (clearingFeatures.length > 0) {
     const now = Date.now();
     const updated = [];
+    let changed = false;
     for (const f of clearingFeatures) {
       const elapsed = now - f.properties.ct;
-      if (elapsed >= CLEAR_FADE_MS) continue; // expired
+      if (elapsed >= CLEAR_FADE_MS) { changed = true; continue; }
+      const newOpacity = Math.max(0, 0.3 * (1 - elapsed / CLEAR_FADE_MS));
+      if (f.properties.opacity === undefined || Math.abs(f.properties.opacity - newOpacity) > 0.005) {
+        f.properties.opacity = newOpacity;
+        changed = true;
+      }
       updated.push(f);
     }
-    if (updated.length !== clearingFeatures.length) {
+    if (changed) {
       clearingFeatures = updated;
       map.getSource('clearing-src').setData({ type: 'FeatureCollection', features: clearingFeatures });
     }
-    // Animate opacity: 0.3 → 0 over CLEAR_FADE_MS
-    if (clearingFeatures.length > 0) {
-      const oldest = Math.min(...clearingFeatures.map(f => f.properties.ct));
-      const elapsed = now - oldest;
-      const opacity = Math.max(0, 0.3 * (1 - elapsed / CLEAR_FADE_MS));
-      try { map.setPaintProperty('clearing-fill', 'fill-opacity', opacity); } catch {}
-    }
   }
-  setTimeout(() => requestAnimationFrame(tickClearingFade), 1000); // 1 fps is enough for fade
+  setTimeout(() => requestAnimationFrame(tickClearingFade), 1000);
 }
 
 // ── Recent Zone Pulse Animation ─────────────────────────────────────────
 function tickRecentPulse(ts) {
-  const opacity = 0.15 + 0.1 * Math.sin((ts || 0) / 450);
-  try { map.setPaintProperty('recent-fill', 'fill-opacity', opacity); } catch {}
+  const t = ts || 0;
+  const fillOpacity = 0.20 + 0.15 * Math.sin(t / 400);
+  const borderOpacity = 0.50 + 0.30 * Math.sin(t / 400);
+  try {
+    map.setPaintProperty('recent-fill', 'fill-opacity', fillOpacity);
+    map.setPaintProperty('recent-border', 'line-opacity', borderOpacity);
+  } catch {}
   requestAnimationFrame(tickRecentPulse);
 }
 
