@@ -71,7 +71,7 @@ function computeMapPayload(userZone) {
     threatManager.tick(); // Ensure logical states are fresh
     const allStates = threatManager.getStates();
 
-    const clusters = [];
+    const rawClusters = [];
     const urgentFeatures = [];
     const preWarningFeatures = [];
     const clearingZones = [];
@@ -139,7 +139,7 @@ function computeMapPayload(userZone) {
                 })
                 .map(f => f.geometry);
 
-            clusters.push({
+            rawClusters.push({
                 id: `${type}-${now}-${Math.random().toString(36).slice(2,7)}`,
                 alertType: type,
                 color: typeDef.color,
@@ -151,6 +151,29 @@ function computeMapPayload(userZone) {
                 recentZoneGeometries,
             });
         }
+    }
+
+    rawClusters.sort((a, b) => b.priority - a.priority);
+    const clusters = [];
+    let occupiedGeometry = null;
+
+    for (const cluster of rawClusters) {
+        const clippedGeometry = _clipGeometry(cluster.geometry, occupiedGeometry);
+        if (!clippedGeometry) {
+            continue;
+        }
+
+        const clippedRecentZoneGeometries = cluster.recentZoneGeometries
+            .map(geometry => _clipGeometry(geometry, occupiedGeometry))
+            .filter(Boolean);
+
+        clusters.push({
+            ...cluster,
+            geometry: clippedGeometry,
+            recentZoneGeometries: clippedRecentZoneGeometries,
+        });
+
+        occupiedGeometry = _mergeOccupiedGeometry(occupiedGeometry, clippedGeometry);
     }
 
     clusters.sort((a, b) => a.priority - b.priority);
@@ -215,6 +238,52 @@ function _fullUnion(features) {
         const hull = concaveman(points.features.map(f => f.geometry.coordinates), 2, 0);
         return { type: 'Polygon', coordinates: [hull] };
     } catch { return _unionWithBuffer(features, 0.3); }
+}
+
+function _toPolygonFeature(geometry) {
+    if (!geometry) return null;
+    if (geometry.type === 'Feature') {
+        return _toPolygonFeature(geometry.geometry);
+    }
+    if (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon') {
+        return turf.feature(geometry);
+    }
+    if (geometry.type === 'GeometryCollection') {
+        const polygonGeometries = geometry.geometries.filter(g => g.type === 'Polygon' || g.type === 'MultiPolygon');
+        if (polygonGeometries.length === 0) return null;
+        let merged = turf.feature(polygonGeometries[0]);
+        for (let i = 1; i < polygonGeometries.length; i++) {
+            const next = turf.feature(polygonGeometries[i]);
+            const unioned = turf.union(turf.featureCollection([merged, next]));
+            if (!unioned) return merged;
+            merged = unioned;
+        }
+        return merged;
+    }
+    return null;
+}
+
+function _clipGeometry(geometry, occupiedGeometry) {
+    const polygonFeature = _toPolygonFeature(geometry);
+    if (!polygonFeature) return geometry;
+    if (!occupiedGeometry) return polygonFeature.geometry;
+    try {
+        const clipped = turf.difference(polygonFeature, occupiedGeometry);
+        return clipped ? clipped.geometry : null;
+    } catch {
+        return polygonFeature.geometry;
+    }
+}
+
+function _mergeOccupiedGeometry(occupiedGeometry, geometry) {
+    const polygonFeature = _toPolygonFeature(geometry);
+    if (!polygonFeature) return occupiedGeometry;
+    if (!occupiedGeometry) return polygonFeature;
+    try {
+        return turf.union(turf.featureCollection([occupiedGeometry, polygonFeature])) || occupiedGeometry;
+    } catch {
+        return occupiedGeometry;
+    }
 }
 
 /**

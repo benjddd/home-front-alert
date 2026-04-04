@@ -251,13 +251,14 @@ if (navigator.geolocation) {
 const managedLayers  = new Set();
 const managedSources = new Set();
 const recentPulseLayers = new Set(); // layer IDs receiving new-zone pulse
+const managedClickHandlers = new Map(); // layerId -> handler fn
 
 // Drive a ~1 Hz sine-wave opacity pulse on all active recent-zone overlays.
 let _pulseRaf = null;
 function _pulseTick(ts) {
   if (recentPulseLayers.size === 0) { _pulseRaf = null; return; }
-  // oscillates between 0.28 and 0.56
-  const opacity = 0.42 + 0.14 * Math.sin(ts / 500);
+  // Highlight overlay pulse (on top of base fill): oscillates between 0.14 and 0.30
+  const opacity = 0.22 + 0.08 * Math.sin(ts / 450);
   for (const lid of recentPulseLayers) {
     try { map.setPaintProperty(lid, 'fill-opacity', opacity); } catch {}
   }
@@ -271,6 +272,11 @@ function _startPulse() {
 const CLEAR_FADE_MS   = 15 * 60 * 1000;
 
 function clearAlertLayers() {
+  // Remove per-layer event handlers first to avoid accumulating listeners.
+  for (const [layerId, handler] of managedClickHandlers.entries()) {
+    try { map.off('click', layerId, handler); } catch {}
+  }
+  managedClickHandlers.clear();
   for (const id of managedLayers)  { try { map.removeLayer(id);  } catch {} }
   for (const id of managedSources) { try { map.removeSource(id); } catch {} }
   managedLayers.clear();
@@ -324,7 +330,7 @@ function addClusterLayers(cluster) {
         features: cluster.recentZoneGeometries.map(g => ({ type: 'Feature', properties: {}, geometry: g })),
       },
     });
-    map.addLayer({ id: recentId, type: 'fill', source: recentSrc, paint: { 'fill-color': cluster.color, 'fill-opacity': 0.42 } });
+    map.addLayer({ id: recentId, type: 'fill', source: recentSrc, paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.22 } });
     managedSources.add(recentSrc);
     managedLayers.add(recentId);
     recentPulseLayers.add(recentId);
@@ -332,10 +338,12 @@ function addClusterLayers(cluster) {
   }
 
   // Click/tap → show tooltip
-  map.on('click', fillId, (e) => {
+  const clickHandler = (e) => {
     const props = e.features?.[0]?.properties ?? {};
     showTooltip(props.name, props.alertType);
-  });
+  };
+  map.on('click', fillId, clickHandler);
+  managedClickHandlers.set(fillId, clickHandler);
 }
 
 // ── Clearing zone animation (green → transparent over 15 min) ────────────────
@@ -368,7 +376,7 @@ function updateClearingZones(zones) {
       paint: {
         'fill-color': '#388E3C', // Forest Green for clearer distinction from red
         'fill-opacity': [
-          'interpolate', ['linear'], ['-', Date.now(), ['get', 'clearedAt']],
+          'interpolate', ['linear'], ['-', ['now'], ['get', 'clearedAt']],
           0, 0.30, // Lower initial opacity than active red (0.38)
           CLEAR_FADE_MS, 0
         ]
