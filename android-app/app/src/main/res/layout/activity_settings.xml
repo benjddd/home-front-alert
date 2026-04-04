@@ -532,13 +532,14 @@
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
 
-                <!-- ── ALERT LOGIC (SMART DEDUPLICATION) ── -->
+                <!-- ── ALERT LOGIC (SMART DEDUPLICATION) — hidden, TTL stays in code ── -->
                 <androidx.cardview.widget.CardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
                     android:backgroundTint="#1A1A1A"
-                    android:elevation="4dp">
+                    android:elevation="4dp"
+                    android:visibility="gone">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -596,13 +597,14 @@
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
 
-                <!-- CARD: MAP SERVICE URL -->
+                <!-- CARD: MAP SERVICE URL — removed (map is bundled locally) -->
                 <androidx.cardview.widget.CardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
                     android:backgroundTint="#1E1E1E"
-                    android:elevation="4dp">
+                    android:elevation="4dp"
+                    android:visibility="gone">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

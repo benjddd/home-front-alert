@@ -99,6 +99,12 @@ object StatusManager {
         return ActiveThreatsSnapshot(active10mCount, closestDist10m, localRemaining, homeThreatObj, recentZones)
     }
 
+    /** Returns the current dashboard status string (GREEN, YELLOW, ORANGE, RED). */
+    fun getCurrentStatusString(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString("dash_status", "GREEN") ?: "GREEN"
+    }
+
     fun updateStatus(context: Context, newStatus: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val oldStatus = prefs.getString("dash_status", "GREEN")
@@ -167,7 +173,11 @@ object StatusManager {
     fun recalculateStatus(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
-        var threats = org.json.JSONObject(threatsStr)
+        var threats = try { org.json.JSONObject(threatsStr) } catch (e: Exception) {
+            Log.e("HomeFrontAlerts", "Corrupt active_threat_map, resetting", e)
+            prefs.edit().putString("active_threat_map", "{}").apply()
+            org.json.JSONObject()
+        }
         val homeZone = normalizeCity(prefs.getString("current_home_zone", "") ?: "")
 
         val now = System.currentTimeMillis()
@@ -185,7 +195,8 @@ object StatusManager {
                 }
             } else {
                 // Remove active threat if it's past the 30-min window
-                if (now - obj.optLong("t", now) > getThreatTimeoutMs(prefs)) {
+                val t = obj.optLong("t", -1L)
+                if (t <= 0L || now - t > getThreatTimeoutMs(prefs)) {
                     iter.remove()
                 }
             }
@@ -560,8 +571,9 @@ object StatusManager {
                 // Explicit CALM transitions matching active zones into CLEARING (fade phase).
                 val existing = threats.optJSONObject(normZone)
                 if (existing != null) {
+                    val alreadyClearing = existing.optString("s") == STATE_CLEARING
                     existing.put("s", STATE_CLEARING)
-                    existing.put("ct", nowMs)
+                    if (!alreadyClearing) existing.put("ct", nowMs)
                     threats.put(normZone, existing)
                 }
                 // Cleanup legacy raw-keyed entries if they exist.

@@ -199,18 +199,7 @@ class SettingsActivity : AppCompatActivity() {
             sharedPrefs.edit().putBoolean("show_advanced_settings", isChecked).apply()
         }
 
-        // 6c. Alert TTL (Smart Deduplication)
-        val etAlertTtl = findViewById<EditText>(R.id.etAlertTtl)
-        val currentTtl = sharedPrefs.getLong("alert_ttl_seconds", 180L)
-        etAlertTtl.setText(currentTtl.toString())
-        etAlertTtl.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                val input = s?.toString()?.toLongOrNull() ?: 180L
-                sharedPrefs.edit().putLong("alert_ttl_seconds", input).apply()
-            }
-        })
+        // Alert TTL — no longer user-configurable (stays in SharedPrefs code at 180s default)
 
         // 6b. Alert Source Selector (PRO only)
         val cardAlertSource = findViewById<androidx.cardview.widget.CardView>(R.id.cardAlertSource)
@@ -257,20 +246,7 @@ class SettingsActivity : AppCompatActivity() {
         if (BuildConfig.IS_PAID) cardShield.visibility = android.view.View.GONE
 
 
-        // 6d. Map Service URL override
-        val etMapUrl = findViewById<EditText>(R.id.etMapServiceUrl)
-        val defaultMapUrl = "https://homefront-map-cjnpwpm63q-zf.a.run.app/map"
-        etMapUrl?.setText(sharedPrefs.getString("map_service_url", defaultMapUrl))
-        etMapUrl?.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                val input = s?.toString()?.trim() ?: return
-                if (isAllowedMapServiceUrl(input)) {
-                    sharedPrefs.edit().putString("map_service_url", input).apply()
-                }
-            }
-        })
+        // Map Service URL — removed (map is now bundled locally)
 
         // 7. Dynamic UI Refresh (Zone Status)
         val tvShieldLog = findViewById<TextView>(R.id.tvHybridLog)
@@ -384,8 +360,6 @@ class SettingsActivity : AppCompatActivity() {
         val rootUrl = BuildConfig.BACKEND_URL
         var backendResult = "Proxy: Checking..."
         var hfcResult = "Direct HFC: Checking..."
-        var lastAlertProof = ""
-        
         try {
             val url = URL("$rootUrl/health")
             val conn = url.openConnection() as HttpURLConnection
@@ -404,26 +378,7 @@ class SettingsActivity : AppCompatActivity() {
             hfcResult = if (conn.responseCode == 200 || conn.responseCode == 204) "🟢 Direct HFC: OK" else "🟡 Direct HFC: Blocked"
         } catch (e: Exception) { hfcResult = "🔴 Direct HFC: Unavailable" }
 
-        // Proof of Backend History Capability
-        try {
-            val url = URL("$rootUrl/alerts/history")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.setRequestProperty("X-API-Key", BuildConfig.API_KEY)
-            conn.setRequestProperty("User-Agent", "TzevaArtzi/${BuildConfig.VERSION_NAME}")
-            conn.connectTimeout = 5000
-            if (conn.responseCode == 200) {
-                val body = conn.inputStream.bufferedReader().use { it.readText() }
-                val arr = org.json.JSONArray(body)
-                if (arr.length() > 0) {
-                    val last = arr.getJSONObject(0)
-                    val title = if (last.has("type")) last.getString("type") else last.optString("title", "Unknown")
-                    val time = if (last.has("serverTime")) last.getString("serverTime") else last.optString("time", "...")
-                    lastAlertProof = "\n✨ Last Proof: $title @ $time"
-                }
-            }
-        } catch (e: Exception) {}
-
-        return "$backendResult\n$hfcResult$lastAlertProof"
+        return "$backendResult\n$hfcResult"
     }
 
     private fun setupSoundTestSection() {
@@ -546,13 +501,6 @@ class SettingsActivity : AppCompatActivity() {
         }
         val color = if (isShieldActive) AlertColors.THREAT else Color.parseColor("#606060")
         tvConnectivityDetail.setTextColor(color)
-    }
-
-    private fun isAllowedMapServiceUrl(input: String): Boolean {
-        val uri = android.net.Uri.parse(input)
-        val host = uri.host?.lowercase() ?: return false
-        if (uri.scheme != "https") return false
-        return host == "homefront-map-cjnpwpm63q-zf.a.run.app" || host == "localhost" || host == "127.0.0.1"
     }
 
     private fun refreshSettingsUI() {

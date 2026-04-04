@@ -1,151 +1,80 @@
+'use strict';
+
+/**
+ * index.js — Minimal HFC Alert Relay
+ *
+ * Exactly 3 responsibilities:
+ *   1. Poll HFC oref.org.il every 1 second
+ *   2. Normalize alert types (Hebrew → canonical)
+ *   3. Dispatch FCM messages to Android devices
+ *
+ * No geometry computation. No map state. No polygon cache.
+ * The Android app is the SSOT for all rendering (dashboard, map, sounds).
+ */
+
 const admin = require('firebase-admin');
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const fs = require('fs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { GoogleAuth } = require('google-auth-library');
-const { execFile } = require('child_process');
 const path = require('path');
 const config = require('./config');
+const dedup = require('./dedup');
 
-const auth = new GoogleAuth();
+// ── Express Setup ───────────────────────────────────────────────────────
 const app = express();
-app.set('trust proxy', 1); // Trust Cloud Run Load Balancer
-const MAP_SERVICE_URL = process.env.MAP_SERVICE_URL; 
-// MAP_SHARED_SECRET is deprecated and no longer required for prod in favour of OIDC
+app.set('trust proxy', 1);
 
-function getAcceptedSecrets(multiValueName, singleValueName) {
-    const values = [process.env[multiValueName], process.env[singleValueName]]
-        .filter(Boolean)
-        .flatMap(value => String(value).split(/[\s,]+/))
-        .map(value => value.trim())
-        .filter(Boolean);
-    return [...new Set(values)];
-}
-
-// Security Hardening — custom CSP needed for dashboard iframes / inline scripts
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
-            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-            "script-src": ["'self'", "'unsafe-inline'", "*.opendns.com", "gateway.id.swg.umbrella.com", "*.sse.cisco.com", "*.ciscosecureaccess.cn"],
-            "script-src-attr": ["'self'", "'unsafe-inline'"],
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
         },
     },
 }));
-app.use(express.json());
 
-// Handle favicon to prevent 404 logs
-app.get('/favicon.ico', (req, res) => res.status(204).end());
+app.use(cors({ origin: '*', methods: ['GET', 'POST'] }));
+app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
-// Serve static files from 'public' directory
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Run string extraction script on startup to ensure SSOT
-const extractScriptPath = path.join(__dirname, '..', 'scripts', 'extract_strings.js');
-if (fs.existsSync(extractScriptPath)) {
-    execFile('node', [extractScriptPath], (error, stdout, stderr) => {
-        if (error) {
-            console.error(`❌ String extraction failed: ${error.message}`);
-            return;
-        }
-        if (stderr) console.warn(`⚠️ String extraction warning: ${stderr}`);
-        console.log(`✅ String extraction successful: ${stdout.trim()}`);
-    });
-} else {
-    console.warn(`⚠️ String extraction script not found at startup: ${extractScriptPath}`);
-}
-
-// Strict Rate Limiting: 100 requests per 15 minutes
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 200,
     standardHeaders: true,
     legacyHeaders: false,
-    message: "Too many requests from this IP, please try again later."
 });
 app.use(limiter);
 
-// Dashboard Password Check Utility
-const dashboardAuth = (req, res, next) => {
-    const pass = req.headers['x-dashboard-pass'];
-    const acceptedPasswords = getAcceptedSecrets('DASHBOARD_PASSES', 'DASHBOARD_PASS');
-
-    if (acceptedPasswords.length === 0) {
-        console.error("CRITICAL: dashboard credentials are not configured.");
-        return res.status(500).json({ error: "Server Configuration Error" });
-    }
-
-    if (!pass || !acceptedPasswords.includes(pass)) {
-        console.warn('Unauthorized dashboard access attempt.');
-        return res.status(401).json({ error: "Unauthorized" });
-    }
-    next();
-};
-
-// Auth middleware for sensitive endpoints
-app.use((req, res, next) => {
-    const apiKey = req.headers['x-api-key'];
-    const acceptedApiKeys = getAcceptedSecrets('API_KEYS', 'API_KEY');
-
-    // Health and Privacy are fully public
-    const publicPaths = ['/health', '/privacy'];
-    if (publicPaths.some(p => req.path.startsWith(p))) return next();
-
-    if (acceptedApiKeys.length === 0) {
-        console.error("CRITICAL: API credentials are not configured.");
-        return res.status(500).json({ error: "Server Configuration Error" });
-    }
-
-    const isSensitive = req.path === '/alerts' || req.path === '/test-fcm';
-    if (isSensitive && (!apiKey || !acceptedApiKeys.includes(apiKey))) {
-        return res.status(403).json({ error: "Forbidden: Valid API Key required" });
-    }
-    next();
-});
-
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'User-Agent', 'X-API-Key', 'X-Dashboard-Pass']
-}));
-
-// --- Firebase Init ---
+// ── Firebase Init ───────────────────────────────────────────────────────
 try {
     if (!admin.apps.length) {
         if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-            admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-            console.log("🔥 Firebase: Initialized via Environment Variable.");
+            const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+            admin.initializeApp({ credential: admin.credential.cert(sa) });
+            console.log('🔥 Firebase: Initialized via env var.');
         } else if (process.env.K_SERVICE) {
             admin.initializeApp({ credential: admin.credential.applicationDefault() });
-            console.log("🔥 Firebase: Initialized via Application Default Credentials (GCP).");
+            console.log('🔥 Firebase: Initialized via ADC (Cloud Run).');
         } else {
             const keyPath = path.join(__dirname, 'serviceAccountKey.json');
             admin.initializeApp({ credential: admin.credential.cert(require(keyPath)) });
-            console.log("🔥 Firebase: Initialized via local file at:", keyPath);
+            console.log('🔥 Firebase: Initialized via local file.');
         }
-    } else {
-        console.log("ℹ️ Firebase: App already initialized.");
     }
 } catch (e) {
-    console.error("❌ Firebase: Initialization failed critical error.", e);
+    console.error('❌ Firebase init failed:', e.message);
 }
 
-// --- Alert Type Normalization (HFC Hebrew → Canonical Keys) ---
-// ALERT_TYPE_MAP is the SSOT — defined in config.js, shared with mapState.js.
+// ── Alert Type Normalization ────────────────────────────────────────────
 function normalizeAlertType(rawType) {
     if (!rawType) return 'OTHER';
     const trimmed = rawType.trim();
     const map = config.ALERT_TYPE_MAP;
-    // Direct match
     if (map[trimmed]) return map[trimmed];
-    // Case-insensitive match
     const lower = trimmed.toLowerCase();
     if (map[lower]) return map[lower];
-    // Substring match for partial Hebrew descriptions
     for (const [pattern, canonical] of Object.entries(map)) {
         if (trimmed.includes(pattern)) return canonical;
     }
@@ -153,111 +82,50 @@ function normalizeAlertType(rawType) {
     return 'OTHER';
 }
 
-// --- App State ---
-const mapState = require('./mapState');
-const threatManager = require('./threatManager');
-const polygonCache = require('./polygonCache');
+// ── Connection State ────────────────────────────────────────────────────
 let isConnected = false;
-let activeSource = "None";
+let activeSource = 'None';
 let lastSuccessfulPoll = null;
-let lastErrors = [];
 
-// --- State Monitor (1s Ticker) ---
-let systemStatus = 'CALM';
-let prevStatus   = 'CALM';
-
-setInterval(() => {
-    // 1. Stabilization & Transitions handled by ThreatManager (CALM transition has 8s buffer)
-    threatManager.tick(); 
-    
-    // 2. Derive SSOT status for Dashboard/Map
-    const currentStatus = mapState.getSystemStatus(null);
-    
-    // 3. Log state transitions only. Explicit clears are dispatched from the
-    // HFC clear path so zone-scoped CLEARING state can live for the full fade.
-    if (currentStatus === 'CALM' && prevStatus !== 'CALM') {
-        console.log("✅ State transition to CALM detected.");
-    } else if (currentStatus !== 'CALM' && prevStatus === 'CALM') {
-        console.log(`📡 State transition to ${currentStatus} detected.`);
-    }
-
-    prevStatus = currentStatus;
-    systemStatus = currentStatus;
-}, 1000);
-
-// --- API Endpoints ---
-app.get('/health', (req, res) => {
-    res.status(200).json({
+// ── API Endpoints ───────────────────────────────────────────────────────
+app.get('/health', (_req, res) => {
+    res.json({
         status: 'ok',
         connectedToHomeFront: isConnected,
         source: activeSource,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        lastSync: lastSuccessfulPoll,
     });
 });
 
-app.get('/privacy', (req, res) => {
-    res.sendFile(__dirname + '/public/privacy.html');
-});
-
-// Current alert status and map data SSOT
-app.get('/api/map-data', (req, res) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store');
-    try {
-        const payload = mapState.computeMapPayload();
-        res.json(payload);
-    } catch (err) {
-        console.error('[Relay] computeMapPayload error:', err);
-        res.status(500).json({ error: 'map synchronization failed' });
-    }
-});
-
-app.get('/alerts', (req, res) => {
-    // Consolidated SSOT state for Dashboard
-    res.json({ 
-        active: {
-            status: mapState.getSystemStatus(null), // Direct from SSOT
-            recent_alerts_10m: mapState.getRecentAlertCount(),
-        }, 
-        system: { 
-            connected: isConnected, 
-            source: activeSource, 
-            last_sync: lastSuccessfulPoll 
-        } 
-    });
-});
+// Manual test FCM (requires API key)
+app.use(express.json());
 
 app.post('/test-fcm', (req, res) => {
-    const isDryRun = req.body.dryRun === true;
+    const apiKey = req.headers['x-api-key'];
+    const acceptedKeys = (process.env.API_KEYS || process.env.API_KEY || '')
+        .split(/[\s,]+/).filter(Boolean);
+    if (acceptedKeys.length > 0 && !acceptedKeys.includes(apiKey)) {
+        return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const testAlert = {
         id: 'TEST_' + Date.now(),
         type: req.body.type || 'Test Alert / בדיקה',
-        cities: req.body.cities || ['בדיקה — FCM Test']
+        cities: req.body.cities || ['בדיקה — FCM Test'],
     };
 
-    if (isDryRun) {
-        console.log('🛡️ DRY-RUN /test-fcm — Map notified only.');
-        mapState.updateAlerts(testAlert.cities, testAlert.type);
-        notifyMapServiceAlert(testAlert);
+    if (req.body.dryRun === true) {
+        console.log('🛡️ DRY-RUN /test-fcm');
         return res.json({ ok: true, dryRun: true, alert: testAlert });
     }
 
-    console.log('🧪 Manual /test-fcm triggered (LIVE)');
-    handleAlertDispatch(testAlert);
+    console.log('🧪 Manual /test-fcm triggered');
+    sendFCMAlert(testAlert);
     res.json({ ok: true, dryRun: false, alert: testAlert });
 });
 
-// Dashboard status: password-protected so the web dashboard can poll live alert state
-app.get('/dashboard/status', dashboardAuth, (req, res) => {
-    res.json({
-        status: mapState.getSystemStatus(null),
-        recent_alerts_10m: mapState.getRecentAlertCount(),
-        connected: isConnected,
-        last_sync: lastSuccessfulPoll,
-    });
-});
-
-// --- Poller Logic ---
-const interval = config.POLL_INTERVAL_MS;
+// ── HFC Poller ──────────────────────────────────────────────────────────
 const HFC_API_URL = 'https://www.oref.org.il/WarningMessages/alert/Alerts.json';
 const HFC_HEADERS = {
     'User-Agent': 'PikudHaoref/1.6 (iPhone; iOS 17.4; Scale/3.00)',
@@ -265,60 +133,61 @@ const HFC_HEADERS = {
     'X-Requested-With': 'XMLHttpRequest',
     'Accept': 'application/json, text/javascript, */*; q=0.01',
     'Cache-Control': 'no-cache',
-    'Pragma': 'no-cache'
+    'Pragma': 'no-cache',
 };
 
-const poll = async function () {
+async function poll() {
     try {
         let data = null;
-        let source = "None";
-        let errors = [];
 
         try {
-            const hfcRes = await axios.get(HFC_API_URL, {
+            const res = await axios.get(HFC_API_URL, {
                 headers: HFC_HEADERS,
                 timeout: config.HFC_REQUEST_TIMEOUT_MS,
-                validateStatus: s => s === 200 || s === 204
+                validateStatus: s => s === 200 || s === 204,
             });
-            if (hfcRes.status === 204 || !hfcRes.data) { data = []; } else { data = hfcRes.data; }
-            source = "Official API";
-        } catch (e) { errors.push(`Official: ${e.message}`); }
-
-        if (data === null) { /* ... Fallback A ... */ }
-        if (data === null) { /* ... Fallback B ... */ }
+            data = (res.status === 204 || !res.data) ? [] : res.data;
+            activeSource = 'Official API';
+        } catch (e) {
+            // HFC request failed — will retry next cycle
+        }
 
         if (data !== null) {
-            activeSource = source;
             lastSuccessfulPoll = new Date().toISOString();
             isConnected = true;
-            handleSuccessfulConnection(data);
+            processAlerts(data);
         } else {
             isConnected = false;
-            activeSource = "None";
+            activeSource = 'None';
         }
-        lastErrors = errors;
     } catch (e) {
         isConnected = false;
-        activeSource = "None";
+        activeSource = 'None';
     } finally {
-        setTimeout(poll, interval);
+        setTimeout(poll, config.POLL_INTERVAL_MS);
     }
-};
+}
 
-function handleSuccessfulConnection(data) {
-    const rawAlerts = Array.isArray(data) ? data : (data && typeof data === 'object' && Object.keys(data).length > 0 ? [data] : []);
+// ── Alert Processing ────────────────────────────────────────────────────
+function processAlerts(data) {
+    const rawAlerts = Array.isArray(data)
+        ? data
+        : (data && typeof data === 'object' && Object.keys(data).length > 0 ? [data] : []);
+
     if (rawAlerts.length === 0) return;
 
-    // 1. Group by Alert Type to enable batching
-    const batchedByType = new Map(); // type -> { id, cities: Set }
+    // Group by canonical alert type
+    const batchedByType = new Map();
 
-    for (const alertPayload of rawAlerts) {
-        const rawType = alertPayload.title || alertPayload.desc || alertPayload.type || "Rocket Alert";
+    for (const payload of rawAlerts) {
+        const rawType = payload.title || payload.desc || payload.type || 'Rocket Alert';
         const type = normalizeAlertType(rawType);
         const legacyTitle = String(rawType || '').trim();
-        const legacyCat = String(alertPayload.cat || '').trim();
-        const id = alertPayload.id || Date.now().toString();
-        const cities = Array.isArray(alertPayload.cities) ? alertPayload.cities : (Array.isArray(alertPayload.data) ? alertPayload.data : []);
+        const legacyCat = String(payload.cat || '').trim();
+        const id = payload.id || Date.now().toString();
+        const cities = Array.isArray(payload.cities)
+            ? payload.cities
+            : (Array.isArray(payload.data) ? payload.data : []);
 
         if (cities.length === 0) continue;
 
@@ -332,65 +201,53 @@ function handleSuccessfulConnection(data) {
         }
     }
 
-    // 2. Dispatch one FCM per unique Alert Type (Batching)
     for (const [type, entry] of batchedByType) {
-        const consolidatedCities = [...entry.cities];
-        
-        // Handle explicit clear if the 'type' indicates it (e.g., 'CLEAR' or 'CALM' or specific HFC category)
+        const allCities = [...entry.cities];
+
+        // Handle explicit clears
         if (type.toUpperCase().includes('CLEAR') || type.toUpperCase().includes('CALM')) {
-            threatManager.handleExplicitClear(consolidatedCities, type);
-            console.log(`🟢 BATCHED CLEAR: ${consolidatedCities.length} zones for ${type}.`);
+            console.log(`🟢 CLEAR: ${allCities.length} zones for ${type}.`);
             sendFCMClear({
                 id: entry.id,
                 type,
-                cities: consolidatedCities,
+                cities: allCities,
                 legacyTitle: entry.legacyTitle || '',
-                legacyCat: entry.legacyCat || ''
-            });
-            notifyMapServiceClear({
-                cities: consolidatedCities,
-                type,
-                legacyTitle: entry.legacyTitle || '',
-                legacyCat: entry.legacyCat || ''
+                legacyCat: entry.legacyCat || '',
             });
             continue;
         }
 
-        const newCount = threatManager.updateFromSnapshot(consolidatedCities, type);
-        
-        if (newCount > 0) {
-            console.log(`🚨 BATCHED DISPATCH: ${newCount} new/escalated zones for ${type}.`);
-            handleAlertDispatch({
+        // Dedup: only dispatch zones not recently sent
+        const newCities = dedup.filterNew(allCities, type);
+
+        if (newCities.length > 0) {
+            console.log(`🚨 DISPATCH: ${newCities.length} new zones for ${type} (${allCities.length} total).`);
+            sendFCMAlert({
                 id: entry.id,
-                type: type,
-                cities: consolidatedCities,
+                type,
+                cities: newCities,
                 legacyTitle: entry.legacyTitle || '',
-                legacyCat: entry.legacyCat || ''
+                legacyCat: entry.legacyCat || '',
             });
         }
     }
 }
 
-function handleAlertDispatch(alert) {
-    sendFCMAlert(alert);
-    notifyMapServiceAlert(alert);
-}
+// ── FCM Dispatch ────────────────────────────────────────────────────────
+const FCM_CHUNK_SIZE = 100;
 
 function sendFCMAlert(alertData) {
-    const CHUNK_SIZE = 100;
     const citiesList = alertData.cities || [];
     if (citiesList.length === 0) return;
 
-    for (let i = 0; i < citiesList.length; i += CHUNK_SIZE) {
-        const chunk = citiesList.slice(i, i + CHUNK_SIZE);
-        const chunkIndex = Math.floor(i / CHUNK_SIZE) + 1;
-        const totalChunks = Math.ceil(citiesList.length / CHUNK_SIZE);
+    for (let i = 0; i < citiesList.length; i += FCM_CHUNK_SIZE) {
+        const chunk = citiesList.slice(i, i + FCM_CHUNK_SIZE);
+        const chunkIndex = Math.floor(i / FCM_CHUNK_SIZE) + 1;
+        const totalChunks = Math.ceil(citiesList.length / FCM_CHUNK_SIZE);
 
         const message = {
             data: {
                 alertId: String(alertData.id),
-                // Backward-compat: old clients expect phrase-like type here.
-                // New clients should prefer canonicalType.
                 type: String(alertData.legacyTitle || alertData.type),
                 canonicalType: String(alertData.type || ''),
                 legacyTitle: String(alertData.legacyTitle || ''),
@@ -398,24 +255,26 @@ function sendFCMAlert(alertData) {
                 schemaVersion: '2',
                 classificationPath: 'backend_canonical',
                 cities: JSON.stringify(chunk),
-                chunkInfo: String(`${chunkIndex}/${totalChunks}`),
-                is_dedup: 'true'
+                chunkInfo: `${chunkIndex}/${totalChunks}`,
+                is_dedup: 'true',
             },
             android: { priority: 'high', ttl: 60 * 1000 },
-            topic: 'alerts'
+            topic: 'alerts',
         };
 
         admin.messaging().send(message)
-            .then(res => console.log(`🚀 FCM Success (${chunkIndex}/${totalChunks}):`, res))
-            .catch(err => console.error(`❌ FCM Error:`, err.message));
+            .then(res => console.log(`🚀 FCM OK (${chunkIndex}/${totalChunks}):`, res))
+            .catch(err => console.error('❌ FCM Error:', err.message));
     }
 }
 
 function sendFCMClear(alertData = {}) {
-    const CHUNK_SIZE = 100;
     const citiesList = Array.isArray(alertData.cities) ? alertData.cities : [];
     const chunks = citiesList.length > 0
-        ? Array.from({ length: Math.ceil(citiesList.length / CHUNK_SIZE) }, (_, index) => citiesList.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE))
+        ? Array.from(
+            { length: Math.ceil(citiesList.length / FCM_CHUNK_SIZE) },
+            (_, i) => citiesList.slice(i * FCM_CHUNK_SIZE, (i + 1) * FCM_CHUNK_SIZE)
+          )
         : [[]];
 
     chunks.forEach((chunk, index) => {
@@ -431,55 +290,26 @@ function sendFCMClear(alertData = {}) {
                 classificationPath: 'backend_canonical',
                 clearScope: hasZones ? 'zones' : 'global',
                 time: new Date().toISOString(),
-                is_dedup: 'true'
+                is_dedup: 'true',
             },
             android: { priority: 'high', ttl: 60 * 1000 },
-            topic: 'alerts'
+            topic: 'alerts',
         };
 
         if (hasZones) {
             message.data.cities = JSON.stringify(chunk);
-            message.data.chunkInfo = String(`${index + 1}/${chunks.length}`);
+            message.data.chunkInfo = `${index + 1}/${chunks.length}`;
         }
 
         admin.messaging().send(message)
-            .then(() => console.log(`🚀 FCM: All-Clear sent (${index + 1}/${chunks.length}).`))
-            .catch(err => console.error('❌ FCM: All-Clear error:', err.message));
+            .then(() => console.log(`🚀 FCM Clear (${index + 1}/${chunks.length}).`))
+            .catch(err => console.error('❌ FCM Clear error:', err.message));
     });
 }
 
-async function notifyMapServiceAlert(alertData) {
-    if (!MAP_SERVICE_URL) return;
-    try {
-        const client = await auth.getIdTokenClient(MAP_SERVICE_URL);
-        await client.request({
-            url: `${MAP_SERVICE_URL}/internal/alert`,
-            method: 'POST',
-            data: { zones: alertData.cities || [], categoryDesc: alertData.type || '' }
-        });
-    } catch (e) { console.error("Map notify error:", e.message); }
-}
-
-async function notifyMapServiceClear(alertData = {}) {
-    if (!MAP_SERVICE_URL) return;
-    try {
-        const client = await auth.getIdTokenClient(MAP_SERVICE_URL);
-        const cities = Array.isArray(alertData.cities) ? alertData.cities : [];
-        if (cities.length === 0) return;
-        await client.request({
-            url: `${MAP_SERVICE_URL}/internal/alert`,
-            method: 'POST',
-            data: { action: 'clear', zones: cities, categoryDesc: alertData.type || '' }
-        });
-    } catch (e) { console.error("Map clear error:", e.message); }
-}
-
+// ── Start ───────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 8080;
-polygonCache.init().then(() => {
-    console.log(`[backend] Polygon cache ready: ${polygonCache.isReady()}`);
-    app.listen(PORT, () => {
-        console.log(`Backend Server listening on port ${PORT}`);
-        poll();
-    });
+app.listen(PORT, () => {
+    console.log(`[relay] Listening on :${PORT}`);
+    poll();
 });
-
