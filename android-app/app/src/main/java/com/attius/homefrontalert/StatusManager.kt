@@ -566,8 +566,9 @@ object StatusManager {
                 // Explicit CALM transitions matching active zones into CLEARING (fade phase).
                 val existing = threats.optJSONObject(normZone)
                 if (existing != null) {
+                    val alreadyClearing = existing.optString("s") == STATE_CLEARING
                     existing.put("s", STATE_CLEARING)
-                    existing.put("ct", nowMs)
+                    if (!alreadyClearing) existing.put("ct", nowMs)
                     threats.put(normZone, existing)
                 }
                 // Cleanup legacy raw-keyed entries if they exist.

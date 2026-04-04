@@ -74,6 +74,8 @@ class MapFragment : Fragment() {
         settings.domStorageEnabled = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
         settings.allowFileAccess = true
+        @Suppress("DEPRECATION")
+        settings.allowFileAccessFromFileURLs = true
         mapWebView.webChromeClient = WebChromeClient()
 
         mapWebView.setOnTouchListener { view, _ ->
