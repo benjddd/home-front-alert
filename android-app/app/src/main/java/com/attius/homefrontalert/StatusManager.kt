@@ -173,7 +173,11 @@ object StatusManager {
     fun recalculateStatus(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
-        var threats = org.json.JSONObject(threatsStr)
+        var threats = try { org.json.JSONObject(threatsStr) } catch (e: Exception) {
+            Log.e("HomeFrontAlerts", "Corrupt active_threat_map, resetting", e)
+            prefs.edit().putString("active_threat_map", "{}").apply()
+            org.json.JSONObject()
+        }
         val homeZone = normalizeCity(prefs.getString("current_home_zone", "") ?: "")
 
         val now = System.currentTimeMillis()
@@ -191,7 +195,8 @@ object StatusManager {
                 }
             } else {
                 // Remove active threat if it's past the 30-min window
-                if (now - obj.optLong("t", now) > getThreatTimeoutMs(prefs)) {
+                val t = obj.optLong("t", -1L)
+                if (t <= 0L || now - t > getThreatTimeoutMs(prefs)) {
                     iter.remove()
                 }
             }

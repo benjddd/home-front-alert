@@ -147,7 +147,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                             }
 
                             if (buffer.size == totalChunks) {
-                                // We have all chunks, process immediately (the timeout runnable will become a no-op)
+                                // We have all chunks — cancel the fallback timer and process immediately
+                                handler.removeCallbacksAndMessages(null)
                                 processFullPayload.run()
                             } else {
                                 Log.d("HomeFrontAlerts", "Buffered chunk $chunkIdx/$totalChunks for $alertId")

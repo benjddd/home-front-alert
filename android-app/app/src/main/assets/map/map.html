@@ -454,6 +454,7 @@ function renderFromThreatMap(threats, status) {
 
     // Heatmap centroid — separate by alert type
     const ring = poly.geometry.coordinates[0];
+    if (!ring || ring.length === 0) continue;
     let cx = 0, cy = 0;
     for (const [x, y] of ring) { cx += x; cy += y; }
     cx /= ring.length; cy /= ring.length;
@@ -534,7 +535,7 @@ function tickClearingFade() {
       map.getSource('clearing-src').setData({ type: 'FeatureCollection', features: clearingFeatures });
     }
   }
-  setTimeout(() => requestAnimationFrame(tickClearingFade), 1000);
+  setTimeout(tickClearingFade, 1000);
 }
 
 // ── Recent Zone Pulse Animation ─────────────────────────────────────────
@@ -548,14 +549,6 @@ function tickRecentPulse(ts) {
   } catch {}
   requestAnimationFrame(tickRecentPulse);
 }
-
-// ── Legacy bridge compatibility ─────────────────────────────────────────
-// MapFragment may call fetchAndRender on older code paths
-window.fetchAndRender = function() {
-  // No-op in client-driven mode; data comes via onThreatUpdate
-  console.log('[map] fetchAndRender called (no-op in client-driven mode)');
-};
-window.onAlertCleared = window.fetchAndRender;
 
 // Initial status
 updateStatusBadge('GREEN');

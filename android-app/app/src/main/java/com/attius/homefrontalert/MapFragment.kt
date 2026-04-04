@@ -43,8 +43,8 @@ class MapFragment : Fragment() {
             val lng = intent.getDoubleExtra(StatusManager.EXTRA_LNG, 0.0)
             mapWebView.post {
                 mapWebView.evaluateJavascript("if(window.setUserZone) window.setUserZone(${JSONObject.quote(zoneHe)});", null)
-                if (lat != 0.0 && lng != 0.0) {
-                    mapWebView.evaluateJavascript("if(window.onLocationUpdate) window.onLocationUpdate($lat,$lng);", null)
+                if (lat != 0.0 && lng != 0.0 && lat.isFinite() && lng.isFinite()) {
+                    mapWebView.evaluateJavascript("if(window.onLocationUpdate) window.onLocationUpdate(${lat.coerceIn(-90.0, 90.0)},${lng.coerceIn(-180.0, 180.0)});", null)
                 }
             }
         }
@@ -162,9 +162,9 @@ class MapFragment : Fragment() {
     private fun updateUserLocationOnMap() {
         if (!::mapWebView.isInitialized) return
         val currentLoc = locationManager.resolveCurrentLocation()
-        if (currentLoc.lat != 0.0 && currentLoc.lng != 0.0) {
+        if (currentLoc.lat != 0.0 && currentLoc.lng != 0.0 && currentLoc.lat.isFinite() && currentLoc.lng.isFinite()) {
             mapWebView.evaluateJavascript(
-                "if(window.onLocationUpdate) window.onLocationUpdate(${currentLoc.lat},${currentLoc.lng});",
+                "if(window.onLocationUpdate) window.onLocationUpdate(${currentLoc.lat.coerceIn(-90.0, 90.0)},${currentLoc.lng.coerceIn(-180.0, 180.0)});",
                 null
             )
             mapWebView.evaluateJavascript(
@@ -200,6 +200,7 @@ class MapFragment : Fragment() {
         mapWebView.loadUrl("about:blank")
         mapWebView.webChromeClient = null
         mapWebView.webViewClient = WebViewClient()
+        (mapWebView.parent as? ViewGroup)?.removeView(mapWebView)
         mapWebView.removeAllViews()
         mapWebView.destroy()
         super.onDestroyView()
