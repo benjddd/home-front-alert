@@ -215,45 +215,73 @@ let pendingUpdate = null;
 // Track clearing features for animation
 let clearingFeatures = [];
 
-map.on('load', async () => {
-  // 1. Country outline
+// ── Basemap injection from Android JS bridge ─────────────────────────────
+// fetch() cannot access file:// assets in WebView; Android reads the JSON
+// files from bundled assets and injects them here after map.on('load').
+let basemapLoaded = false;
+
+window.loadBasemap = function(outline, extras) {
   try {
-    const r = await fetch('israel-outline.json');
-    if (r.ok) {
-      const outline = await r.json();
-      map.addSource('country-src', { type: 'geojson', data: outline });
+    const outlineData = typeof outline === 'string' ? JSON.parse(outline) : outline;
+    const extrasData = typeof extras === 'string' ? JSON.parse(extras) : extras;
+
+    if (outlineData) {
+      map.addSource('country-src', { type: 'geojson', data: outlineData });
       map.addLayer({
         id: 'country-fill', type: 'fill', source: 'country-src',
         paint: { 'fill-color': '#18182e', 'fill-opacity': 1 },
-      });
+      }, firstAlertLayerId()); // insert below alert layers
     }
-  } catch (e) { console.warn('[map] outline load failed', e); }
 
-  // 2. Extra geography
-  try {
-    const r = await fetch('geo-extras.json');
-    if (r.ok) {
-      const extras = await r.json();
-      if (extras.water) {
-        map.addSource('water-src', { type: 'geojson', data: extras.water });
+    if (extrasData) {
+      if (extrasData.water) {
+        map.addSource('water-src', { type: 'geojson', data: extrasData.water });
         map.addLayer({ id: 'water-fill', type: 'fill', source: 'water-src',
           paint: { 'fill-color': '#0a0a18', 'fill-opacity': 0.8 } });
       }
-      if (extras.cities) {
-        map.addSource('cities-src', { type: 'geojson', data: extras.cities });
+      if (extrasData.cities) {
+        map.addSource('cities-src', { type: 'geojson', data: extrasData.cities });
         map.addLayer({ id: 'city-dots', type: 'circle', source: 'cities-src',
           paint: { 'circle-radius': 2.5, 'circle-color': '#555570', 'circle-opacity': 0.7 } });
       }
-      if (extras.neighbors) {
-        map.addSource('neighbors-src', { type: 'geojson', data: extras.neighbors });
+      if (extrasData.neighbors) {
+        map.addSource('neighbors-src', { type: 'geojson', data: extrasData.neighbors });
         map.addLayer({ id: 'neighbor-fill', type: 'fill', source: 'neighbors-src',
           paint: { 'fill-color': '#111122', 'fill-opacity': 0.6 } });
-        map.moveLayer('neighbor-fill', 'country-fill');
+        if (map.getLayer('country-fill')) map.moveLayer('neighbor-fill', 'country-fill');
       }
     }
-  } catch (e) { console.warn('[map] geo-extras load failed', e); }
 
-  // 3. Alert layers (added once, data updated dynamically)
+    basemapLoaded = true;
+    console.log('[map] Basemap loaded via JS bridge');
+  } catch (e) {
+    console.error('[map] loadBasemap error:', e);
+    showError('Basemap: ' + e.message);
+  }
+};
+
+// Helper: find the first alert layer to insert basemap below it
+function firstAlertLayerId() {
+  for (const id of ['heat-caution', 'heat-urgent', 'clearing-fill']) {
+    if (map.getLayer(id)) return id;
+  }
+  return undefined;
+}
+
+// ── Subtle error banner (doesn't block alert tiles) ──────────────────────
+window.showError = function(msg) {
+  let el = document.getElementById('map-error');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'map-error';
+    el.style.cssText = 'position:absolute;bottom:6px;left:6px;background:rgba(80,0,0,0.6);color:#c88;padding:4px 10px;border-radius:6px;font:10px monospace;z-index:5;pointer-events:none;';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+};
+
+map.on('load', () => {
+  // Alert layers (added once, data updated dynamically)
   map.addSource('clearing-src', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'clearing-fill', type: 'fill', source: 'clearing-src',

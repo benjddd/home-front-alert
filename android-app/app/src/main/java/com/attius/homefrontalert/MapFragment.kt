@@ -100,22 +100,32 @@ class MapFragment : Fragment() {
                 // Inject user location
                 updateUserLocationOnMap()
 
-                // Load polygons on background thread, then inject threat data
+                // Load basemap + polygons on background thread, then inject all data
                 val ctx = requireContext().applicationContext
                 Thread {
                     try {
-                        val json = PolygonManager.getPolygonsJson(ctx)
+                        // Read basemap assets from bundled files
+                        val outline = ctx.assets.open("map/israel-outline.json").bufferedReader().readText()
+                        val extras = ctx.assets.open("map/geo-extras.json").bufferedReader().readText()
+                        val polygons = PolygonManager.getPolygonsJson(ctx)
                         mapWebView.post {
                             if (!isAdded || view == null) return@post
-                            mapWebView.evaluateJavascript("if(window.loadPolygons) window.loadPolygons($json);", null)
-                            Log.i(TAG, "Polygons injected (${PolygonManager.getZoneCount()} zones)")
+                            mapWebView.evaluateJavascript("if(window.loadBasemap) window.loadBasemap($outline, $extras);", null)
+                            mapWebView.evaluateJavascript("if(window.loadPolygons) window.loadPolygons($polygons);", null)
                             injectThreatData()
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to load polygons", e)
+                        Log.e(TAG, "Failed to load map assets", e)
+                        mapWebView.post {
+                            if (!isAdded) return@post
+                            mapWebView.evaluateJavascript(
+                                "if(window.showError) window.showError(${JSONObject.quote(e.message ?: "Unknown error")});",
+                                null
+                            )
+                        }
                     }
 
-                    // Background refresh (non-blocking, daily)
+                    // Background polygon refresh (non-blocking, daily)
                     PolygonManager.refreshInBackground(ctx)
                 }.start()
             }
@@ -124,30 +134,6 @@ class MapFragment : Fragment() {
                 view: WebView?,
                 request: android.webkit.WebResourceRequest?
             ): Boolean = true
-
-            // Intercept fetch() requests for local assets — file:// CORS blocks fetch API
-            override fun shouldInterceptRequest(
-                view: WebView?,
-                request: android.webkit.WebResourceRequest?
-            ): android.webkit.WebResourceResponse? {
-                val url = request?.url?.toString() ?: return null
-                val prefix = "file:///android_asset/"
-                if (!url.startsWith(prefix)) return null
-                val assetPath = url.removePrefix(prefix)
-                return try {
-                    val stream = view?.context?.assets?.open(assetPath) ?: return null
-                    val mimeType = when {
-                        assetPath.endsWith(".json") -> "application/json"
-                        assetPath.endsWith(".js") -> "application/javascript"
-                        assetPath.endsWith(".css") -> "text/css"
-                        assetPath.endsWith(".html") -> "text/html"
-                        else -> "application/octet-stream"
-                    }
-                    android.webkit.WebResourceResponse(mimeType, "UTF-8", stream)
-                } catch (e: Exception) {
-                    null
-                }
-            }
         }
 
         mapWebView.loadUrl(LOCAL_MAP_URL)
