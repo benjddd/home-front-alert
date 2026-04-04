@@ -454,44 +454,66 @@ map.on('click', () => {
 // ── Data polling ──────────────────────────────────────────────────────────
 const dot  = document.getElementById('status-dot');
 const text = document.getElementById('status-text');
+let refreshInFlight = false;
+let refreshQueued = false;
+
+function applyStatus(data) {
+  const status = data.systemStatus || 'CALM';
+  if (status === 'CRITICAL') {
+    dot.className    = 'status-dot alert';
+    text.textContent = L().critical;
+  } else if (status === 'WARNING') {
+    dot.className    = 'status-dot pre-warning';
+    text.textContent = L().warning;
+  } else if (status === 'THREAT') {
+    dot.className    = 'status-dot threat';
+    text.textContent = L().threat;
+  } else {
+    dot.className    = 'status-dot';
+    text.textContent = L().no_alerts;
+  }
+}
+
+function renderPayload(data) {
+  clearAlertLayers();
+  applyStatus(data);
+  updateClearingZones(data.clearingZones);
+  addHeatmapLayers(data);
+
+  if (data.clusters) {
+    for (const cluster of data.clusters) {
+      addClusterLayers(cluster);
+    }
+  }
+}
 
 async function fetchAndRender() {
+  if (refreshInFlight) {
+    refreshQueued = true;
+    return;
+  }
+  refreshInFlight = true;
   try {
     const res  = await fetch(MAP_DATA_URL, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
-    clearAlertLayers();
-
-    // Map badge status from backend (SSOT)
-    const status = data.systemStatus || 'CALM';
-    if (status === 'CRITICAL') {
-      dot.className    = 'status-dot alert';
-      text.textContent = L().critical;
-    } else if (status === 'WARNING') {
-      dot.className    = 'status-dot pre-warning';
-      text.textContent = L().warning;
-    } else if (status === 'THREAT') {
-      dot.className    = 'status-dot threat';
-      text.textContent = L().threat;
-    } else {
-      dot.className    = 'status-dot';
-      text.textContent = L().no_alerts;
+    try {
+      renderPayload(data);
+    } catch (err) {
+      console.warn('[map] render error:', err.message);
+      return;
     }
-
-    updateClearingZones(data.clearingZones);
-    addHeatmapLayers(data);
-
-    if (data.clusters) {
-      for (const cluster of data.clusters) {
-        addClusterLayers(cluster);
-      }
-    }
-
   } catch (err) {
     dot.className    = 'status-dot offline';
     text.textContent = L().offline;
     console.warn('[map] poll error:', err.message);
+  } finally {
+    refreshInFlight = false;
+    if (refreshQueued) {
+      refreshQueued = false;
+      queueMicrotask(fetchAndRender);
+    }
   }
 }
 
