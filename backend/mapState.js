@@ -224,7 +224,7 @@ function _dbscanCluster(features, thresholdKm) {
 function _unionWithBuffer(features, bufferKm) {
     try {
         let merged = features[0];
-        for (let i = 1; i < features.length; i++) merged = turf.union(turf.featureCollection([merged, features[i]]));
+        for (let i = 1; i < features.length; i++) merged = turf.union(merged, features[i]);
         return turf.buffer(merged, bufferKm, { units: 'kilometers' }).geometry;
     } catch { return { type: 'GeometryCollection', geometries: features.map(f => f.geometry) }; }
 }
@@ -232,7 +232,7 @@ function _unionWithBuffer(features, bufferKm) {
 function _fullUnion(features) {
     try {
         let merged = features[0];
-        for (let i = 1; i < features.length; i++) merged = turf.union(turf.featureCollection([merged, features[i]]));
+        for (let i = 1; i < features.length; i++) merged = turf.union(merged, features[i]);
         const points = turf.explode(merged);
         if (points.features.length < 3) return merged.geometry;
         const hull = concaveman(points.features.map(f => f.geometry.coordinates), 2, 0);
@@ -254,7 +254,7 @@ function _toPolygonFeature(geometry) {
         let merged = turf.feature(polygonGeometries[0]);
         for (let i = 1; i < polygonGeometries.length; i++) {
             const next = turf.feature(polygonGeometries[i]);
-            const unioned = turf.union(turf.featureCollection([merged, next]));
+            const unioned = turf.union(merged, next);
             if (!unioned) return merged;
             merged = unioned;
         }
@@ -280,7 +280,7 @@ function _mergeOccupiedGeometry(occupiedGeometry, geometry) {
     if (!polygonFeature) return occupiedGeometry;
     if (!occupiedGeometry) return polygonFeature;
     try {
-        return turf.union(turf.featureCollection([occupiedGeometry, polygonFeature])) || occupiedGeometry;
+        return turf.union(occupiedGeometry, polygonFeature) || occupiedGeometry;
     } catch {
         return occupiedGeometry;
     }
