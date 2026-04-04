@@ -35,9 +35,9 @@ object AlertStyleRegistry {
             return AlertType.URGENT
         }
 
-        // CALM / ALL-CLEAR PHRASES
+        // CALM / ALL-CLEAR PHRASES (documented HFC phrases)
         if (trimmedTitle == "האירוע הסתיים" ||
-            trimmedTitle.contains("השוהים במרחב המוגן יכולים לצאת") || // From clear description/title
+            trimmedTitle.contains("השוהים במרחב המוגן יכולים לצאת") ||
             trimmedTitle == "חזרה לשגרה") {
             return AlertType.CALM
         }

@@ -136,7 +136,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                                 val fullCities = mutableListOf<String>()
                                 for (i in 1..totalChunks) { buffer[i]?.let { fullCities.addAll(it) } }
                                 StatusManager.logFcmDiagnostic(this@MyFirebaseMessagingService, "Assembled ${buffer.size}/$totalChunks chunks internally")
-                                StatusManager.processAlert(this@MyFirebaseMessagingService, alertId, type, fullCities, "[FCM-CHUNKS]", toneGenerator, remoteMessage.data.toString())
+                                StatusManager.processAlert(this@MyFirebaseMessagingService, alertId, type, fullCities, "[FCM-CHUNKS]", toneGenerator, remoteMessage.data.toString(), canonicalType)
                                 LocalBroadcastManager.getInstance(this@MyFirebaseMessagingService)
                                     .sendBroadcast(Intent(StatusManager.ACTION_MAP_REFRESH))
                             }
@@ -159,7 +159,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
                     // Single-chunk / Normal behavior
                     StatusManager.logFcmDiagnostic(this, remoteMessage.data.toString())
-                    StatusManager.processAlert(this, alertId, type, chunkCities, "[FCM]", toneGenerator, remoteMessage.data.toString())
+                    StatusManager.processAlert(this, alertId, type, chunkCities, "[FCM]", toneGenerator, remoteMessage.data.toString(), canonicalType)
                     // Notify MapFragment to refresh immediately
                     LocalBroadcastManager.getInstance(this)
                         .sendBroadcast(Intent(StatusManager.ACTION_MAP_REFRESH))

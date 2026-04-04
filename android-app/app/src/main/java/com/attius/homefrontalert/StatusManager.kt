@@ -530,7 +530,7 @@ object StatusManager {
         return prefs.getLong("clearing_fade_ms", CLEARING_FADE_MS_DEFAULT)
     }
 
-    fun processAlert(context: Context, id: String, type: AlertType, cities: List<String>, source: String, toneGenerator: DynamicToneGenerator?, rawBody: String? = null) {
+    fun processAlert(context: Context, id: String, type: AlertType, cities: List<String>, source: String, toneGenerator: DynamicToneGenerator?, rawBody: String? = null, canonicalType: String? = null) {
         // SILENT: unclassified HFC category — log only, no audio, no state change, no notification
         if (type == AlertType.SILENT) {
             Log.w("HomeFrontAlerts", "[$source] Unclassified alert type received — suppressing. Cities: ${cities.take(5)}")
@@ -576,8 +576,8 @@ object StatusManager {
                     if (!alreadyClearing) existing.put("ct", nowMs)
                     threats.put(normZone, existing)
                 }
-                // Cleanup legacy raw-keyed entries if they exist.
-                threats.remove(zone)
+                // Cleanup legacy raw-keyed entries if they exist (but not the normZone entry we just set)
+                if (zone != normZone) threats.remove(zone)
             } else {
                 val existing = threats.optJSONObject(normZone)
                 val existingState = existing?.optString("s", "CAUTION") ?: ""
@@ -598,6 +598,7 @@ object StatusManager {
                 obj.put("t", nowMs)
                 obj.put("c", calculator.getZoneCountdown(zone))
                 obj.put("name", zone) // Store raw name for display if needed
+                if (!canonicalType.isNullOrEmpty()) obj.put("ctype", canonicalType)
 
                 if (existing != null && !isReactivation && incomingSeverity <= existingSeverity) {
                     // Preserve one-way severity (never downgrade).

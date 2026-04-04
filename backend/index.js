@@ -204,16 +204,19 @@ function processAlerts(data) {
     for (const [type, entry] of batchedByType) {
         const allCities = [...entry.cities];
 
-        // Handle explicit clears
+        // Handle explicit clears — only dispatch for zones that are still armed
         if (type.toUpperCase().includes('CLEAR') || type.toUpperCase().includes('CALM')) {
-            console.log(`🟢 CLEAR: ${allCities.length} zones for ${type}.`);
-            sendFCMClear({
-                id: entry.id,
-                type,
-                cities: allCities,
-                legacyTitle: entry.legacyTitle || '',
-                legacyCat: entry.legacyCat || '',
-            });
+            const newClears = dedup.filterNewClears(allCities);
+            if (newClears.length > 0) {
+                console.log(`🟢 CLEAR: ${newClears.length}/${allCities.length} armed zones for ${type}.`);
+                sendFCMClear({
+                    id: entry.id,
+                    type,
+                    cities: newClears,
+                    legacyTitle: entry.legacyTitle || '',
+                    legacyCat: entry.legacyCat || '',
+                });
+            }
             continue;
         }
 
