@@ -88,6 +88,18 @@
       border: 2.5px solid #fff;
       box-shadow: 0 0 0 3px rgba(33,150,243,0.3);
     }
+
+    #app-logo {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      width: 32px;
+      height: 32px;
+      opacity: 0.4;
+      pointer-events: none;
+      z-index: 5;
+      border-radius: 6px;
+    }
   </style>
 </head>
 <body>
@@ -100,6 +112,7 @@
   <div class="zone-name" id="tt-zone"></div>
   <div class="alert-type" id="tt-type"></div>
 </div>
+<img id="app-logo" src="app_icon.png" alt="" />
 
 <script>
 'use strict';
