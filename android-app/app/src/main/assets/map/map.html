@@ -73,9 +73,9 @@
       box-shadow: 0 0 6px #4caf50;
       flex-shrink: 0;
     }
-    #status-dot.alert { background: #EF4444; box-shadow: 0 0 8px #EF4444; animation: pulse 1.2s infinite; }
-    #status-dot.threat { background: #FFD740; box-shadow: 0 0 6px #FFD740; animation: pulse 1.8s infinite; }
-    #status-dot.pre-warning { background: #FBBF24; box-shadow: 0 0 6px #FBBF24; animation: pulse 2.0s infinite; }
+    #status-dot.alert { background: #C93545; box-shadow: 0 0 8px #C93545; animation: pulse 1.2s infinite; }
+    #status-dot.threat { background: #D4A030; box-shadow: 0 0 6px #D4A030; animation: pulse 1.8s infinite; }
+    #status-dot.pre-warning { background: #D4A030; box-shadow: 0 0 6px #D4A030; animation: pulse 2.0s infinite; }
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
       50%       { opacity: 0.6; transform: scale(1.3); }
@@ -119,11 +119,17 @@
 
 // ── Config ──────────────────────────────────────────────────────────────
 const CLEAR_FADE_MS = 15 * 60 * 1000;
+const CLEAR_BASE_OPACITY = 0.45;
 const RECENT_ZONE_MS = 15 * 1000;
 
 const ALERT_COLORS = {
-  URGENT:  { fill: '#EF4444', border: '#DC2626' },
-  CAUTION: { fill: '#FBBF24', border: '#F59E0B' },
+  // Per-canonical-type fills (modern, toned-down palette)
+  ROCKET:       { fill: '#C93545', border: '#A52835' },
+  UAV:          { fill: '#8B5CF6', border: '#7340D8' },
+  INFILTRATION: { fill: '#D97706', border: '#B45F05' },
+  // Fallback for generic URGENT/CAUTION (no canonical type)
+  URGENT:  { fill: '#C93545', border: '#A52835' },
+  CAUTION: { fill: '#D4A030', border: '#B8892A' },
 };
 
 const STATUS_LABELS = {
@@ -132,8 +138,8 @@ const STATUS_LABELS = {
 };
 
 const ALERT_LABELS = {
-  he: { URGENT: 'ירי רקטות וטילים / חדירה', CAUTION: 'התרעה מוקדמת' },
-  en: { URGENT: 'Rocket / Missile / Hostile', CAUTION: 'Pre-Warning' },
+  he: { ROCKET: 'ירי רקטות וטילים', UAV: 'כלי טיס עוין', INFILTRATION: 'חדירת מחבלים', URGENT: 'איום דחוף', CAUTION: 'התרעה מוקדמת' },
+  en: { ROCKET: 'Rockets / Missiles', UAV: 'Hostile UAV', INFILTRATION: 'Infiltration', URGENT: 'Urgent Threat', CAUTION: 'Pre-Warning' },
 };
 
 let appLang = 'he';
@@ -197,7 +203,7 @@ const text = document.getElementById('status-text');
 // ── User Location ───────────────────────────────────────────────────────
 let userMarker = null;
 window.onLocationUpdate = function(lat, lng) {
-  if (!lat || !lng) return;
+  if (lat == null || lng == null) return;
   const el = document.createElement('div');
   el.className = 'user-dot';
   if (userMarker) userMarker.remove();
@@ -302,31 +308,32 @@ map.on('load', () => {
   map.addSource('clearing-src', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'clearing-fill', type: 'fill', source: 'clearing-src',
-    paint: { 'fill-color': '#388E3C', 'fill-opacity': ['number', ['get', 'opacity'], 0.3] },
+    paint: { 'fill-color': '#2EA876', 'fill-opacity': ['number', ['get', 'opacity'], 0.45] },
   });
   map.addLayer({
     id: 'clearing-border', type: 'line', source: 'clearing-src',
-    paint: { 'line-color': '#4CAF50', 'line-width': 1, 'line-opacity': 0.5 },
+    paint: { 'line-color': '#34D399', 'line-width': 1.5, 'line-opacity': 0.6 },
   });
 
+  // Data-driven alert layers — fill/border color from per-feature properties
   map.addSource('caution-src', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'caution-fill', type: 'fill', source: 'caution-src',
-    paint: { 'fill-color': '#FBBF24', 'fill-opacity': 0.45 },
+    paint: { 'fill-color': ['string', ['get', 'fillColor'], '#D4A030'], 'fill-opacity': 0.45 },
   });
   map.addLayer({
     id: 'caution-border', type: 'line', source: 'caution-src',
-    paint: { 'line-color': '#F59E0B', 'line-width': 1.5, 'line-opacity': 0.8 },
+    paint: { 'line-color': ['string', ['get', 'borderColor'], '#B8892A'], 'line-width': 1.5, 'line-opacity': 0.8 },
   });
 
   map.addSource('urgent-src', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'urgent-fill', type: 'fill', source: 'urgent-src',
-    paint: { 'fill-color': '#EF4444', 'fill-opacity': 0.5 },
+    paint: { 'fill-color': ['string', ['get', 'fillColor'], '#C93545'], 'fill-opacity': 0.5 },
   });
   map.addLayer({
     id: 'urgent-border', type: 'line', source: 'urgent-src',
-    paint: { 'line-color': '#DC2626', 'line-width': 1.5, 'line-opacity': 0.9 },
+    paint: { 'line-color': ['string', ['get', 'borderColor'], '#A52835'], 'line-width': 1.5, 'line-opacity': 0.9 },
   });
 
   // Recent-zone highlight overlay (on top) — fill + bright border for visibility
@@ -340,7 +347,7 @@ map.on('load', () => {
     paint: { 'line-color': '#FFFFFF', 'line-width': 2.5, 'line-opacity': 0.7 },
   });
 
-  // Heatmap layers — separate for urgent (red) and caution (amber)
+  // Heatmap layers — data-driven color from per-feature heatColor property
   map.addSource('heat-urgent-src', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'heat-urgent', type: 'heatmap', source: 'heat-urgent-src',
@@ -352,10 +359,10 @@ map.on('load', () => {
       'heatmap-color': [
         'interpolate', ['linear'], ['heatmap-density'],
         0, 'rgba(0,0,0,0)',
-        0.2, 'rgba(239,68,68,0.18)',
-        0.5, 'rgba(239,68,68,0.38)',
-        0.8, 'rgba(220,38,38,0.58)',
-        1.0, 'rgba(200,20,20,0.72)',
+        0.2, 'rgba(201,53,69,0.18)',
+        0.5, 'rgba(201,53,69,0.38)',
+        0.8, 'rgba(165,40,53,0.58)',
+        1.0, 'rgba(140,30,40,0.72)',
       ],
     },
   }, 'clearing-fill');
@@ -371,10 +378,30 @@ map.on('load', () => {
       'heatmap-color': [
         'interpolate', ['linear'], ['heatmap-density'],
         0, 'rgba(0,0,0,0)',
-        0.2, 'rgba(251,191,36,0.16)',
-        0.5, 'rgba(251,191,36,0.38)',
-        0.8, 'rgba(245,158,11,0.58)',
-        1.0, 'rgba(245,158,11,0.72)',
+        0.2, 'rgba(212,160,48,0.16)',
+        0.5, 'rgba(212,160,48,0.38)',
+        0.8, 'rgba(184,137,42,0.58)',
+        1.0, 'rgba(184,137,42,0.72)',
+      ],
+    },
+  }, 'clearing-fill');
+
+  // UAV-specific heatmap (purple glow)
+  map.addSource('heat-uav-src', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'heat-uav', type: 'heatmap', source: 'heat-uav-src',
+    paint: {
+      'heatmap-weight': ['get', 'weight'],
+      'heatmap-intensity': 0.55,
+      'heatmap-radius': 30,
+      'heatmap-opacity': 0.5,
+      'heatmap-color': [
+        'interpolate', ['linear'], ['heatmap-density'],
+        0, 'rgba(0,0,0,0)',
+        0.2, 'rgba(139,92,246,0.18)',
+        0.5, 'rgba(139,92,246,0.38)',
+        0.8, 'rgba(115,64,216,0.58)',
+        1.0, 'rgba(100,50,200,0.72)',
       ],
     },
   }, 'clearing-fill');
@@ -404,12 +431,16 @@ map.on('load', () => {
 // ── Core Render Function ────────────────────────────────────────────────
 // Called by Android JS bridge on every alert/clear event
 window.onThreatUpdate = function(data) {
-  const d = typeof data === 'string' ? JSON.parse(data) : data;
-  if (!mapReady) {
-    pendingUpdate = d;
-    return;
+  try {
+    const d = typeof data === 'string' ? JSON.parse(data) : data;
+    if (!mapReady) {
+      pendingUpdate = d;
+      return;
+    }
+    renderFromThreatMap(d.threats || {}, d.status || 'GREEN');
+  } catch (e) {
+    console.error('onThreatUpdate failed:', e);
   }
-  renderFromThreatMap(d.threats || {}, d.status || 'GREEN');
 };
 
 function renderFromThreatMap(threats, status) {
@@ -420,6 +451,7 @@ function renderFromThreatMap(threats, status) {
   const recentFeatures = [];
   const heatUrgentFeatures = [];
   const heatCautionFeatures = [];
+  const heatUavFeatures = [];
 
   for (const [zoneName, entry] of Object.entries(threats)) {
     const state = entry.s;
@@ -430,7 +462,7 @@ function renderFromThreatMap(threats, status) {
     if (state === 'CLEARING') {
       const ct = entry.ct || 0;
       if (ct > 0 && (now - ct) < CLEAR_FADE_MS) {
-        const opacity = Math.max(0, 0.3 * (1 - (now - ct) / CLEAR_FADE_MS));
+        const opacity = Math.max(0, CLEAR_BASE_OPACITY * (1 - (now - ct) / CLEAR_FADE_MS));
         newClearingFeatures.push({
           ...poly,
           properties: { ...poly.properties, state: 'CLEARING', ct, alertType: 'CLEARING', opacity },
@@ -439,11 +471,20 @@ function renderFromThreatMap(threats, status) {
       continue;
     }
 
-    // URGENT or CAUTION (active threats)
+    // Resolve color by canonical type (ROCKET, UAV, INFILTRATION) then fall back to state
+    const ctype = entry.ctype || '';
     const alertType = (state === 'URGENT') ? 'URGENT' : 'CAUTION';
+    const colorKey = ALERT_COLORS[ctype] ? ctype : alertType;
+    const colors = ALERT_COLORS[colorKey] || ALERT_COLORS[alertType];
     const feature = {
       ...poly,
-      properties: { ...poly.properties, alertType, t: entry.t || 0 },
+      properties: {
+        ...poly.properties,
+        alertType: ctype || alertType,
+        t: entry.t || 0,
+        fillColor: colors.fill,
+        borderColor: colors.border,
+      },
     };
 
     if (alertType === 'URGENT') {
@@ -452,7 +493,7 @@ function renderFromThreatMap(threats, status) {
       cautionFeatures.push(feature);
     }
 
-    // Heatmap centroid — separate by alert type
+    // Heatmap centroid — route UAV to its own purple heatmap
     const ring = poly.geometry.coordinates[0];
     if (!ring || ring.length === 0) continue;
     let cx = 0, cy = 0;
@@ -463,7 +504,9 @@ function renderFromThreatMap(threats, status) {
       geometry: { type: 'Point', coordinates: [cx, cy] },
       properties: { weight: alertType === 'URGENT' ? 4 : 1 },
     };
-    if (alertType === 'URGENT') {
+    if (ctype === 'UAV') {
+      heatUavFeatures.push(heatPoint);
+    } else if (alertType === 'URGENT') {
       heatUrgentFeatures.push(heatPoint);
     } else {
       heatCautionFeatures.push(heatPoint);
@@ -481,9 +524,15 @@ function renderFromThreatMap(threats, status) {
   map.getSource('recent-src').setData({ type: 'FeatureCollection', features: recentFeatures });
   map.getSource('heat-urgent-src').setData({ type: 'FeatureCollection', features: heatUrgentFeatures });
   map.getSource('heat-caution-src').setData({ type: 'FeatureCollection', features: heatCautionFeatures });
+  map.getSource('heat-uav-src').setData({ type: 'FeatureCollection', features: heatUavFeatures });
 
   // Merge new clearing features with existing (preserve ongoing fades)
-  clearingFeatures = newClearingFeatures;
+  const newKeys = new Set(newClearingFeatures.map(f => f.properties.zone || f.properties.name));
+  const preserved = clearingFeatures.filter(f => {
+    const key = f.properties.zone || f.properties.name;
+    return !newKeys.has(key) && (Date.now() - f.properties.ct) < CLEAR_FADE_MS;
+  });
+  clearingFeatures = [...preserved, ...newClearingFeatures];
   map.getSource('clearing-src').setData({ type: 'FeatureCollection', features: clearingFeatures });
 
   // Status badge
@@ -523,7 +572,7 @@ function tickClearingFade() {
     for (const f of clearingFeatures) {
       const elapsed = now - f.properties.ct;
       if (elapsed >= CLEAR_FADE_MS) { changed = true; continue; }
-      const newOpacity = Math.max(0, 0.3 * (1 - elapsed / CLEAR_FADE_MS));
+      const newOpacity = Math.max(0, CLEAR_BASE_OPACITY * (1 - elapsed / CLEAR_FADE_MS));
       if (f.properties.opacity === undefined || Math.abs(f.properties.opacity - newOpacity) > 0.005) {
         f.properties.opacity = newOpacity;
         changed = true;

@@ -82,7 +82,7 @@
                         android:text="@string/mode_gps"
                         android:textColor="#FFFFFF"
                         android:textSize="14sp" />
-                    <Switch
+                    <androidx.appcompat.widget.SwitchCompat
                         android:id="@+id/switchLiveGps"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -314,7 +314,7 @@
                     android:text="@string/advanced_toggle"
                     android:textColor="#606060"
                     android:textSize="12sp" />
-                <Switch
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/switchShowAdvanced"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -368,7 +368,7 @@
                                 android:textStyle="bold"
                                 android:textColor="#FFFFFF"
                                 android:textSize="14sp" />
-                            <Switch
+                            <androidx.appcompat.widget.SwitchCompat
                                 android:id="@+id/switchYeelight"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content" />
@@ -529,107 +529,6 @@
                                 android:backgroundTint="#2A0800"
                                 android:layout_marginStart="2dp" />
                         </LinearLayout>
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
-
-                <!-- ── ALERT LOGIC (SMART DEDUPLICATION) — hidden, TTL stays in code ── -->
-                <androidx.cardview.widget.CardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:backgroundTint="#1A1A1A"
-                    android:elevation="4dp"
-                    android:visibility="gone">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:padding="16dp"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/settings_dedup_title"
-                            android:textStyle="bold"
-                            android:textColor="#FFFFFF"
-                            android:textSize="13sp"
-                            android:layout_marginBottom="2dp" />
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/settings_dedup_desc"
-                            android:textColor="#555566"
-                            android:textSize="10sp"
-                            android:layout_marginBottom="14dp" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical">
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="@string/settings_dedup_ttl_label"
-                                android:textColor="#FFFFFF"
-                                android:textSize="12sp" />
-                            <EditText
-                                android:id="@+id/etAlertTtl"
-                                android:layout_width="80dp"
-                                android:layout_height="wrap_content"
-                                android:hint="180"
-                                android:inputType="number"
-                                android:text="180"
-                                android:textColor="#34C759"
-                                android:textColorHint="#444444"
-                                android:textSize="14sp"
-                                android:gravity="center"
-                                android:backgroundTint="#34C759" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/settings_dedup_unit_sec"
-                                android:textColor="#606060"
-                                android:textSize="10sp"
-                                android:layout_marginStart="4dp" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
-
-                <!-- CARD: MAP SERVICE URL — removed (map is bundled locally) -->
-                <androidx.cardview.widget.CardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:backgroundTint="#1E1E1E"
-                    android:elevation="4dp"
-                    android:visibility="gone">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:padding="16dp"
-                        android:orientation="vertical">
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/settings_map_url_title"
-                            android:textColor="#CCCCCC"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:layout_marginBottom="8dp" />
-                        <EditText
-                            android:id="@+id/etMapServiceUrl"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:hint="@string/settings_map_url_hint"
-                            android:textColor="#FFFFFF"
-                            android:textColorHint="#666666"
-                            android:backgroundTint="#333333"
-                            android:inputType="textUri"
-                            android:singleLine="true"
-                            android:textSize="12sp"
-                            android:paddingStart="8dp" />
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
 
@@ -810,7 +709,7 @@
                                 android:textStyle="bold"
                                 android:textColor="#FF5252"
                                 android:textSize="16sp" />
-                            <Switch
+                            <androidx.appcompat.widget.SwitchCompat
                                 android:id="@+id/switchHybridMode"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"

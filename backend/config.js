@@ -33,7 +33,7 @@ module.exports = {
         'הכינו עצמכם': 'PRE_WARNING',
         'pre-warning':  'PRE_WARNING',
         'pre_warning':  'PRE_WARNING',
-        // All-clear
+        // All-clear (documented HFC phrases)
         'האירוע הסתיים':                             'CALM',
         'חזרה לשגרה':                                'CALM',
         'השוהים במרחב המוגן יכולים לצאת':            'CALM',

@@ -65,6 +65,7 @@ try {
     }
 } catch (e) {
     console.error('❌ Firebase init failed:', e.message);
+    process.exit(1);
 }
 
 // ── Alert Type Normalization ────────────────────────────────────────────
@@ -105,7 +106,7 @@ app.post('/test-fcm', (req, res) => {
     const apiKey = req.headers['x-api-key'];
     const acceptedKeys = (process.env.API_KEYS || process.env.API_KEY || '')
         .split(/[\s,]+/).filter(Boolean);
-    if (acceptedKeys.length > 0 && !acceptedKeys.includes(apiKey)) {
+    if (acceptedKeys.length === 0 || !acceptedKeys.includes(apiKey)) {
         return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -149,7 +150,7 @@ async function poll() {
             data = (res.status === 204 || !res.data) ? [] : res.data;
             activeSource = 'Official API';
         } catch (e) {
-            // HFC request failed — will retry next cycle
+            console.warn('HFC poll failed:', e.message);
         }
 
         if (data !== null) {
@@ -204,16 +205,19 @@ function processAlerts(data) {
     for (const [type, entry] of batchedByType) {
         const allCities = [...entry.cities];
 
-        // Handle explicit clears
+        // Handle explicit clears — only dispatch for zones that are still armed
         if (type.toUpperCase().includes('CLEAR') || type.toUpperCase().includes('CALM')) {
-            console.log(`🟢 CLEAR: ${allCities.length} zones for ${type}.`);
-            sendFCMClear({
-                id: entry.id,
-                type,
-                cities: allCities,
-                legacyTitle: entry.legacyTitle || '',
-                legacyCat: entry.legacyCat || '',
-            });
+            const newClears = dedup.filterNewClears(allCities);
+            if (newClears.length > 0) {
+                console.log(`🟢 CLEAR: ${newClears.length}/${allCities.length} armed zones for ${type}.`);
+                sendFCMClear({
+                    id: entry.id,
+                    type,
+                    cities: newClears,
+                    legacyTitle: entry.legacyTitle || '',
+                    legacyCat: entry.legacyCat || '',
+                });
+            }
             continue;
         }
 

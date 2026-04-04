@@ -18,7 +18,7 @@ steps:
       - '--allow-unauthenticated'
       - '--min-instances=1'
       - '--max-instances=1'
-      - '--memory=256Mi'
+      - '--memory=512Mi'
       - '--no-cpu-throttling'
       - '--update-env-vars=NODE_ENV=production'
       - '--update-secrets=API_KEYS=$_API_KEYS_SECRET:latest'

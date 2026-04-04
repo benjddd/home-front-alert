@@ -17,6 +17,10 @@ const TTL_MS = 3 * 60 * 1000; // 3 minutes — matches Android's default alert_t
 // "zone:type" → dispatchedAt timestamp
 const dispatched = new Map();
 
+// Tracks zones that are currently armed (have an active alert dispatched).
+// "zone" → { type, dispatchedAt }
+const armedZones = new Map();
+
 /**
  * Returns the subset of zones that have NOT been dispatched recently
  * for the given type. Records the dispatch for future calls.
@@ -33,8 +37,28 @@ function filterNew(zones, type) {
         if (prev && now - prev < TTL_MS) continue;
         dispatched.set(key, now);
         newZones.push(zone);
+        // Mark zone as armed
+        armedZones.set(zone, { type, dispatchedAt: now });
     }
     return newZones;
+}
+
+/**
+ * Filters clear zones — only pass through the FIRST clear for zones that are
+ * currently armed. Subsequent clears for the same zone or clears for zones
+ * that aren't armed are silently dropped.
+ * @param {string[]} zones - zone names being cleared
+ * @returns {string[]} zones that should actually receive a clear FCM
+ */
+function filterNewClears(zones) {
+    const newClears = [];
+    for (const zone of zones) {
+        if (armedZones.has(zone)) {
+            armedZones.delete(zone);
+            newClears.push(zone);
+        }
+    }
+    return newClears;
 }
 
 /**
@@ -45,9 +69,14 @@ function prune() {
     for (const [key, ts] of dispatched) {
         if (ts < cutoff) dispatched.delete(key);
     }
+    // Also expire armed zones that were never explicitly cleared (30-min safety)
+    const armedCutoff = Date.now() - (30 * 60 * 1000);
+    for (const [zone, info] of armedZones) {
+        if (info.dispatchedAt < armedCutoff) armedZones.delete(zone);
+    }
 }
 
 // Auto-prune every 30 seconds
 setInterval(prune, 30 * 1000);
 
-module.exports = { filterNew, prune };
+module.exports = { filterNew, filterNewClears, prune };

@@ -8,14 +8,16 @@ import android.graphics.Color
  * All Android surfaces (notification, widget, dashboard) must import from here.
  */
 object AlertColors {
-    /** Local urgent alert — rocket/UAV/infiltration in user's zone */
-    val CRITICAL = Color.parseColor("#EF4444")
+    /** Local urgent alert — rocket/infiltration in user's zone */
+    val CRITICAL = Color.parseColor("#C93545")
+    /** Hostile UAV in user's zone */
+    val UAV      = Color.parseColor("#8B5CF6")
     /** Pre-warning in user's zone */
-    val WARNING  = Color.parseColor("#FBBF24")
+    val WARNING  = Color.parseColor("#D4A030")
     /** Remote active threat, not in user's zone */
-    val THREAT   = Color.parseColor("#FFD740")
+    val THREAT   = Color.parseColor("#D4A030")
     /** No active threats */
-    val CALM     = Color.parseColor("#34C759")
+    val CALM     = Color.parseColor("#22C55E")
 
     /** Map from SharedPrefs dash_status string → color int */
     fun fromStatus(status: String): Int = when (status) {

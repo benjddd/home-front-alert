@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.widget.*
+import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.graphics.Color
@@ -26,7 +27,9 @@ class SettingsActivity : AppCompatActivity() {
 
     private lateinit var locationManager: AppLocationManager
     private lateinit var distanceCalculator: ZoneDistanceCalculator
-    private var isResolvingLocation = false
+    @Volatile private var isResolvingLocation = false
+    private lateinit var logHandler: Handler
+    private lateinit var logUpdater: Runnable
     private lateinit var sharedPrefs: android.content.SharedPreferences
     private lateinit var toneGenerator: DynamicToneGenerator
     private lateinit var tvConnectivityDetail: TextView
@@ -61,7 +64,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         // 1. Location Tracking Mode
-        val switchLiveGps = findViewById<Switch>(R.id.switchLiveGps)
+        val switchLiveGps = findViewById<SwitchCompat>(R.id.switchLiveGps)
         switchLiveGps.isChecked = locationManager.isUsingLiveGps()
         switchLiveGps.setOnCheckedChangeListener { _, isChecked ->
             locationManager.setUsingLiveGps(isChecked)
@@ -96,7 +99,7 @@ class SettingsActivity : AppCompatActivity() {
 
 
         // 4. Connectivity Shield Toggle
-        val switchShieldActive = findViewById<Switch>(R.id.switchHybridMode)
+        val switchShieldActive = findViewById<SwitchCompat>(R.id.switchHybridMode)
         switchShieldActive.isChecked = sharedPrefs.getBoolean("shield_active", false)
         switchShieldActive.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
@@ -136,7 +139,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         // Yeelight Smart Home Integration
-        val switchYeelight = findViewById<Switch>(R.id.switchYeelight)
+        val switchYeelight = findViewById<SwitchCompat>(R.id.switchYeelight)
         val etYeelightIp = findViewById<EditText>(R.id.etYeelightIp)
         val etYeelightToken = findViewById<EditText>(R.id.etYeelightToken)
         val btnDiscoverYeelight = findViewById<Button>(R.id.btnDiscoverYeelight)
@@ -163,7 +166,7 @@ class SettingsActivity : AppCompatActivity() {
 
         btnDiscoverYeelight.setOnClickListener {
             val originalText = btnDiscoverYeelight.text
-            btnDiscoverYeelight.text = "Searching..."
+            btnDiscoverYeelight.text = getString(R.string.yeelight_searching)
             btnDiscoverYeelight.isEnabled = false
             etYeelightIp.isEnabled = false
 
@@ -176,9 +179,9 @@ class SettingsActivity : AppCompatActivity() {
                     if (ip != null) {
                         etYeelightIp.setText(ip)
                         sharedPrefs.edit().putString("yeelight_ip", ip).apply()
-                        Toast.makeText(this@SettingsActivity, "Found Yeelight at $ip", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@SettingsActivity, getString(R.string.yeelight_found, ip), Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this@SettingsActivity, "No Yeelight device found", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@SettingsActivity, getString(R.string.yeelight_not_found), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -189,7 +192,7 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tvAppVersion).text = "v${BuildConfig.VERSION_NAME}-$flavor"
 
         // 6. Advanced Section
-        val switchShowAdvanced = findViewById<Switch>(R.id.switchShowAdvanced)
+        val switchShowAdvanced = findViewById<SwitchCompat>(R.id.switchShowAdvanced)
         val layoutAdvancedSection = findViewById<LinearLayout>(R.id.layoutAdvancedSection)
         val isAdvancedVisible = sharedPrefs.getBoolean("show_advanced_settings", false)
         switchShowAdvanced.isChecked = isAdvancedVisible
@@ -256,8 +259,8 @@ class SettingsActivity : AppCompatActivity() {
         val tvResolvedZone = findViewById<TextView>(R.id.tvResolvedZone)
         val tvLastSync = findViewById<TextView>(R.id.tvLastSync)
 
-        val logHandler = Handler(Looper.getMainLooper())
-        val logUpdater = object : Runnable {
+        logHandler = Handler(Looper.getMainLooper())
+        logUpdater = object : Runnable {
             override fun run() {
                 tvShieldLog?.text = sharedPrefs.getString("shield_last_log", "...")
                 tvRawHistory?.text = sharedPrefs.getString("raw_alert_history", "...")
@@ -350,8 +353,6 @@ class SettingsActivity : AppCompatActivity() {
                 logHandler.postDelayed(this, 1500)
             }
         }
-        logHandler.post(logUpdater)
-
         setupSoundTestSection()
         setupLanguageSwitch()
     }
@@ -467,10 +468,12 @@ class SettingsActivity : AppCompatActivity() {
         super.onResume()
         sharedPrefs.registerOnSharedPreferenceChangeListener(prefsListener)
         locationManager.startTracking()
+        logHandler.post(logUpdater)
     }
 
     override fun onPause() {
         super.onPause()
+        logHandler.removeCallbacks(logUpdater)
         sharedPrefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
         locationManager.stopTracking()
     }
