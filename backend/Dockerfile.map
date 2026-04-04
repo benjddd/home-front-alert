@@ -5,9 +5,12 @@
 
 FROM node:20-alpine
 
+RUN mkdir -p /usr/src/app && chown node:node /usr/src/app
 WORKDIR /usr/src/app
 
-COPY package*.json ./
+USER node
+
+COPY --chown=node:node package*.json ./
 
 # Install production dependencies (includes turf, adm-zip, concaveman)
 RUN npm install --omit=dev
@@ -16,8 +19,6 @@ COPY --chown=node:node . .
 
 ENV PORT 8080
 EXPOSE 8080
-
-USER node
 
 # Different entry point from the alert relay
 CMD [ "node", "map-server.js" ]

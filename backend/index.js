@@ -66,7 +66,12 @@ const limiter = rateLimit({
     legacyHeaders: false,
     message: "Too many requests from this IP, please try again later."
 });
-app.use(limiter);
+// Exempt map-data from rate limiter — it's polled by the map-server (internal service)
+// and must never be blocked during active alerts.
+app.use((req, res, next) => {
+    if (req.path === '/api/map-data') return next();
+    return limiter(req, res, next);
+});
 
 // Dashboard Password Check Utility
 const dashboardAuth = (req, res, next) => {
@@ -168,12 +173,23 @@ let prevStatus   = 'CALM';
 
 setInterval(() => {
     // 1. Stabilization & Transitions handled by ThreatManager (CALM transition has 8s buffer)
-    threatManager.tick(); 
-    
-    // 2. Derive SSOT status for Dashboard/Map
+    threatManager.tick();
+
+    // 2. Refresh cached map payload (expensive geometry ops run here, off the request path).
+    //    setImmediate yields to the event loop between tick() and computeMapPayload()
+    //    so the HFC poller and HTTP requests are never starved.
+    setImmediate(() => {
+        try {
+            _cachedMapPayload = mapState.computeMapPayload();
+        } catch (err) {
+            console.error('[Relay] computeMapPayload cache refresh error:', err);
+        }
+    });
+
+    // 3. Derive SSOT status for Dashboard/Map
     const currentStatus = mapState.getSystemStatus(null);
-    
-    // 3. Log state transitions only. Explicit clears are dispatched from the
+
+    // 4. Log state transitions only. Explicit clears are dispatched from the
     // HFC clear path so zone-scoped CLEARING state can live for the full fade.
     if (currentStatus === 'CALM' && prevStatus !== 'CALM') {
         console.log("✅ State transition to CALM detected.");
@@ -200,14 +216,23 @@ app.get('/privacy', (req, res) => {
 });
 
 // Current alert status and map data SSOT
+// Map payload is cached and refreshed in the 1s tick interval (see below)
+// so this endpoint never blocks the event loop with expensive geometry ops.
+let _cachedMapPayload = null;
+
 app.get('/api/map-data', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store');
-    try {
-        const payload = mapState.computeMapPayload();
-        res.json(payload);
-    } catch (err) {
-        console.error('[Relay] computeMapPayload error:', err);
-        res.status(500).json({ error: 'map synchronization failed' });
+    if (_cachedMapPayload) {
+        res.json(_cachedMapPayload);
+    } else {
+        // First request before tick has run — compute once (CALM state, cheap)
+        try {
+            _cachedMapPayload = mapState.computeMapPayload();
+            res.json(_cachedMapPayload);
+        } catch (err) {
+            console.error('[Relay] computeMapPayload error:', err);
+            res.status(500).json({ error: 'map synchronization failed' });
+        }
     }
 });
 

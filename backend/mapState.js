@@ -126,9 +126,14 @@ function computeMapPayload(userZone) {
             } else if (group.length <= 12) {
                 geometry = _unionWithBuffer(group, 0.3);
                 renderStyle = 'union_light';
-            } else {
+            } else if (group.length <= 80) {
                 geometry = _fullUnion(group);
                 renderStyle = 'union_full';
+            } else {
+                // Very large clusters (100s of zones): skip expensive union,
+                // use a GeometryCollection so we don't block the event loop.
+                geometry = { type: 'GeometryCollection', geometries: group.map(f => f.geometry) };
+                renderStyle = 'individual';
             }
 
             const recentZoneGeometries = group
@@ -208,11 +213,28 @@ function _dbscanCluster(features, thresholdKm) {
     const n = features.length;
     const parent = Array.from({ length: n }, (_, i) => i);
     function find(x) { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
-    function union(a, b) { parent[find(a)] = find(b); }
-    const centroids = features.map(f => turf.centroid(f));
+    function merge(a, b) { parent[find(a)] = find(b); }
+
+    // Pre-compute centroids as raw [lng, lat] — avoids turf.centroid + turf.distance overhead
+    const coords = features.map(f => {
+        const c = turf.centroid(f);
+        return c.geometry.coordinates; // [lng, lat]
+    });
+
+    // Fast haversine-approximation distance (km) — accurate enough for clustering
+    const DEG2RAD = Math.PI / 180;
+    const R = 6371; // Earth radius km
+    function fastDistKm(a, b) {
+        const dLat = (b[1] - a[1]) * DEG2RAD;
+        const dLng = (b[0] - a[0]) * DEG2RAD;
+        const avgLat = (a[1] + b[1]) * 0.5 * DEG2RAD;
+        const x = dLng * Math.cos(avgLat);
+        return Math.sqrt(x * x + dLat * dLat) * R;
+    }
+
     for (let i = 0; i < n; i++) {
         for (let j = i + 1; j < n; j++) {
-            if (turf.distance(centroids[i], centroids[j], { units: 'kilometers' }) <= thresholdKm) union(i, j);
+            if (fastDistKm(coords[i], coords[j]) <= thresholdKm) merge(i, j);
         }
     }
     const groups = {};
@@ -250,6 +272,10 @@ function _toPolygonFeature(geometry) {
     if (geometry.type === 'GeometryCollection') {
         const polygonGeometries = geometry.geometries.filter(g => g.type === 'Polygon' || g.type === 'MultiPolygon');
         if (polygonGeometries.length === 0) return null;
+        // Skip expensive sequential union for large collections — return first polygon
+        // as representative so clip/merge logic has something to work with without
+        // blocking the event loop for seconds.
+        if (polygonGeometries.length > 80) return turf.feature(polygonGeometries[0]);
         let merged = turf.feature(polygonGeometries[0]);
         for (let i = 1; i < polygonGeometries.length; i++) {
             const next = turf.feature(polygonGeometries[i]);
