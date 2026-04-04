@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>Alert Map</title>
+
+  <link href="vendor/maplibre-gl.css" rel="stylesheet" />
+  <script src="vendor/maplibre-gl.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #map { width: 100%; height: 100%; background: #1a1a2e; }
+
+    .maplibregl-ctrl-attrib {
+      font-size: 9px;
+      background: rgba(0,0,0,0.55) !important;
+      color: #aaa !important;
+      border-radius: 4px;
+      padding: 2px 5px !important;
+    }
+    .maplibregl-ctrl-attrib a {
+      pointer-events: none !important;
+      text-decoration: none !important;
+      color: inherit !important;
+      cursor: default !important;
+    }
+
+    #tooltip {
+      position: absolute;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10, 10, 26, 0.92);
+      color: #fff;
+      border-radius: 12px;
+      padding: 10px 18px;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 14px;
+      direction: rtl;
+      text-align: center;
+      pointer-events: none;
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,0.12);
+      display: none;
+      max-width: 80vw;
+      z-index: 10;
+    }
+    #tooltip .zone-name { font-weight: 700; font-size: 16px; margin-bottom: 2px; }
+    #tooltip .alert-type { opacity: 0.75; font-size: 12px; }
+
+    #status {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      background: rgba(10,10,26,0.85);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 12px;
+      backdrop-filter: blur(6px);
+      z-index: 10;
+    }
+    #status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #4caf50;
+      box-shadow: 0 0 6px #4caf50;
+      flex-shrink: 0;
+    }
+    #status-dot.alert { background: #EF4444; box-shadow: 0 0 8px #EF4444; animation: pulse 1.2s infinite; }
+    #status-dot.threat { background: #FFD740; box-shadow: 0 0 6px #FFD740; animation: pulse 1.8s infinite; }
+    #status-dot.pre-warning { background: #FBBF24; box-shadow: 0 0 6px #FBBF24; animation: pulse 2.0s infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.6; transform: scale(1.3); }
+    }
+
+    .user-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #2196f3;
+      border: 2.5px solid #fff;
+      box-shadow: 0 0 0 3px rgba(33,150,243,0.3);
+    }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<div id="status">
+  <div id="status-dot"></div>
+  <span id="status-text"></span>
+</div>
+<div id="tooltip">
+  <div class="zone-name" id="tt-zone"></div>
+  <div class="alert-type" id="tt-type"></div>
+</div>
+
+<script>
+'use strict';
+
+// ── Config ──────────────────────────────────────────────────────────────
+const CLEAR_FADE_MS = 15 * 60 * 1000;
+const RECENT_ZONE_MS = 15 * 1000;
+
+const ALERT_COLORS = {
+  URGENT:  { fill: '#EF4444', border: '#DC2626' },
+  CAUTION: { fill: '#FBBF24', border: '#F59E0B' },
+};
+
+let STATUS_LABELS = {
+  he: { no_alerts: 'אין התרעות', threat: 'איום מרוחק', warning: 'אזהרה', critical: 'קריטי' },
+  en: { no_alerts: 'NO ALERTS', threat: 'REMOTE THREAT', warning: 'WARNING', critical: 'CRITICAL' },
+};
+
+let ALERT_LABELS = {
+  he: { URGENT: 'ירי רקטות וטילים / חדירה', CAUTION: 'התרעה מוקדמת' },
+  en: { URGENT: 'Rocket / Missile / Hostile', CAUTION: 'Pre-Warning' },
+};
+
+let appLang = 'he';
+const L = () => STATUS_LABELS[appLang];
+const AL = () => ALERT_LABELS[appLang];
+
+// ── JS Bridge: Language & Zone ──────────────────────────────────────────
+window.setAppLanguage = (lang) => {
+  appLang = (lang && (lang.startsWith('iw') || lang === 'he')) ? 'he' : 'en';
+  document.documentElement.lang = appLang;
+  document.documentElement.dir = appLang === 'he' ? 'rtl' : 'ltr';
+};
+
+let userZone = null;
+window.setUserZone = (name) => { if (name) userZone = name.trim(); };
+
+// ── Polygon Index (loaded once from bundled data) ───────────────────────
+const polygonIndex = new Map(); // zone name -> GeoJSON Feature
+
+window.loadPolygons = function(json) {
+  const raw = typeof json === 'string' ? JSON.parse(json) : json;
+  let count = 0;
+  for (const [name, coords] of Object.entries(raw)) {
+    if (!Array.isArray(coords) || coords.length < 3) continue;
+    const ring = coords.map(([lat, lng]) => [lng, lat]);
+    const first = ring[0], last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) ring.push([...first]);
+    polygonIndex.set(name, {
+      type: 'Feature',
+      properties: { name },
+      geometry: { type: 'Polygon', coordinates: [ring] },
+    });
+    count++;
+  }
+  console.log('[map] Loaded ' + count + ' polygons');
+};
+
+// ── Map Setup ───────────────────────────────────────────────────────────
+const map = new maplibregl.Map({
+  container: 'map',
+  style: {
+    version: 8,
+    sources: {},
+    layers: [
+      { id: 'bg', type: 'background', paint: { 'background-color': '#0a0a18' } },
+    ],
+  },
+  center: [34.85, 31.5],
+  zoom: 7,
+  minZoom: 5,
+  maxZoom: 17,
+  attributionControl: false,
+});
+
+map.dragRotate.disable();
+map.touchZoomRotate.disableRotation();
+
+const dot  = document.getElementById('status-dot');
+const text = document.getElementById('status-text');
+
+// ── User Location ───────────────────────────────────────────────────────
+let userMarker = null;
+window.onLocationUpdate = function(lat, lng) {
+  if (!lat || !lng) return;
+  const el = document.createElement('div');
+  el.className = 'user-dot';
+  if (userMarker) userMarker.remove();
+  userMarker = new maplibregl.Marker({ element: el })
+    .setLngLat([lng, lat])
+    .addTo(map);
+};
+
+// ── Tooltip ─────────────────────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+const ttZone  = document.getElementById('tt-zone');
+const ttType  = document.getElementById('tt-type');
+let tooltipTimer = null;
+
+function showTooltip(zoneName, alertType) {
+  ttZone.textContent = zoneName;
+  ttType.textContent = AL()[alertType] || alertType;
+  tooltip.style.display = 'block';
+  clearTimeout(tooltipTimer);
+  tooltipTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 4000);
+}
+
+// ── Data Sources (3 layers: urgent, caution, clearing) ──────────────────
+const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+let mapReady = false;
+let pendingUpdate = null;
+
+// Track clearing features for animation
+let clearingFeatures = [];
+
+map.on('load', async () => {
+  // 1. Country outline
+  try {
+    const r = await fetch('israel-outline.json');
+    if (r.ok) {
+      const outline = await r.json();
+      map.addSource('country-src', { type: 'geojson', data: outline });
+      map.addLayer({
+        id: 'country-fill', type: 'fill', source: 'country-src',
+        paint: { 'fill-color': '#18182e', 'fill-opacity': 1 },
+      });
+    }
+  } catch (e) { console.warn('[map] outline load failed', e); }
+
+  // 2. Extra geography
+  try {
+    const r = await fetch('geo-extras.json');
+    if (r.ok) {
+      const extras = await r.json();
+      if (extras.water) {
+        map.addSource('water-src', { type: 'geojson', data: extras.water });
+        map.addLayer({ id: 'water-fill', type: 'fill', source: 'water-src',
+          paint: { 'fill-color': '#0a0a18', 'fill-opacity': 0.8 } });
+      }
+      if (extras.cities) {
+        map.addSource('cities-src', { type: 'geojson', data: extras.cities });
+        map.addLayer({ id: 'city-dots', type: 'circle', source: 'cities-src',
+          paint: { 'circle-radius': 2.5, 'circle-color': '#555570', 'circle-opacity': 0.7 } });
+      }
+      if (extras.neighbors) {
+        map.addSource('neighbors-src', { type: 'geojson', data: extras.neighbors });
+        map.addLayer({ id: 'neighbor-fill', type: 'fill', source: 'neighbors-src',
+          paint: { 'fill-color': '#111122', 'fill-opacity': 0.6 } });
+        map.moveLayer('neighbor-fill', 'country-fill');
+      }
+    }
+  } catch (e) {}
+
+  // 3. Alert layers (added once, data updated dynamically)
+  map.addSource('clearing-src', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'clearing-fill', type: 'fill', source: 'clearing-src',
+    paint: { 'fill-color': '#388E3C', 'fill-opacity': 0.3 },
+  });
+  map.addLayer({
+    id: 'clearing-border', type: 'line', source: 'clearing-src',
+    paint: { 'line-color': '#4CAF50', 'line-width': 1, 'line-opacity': 0.5 },
+  });
+
+  map.addSource('caution-src', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'caution-fill', type: 'fill', source: 'caution-src',
+    paint: { 'fill-color': '#FBBF24', 'fill-opacity': 0.45 },
+  });
+  map.addLayer({
+    id: 'caution-border', type: 'line', source: 'caution-src',
+    paint: { 'line-color': '#F59E0B', 'line-width': 1.5, 'line-opacity': 0.8 },
+  });
+
+  map.addSource('urgent-src', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'urgent-fill', type: 'fill', source: 'urgent-src',
+    paint: { 'fill-color': '#EF4444', 'fill-opacity': 0.5 },
+  });
+  map.addLayer({
+    id: 'urgent-border', type: 'line', source: 'urgent-src',
+    paint: { 'line-color': '#DC2626', 'line-width': 1.5, 'line-opacity': 0.9 },
+  });
+
+  // Recent-zone highlight overlay (on top)
+  map.addSource('recent-src', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'recent-fill', type: 'fill', source: 'recent-src',
+    paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.2 },
+  });
+
+  // Heatmap layer
+  map.addSource('heat-src', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'heat-layer', type: 'heatmap', source: 'heat-src',
+    paint: {
+      'heatmap-weight': ['get', 'weight'],
+      'heatmap-intensity': 0.6,
+      'heatmap-radius': 30,
+      'heatmap-opacity': 0.4,
+      'heatmap-color': [
+        'interpolate', ['linear'], ['heatmap-density'],
+        0, 'rgba(0,0,0,0)',
+        0.2, 'rgba(255,200,0,0.3)',
+        0.5, 'rgba(255,120,0,0.5)',
+        1.0, 'rgba(255,40,0,0.7)',
+      ],
+    },
+  }, 'clearing-fill'); // below alert fills
+
+  // Click handlers for tooltips
+  for (const layerId of ['urgent-fill', 'caution-fill', 'clearing-fill']) {
+    map.on('click', layerId, (e) => {
+      if (e.features && e.features[0]) {
+        const p = e.features[0].properties;
+        showTooltip(p.name || '', p.alertType || p.state || '');
+      }
+    });
+  }
+
+  mapReady = true;
+  if (pendingUpdate) {
+    renderFromThreatMap(pendingUpdate.threats, pendingUpdate.status);
+    pendingUpdate = null;
+  }
+
+  // Start clearing fade animation
+  requestAnimationFrame(tickClearingFade);
+  // Start recent-zone pulse
+  requestAnimationFrame(tickRecentPulse);
+});
+
+// ── Core Render Function ────────────────────────────────────────────────
+// Called by Android JS bridge on every alert/clear event
+window.onThreatUpdate = function(data) {
+  const d = typeof data === 'string' ? JSON.parse(data) : data;
+  if (!mapReady) {
+    pendingUpdate = d;
+    return;
+  }
+  renderFromThreatMap(d.threats || {}, d.status || 'GREEN');
+};
+
+function renderFromThreatMap(threats, status) {
+  const now = Date.now();
+  const urgentFeatures = [];
+  const cautionFeatures = [];
+  const newClearingFeatures = [];
+  const recentFeatures = [];
+  const heatFeatures = [];
+
+  for (const [zoneName, entry] of Object.entries(threats)) {
+    const state = entry.s;
+    const name = entry.name || zoneName;
+    const poly = polygonIndex.get(name) || polygonIndex.get(zoneName);
+    if (!poly) continue;
+
+    if (state === 'CLEARING') {
+      const ct = entry.ct || 0;
+      if (ct > 0 && (now - ct) < CLEAR_FADE_MS) {
+        newClearingFeatures.push({
+          ...poly,
+          properties: { ...poly.properties, state: 'CLEARING', ct, alertType: 'CLEARING' },
+        });
+      }
+      continue;
+    }
+
+    // URGENT or CAUTION (active threats)
+    const alertType = (state === 'URGENT') ? 'URGENT' : 'CAUTION';
+    const feature = {
+      ...poly,
+      properties: { ...poly.properties, alertType, t: entry.t || 0 },
+    };
+
+    if (alertType === 'URGENT') {
+      urgentFeatures.push(feature);
+    } else {
+      cautionFeatures.push(feature);
+    }
+
+    // Heatmap centroid
+    const ring = poly.geometry.coordinates[0];
+    let cx = 0, cy = 0;
+    for (const [x, y] of ring) { cx += x; cy += y; }
+    cx /= ring.length; cy /= ring.length;
+    const weight = alertType === 'URGENT' ? 4 : 1;
+    heatFeatures.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [cx, cy] },
+      properties: { weight },
+    });
+
+    // Recent highlight
+    if (entry.t && (now - entry.t) < RECENT_ZONE_MS) {
+      recentFeatures.push(feature);
+    }
+  }
+
+  // Update all sources in one batch
+  map.getSource('urgent-src').setData({ type: 'FeatureCollection', features: urgentFeatures });
+  map.getSource('caution-src').setData({ type: 'FeatureCollection', features: cautionFeatures });
+  map.getSource('recent-src').setData({ type: 'FeatureCollection', features: recentFeatures });
+  map.getSource('heat-src').setData({ type: 'FeatureCollection', features: heatFeatures });
+
+  // Merge new clearing features with existing (preserve ongoing fades)
+  clearingFeatures = newClearingFeatures;
+  map.getSource('clearing-src').setData({ type: 'FeatureCollection', features: clearingFeatures });
+
+  // Status badge
+  updateStatusBadge(status);
+}
+
+// ── Status Badge ────────────────────────────────────────────────────────
+function updateStatusBadge(status) {
+  switch (status) {
+    case 'CRITICAL':
+    case 'RED':
+      dot.className = 'alert';
+      text.textContent = L().critical;
+      break;
+    case 'WARNING':
+    case 'ORANGE':
+      dot.className = 'pre-warning';
+      text.textContent = L().warning;
+      break;
+    case 'THREAT':
+    case 'YELLOW':
+      dot.className = 'threat';
+      text.textContent = L().threat;
+      break;
+    default:
+      dot.className = '';
+      text.textContent = L().no_alerts;
+  }
+}
+
+// ── Clearing Fade Animation ─────────────────────────────────────────────
+function tickClearingFade() {
+  if (clearingFeatures.length > 0) {
+    const now = Date.now();
+    const updated = [];
+    for (const f of clearingFeatures) {
+      const elapsed = now - f.properties.ct;
+      if (elapsed >= CLEAR_FADE_MS) continue; // expired
+      updated.push(f);
+    }
+    if (updated.length !== clearingFeatures.length) {
+      clearingFeatures = updated;
+      map.getSource('clearing-src').setData({ type: 'FeatureCollection', features: clearingFeatures });
+    }
+    // Animate opacity: 0.3 → 0 over CLEAR_FADE_MS
+    if (clearingFeatures.length > 0) {
+      const oldest = Math.min(...clearingFeatures.map(f => f.properties.ct));
+      const elapsed = now - oldest;
+      const opacity = Math.max(0, 0.3 * (1 - elapsed / CLEAR_FADE_MS));
+      try { map.setPaintProperty('clearing-fill', 'fill-opacity', opacity); } catch {}
+    }
+  }
+  setTimeout(() => requestAnimationFrame(tickClearingFade), 1000); // 1 fps is enough for fade
+}
+
+// ── Recent Zone Pulse Animation ─────────────────────────────────────────
+function tickRecentPulse(ts) {
+  const opacity = 0.15 + 0.1 * Math.sin((ts || 0) / 450);
+  try { map.setPaintProperty('recent-fill', 'fill-opacity', opacity); } catch {}
+  requestAnimationFrame(tickRecentPulse);
+}
+
+// ── Legacy bridge compatibility ─────────────────────────────────────────
+// MapFragment may call fetchAndRender on older code paths
+window.fetchAndRender = function() {
+  // No-op in client-driven mode; data comes via onThreatUpdate
+  console.log('[map] fetchAndRender called (no-op in client-driven mode)');
+};
+window.onAlertCleared = window.fetchAndRender;
+
+// Initial status
+updateStatusBadge('GREEN');
+</script>
+</body>
+</html>

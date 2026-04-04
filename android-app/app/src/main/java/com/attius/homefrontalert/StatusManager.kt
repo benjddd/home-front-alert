@@ -99,6 +99,12 @@ object StatusManager {
         return ActiveThreatsSnapshot(active10mCount, closestDist10m, localRemaining, homeThreatObj, recentZones)
     }
 
+    /** Returns the current dashboard status string (GREEN, YELLOW, ORANGE, RED). */
+    fun getCurrentStatusString(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString("dash_status", "GREEN") ?: "GREEN"
+    }
+
     fun updateStatus(context: Context, newStatus: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val oldStatus = prefs.getString("dash_status", "GREEN")
