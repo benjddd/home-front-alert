@@ -5,6 +5,7 @@ const axios = require('axios');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { GoogleAuth } = require('google-auth-library');
+const { execFile } = require('child_process');
 const path = require('path');
 const config = require('./config');
 
@@ -33,9 +34,8 @@ app.get('/favicon.ico', (req, res) => res.status(204).end());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Run string extraction script on startup to ensure SSOT
-const { exec } = require('child_process');
 const extractScriptPath = path.join(__dirname, '..', 'scripts', 'extract_strings.js');
-exec(`node "${extractScriptPath}"`, (error, stdout, stderr) => {
+execFile('node', [extractScriptPath], (error, stdout, stderr) => {
     if (error) {
         console.error(`❌ String extraction failed: ${error.message}`);
         return;
@@ -65,7 +65,7 @@ const dashboardAuth = (req, res, next) => {
     }
 
     if (pass !== correctPass) {
-        console.warn(`Unauthorized access attempt. Received pass length: ${pass?.length}, expected length: ${correctPass.length}`);
+        console.warn(`Unauthorized access attempt. Received pass length: ${pass?.length ?? 0}`);
         return res.status(401).json({ error: "Unauthorized" });
     }
     next();
@@ -133,7 +133,7 @@ function normalizeAlertType(rawType) {
     if (map[lower]) return map[lower];
     // Substring match for partial Hebrew descriptions
     for (const [pattern, canonical] of Object.entries(map)) {
-        if (trimmed.includes(pattern) || pattern.includes(trimmed)) return canonical;
+        if (trimmed.includes(pattern)) return canonical;
     }
     console.warn(`[normalizeAlertType] Unknown type "${rawType}" → OTHER`);
     return 'OTHER';

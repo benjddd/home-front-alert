@@ -9,7 +9,7 @@
  * License: Apache 2.0 — attribution required in app UI.
  */
 
-const https = require('https');
+const axios = require('axios');
 const path  = require('path');
 const AdmZip = require('adm-zip');  // added to package.json
 
@@ -32,16 +32,14 @@ const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // refresh once a day
  */
 function downloadBuffer(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { timeout: 20000 }, (res) => {
-      if (res.statusCode !== 200) {
-        reject(new Error(`HTTP ${res.statusCode} fetching ${url}`));
-        return;
-      }
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end',  () => resolve(Buffer.concat(chunks)));
-      res.on('error', reject);
-    }).on('error', reject);
+    axios.get(url, {
+      timeout: 20000,
+      responseType: 'arraybuffer',
+      validateStatus: (status) => status === 200,
+      maxRedirects: 5,
+    }).then((response) => {
+      resolve(Buffer.from(response.data));
+    }).catch(reject);
   });
 }
 

@@ -31,7 +31,7 @@ function _resolveType(raw) {
     const lower = raw.toLowerCase();
     if (map[lower]) return map[lower];
     for (const [pattern, canonical] of Object.entries(map)) {
-        if (raw.includes(pattern) || pattern.includes(raw)) return canonical;
+        if (raw.includes(pattern)) return canonical;
     }
     return raw; // caller falls back to OTHER via ALERT_TYPES[type] || ALERT_TYPES.OTHER
 }

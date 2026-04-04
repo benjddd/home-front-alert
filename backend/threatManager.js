@@ -12,6 +12,7 @@ const config = require('./config');
  */
 
 const STATE_FILE = path.join(__dirname, 'state.json');
+const STATE_FILE_TMP = `${STATE_FILE}.tmp`;
 
 const THREAT_STATUS = {
     ACTIVE: 'ACTIVE',
@@ -22,6 +23,8 @@ class ThreatManager {
     constructor() {
         this.activeThreats = new Map(); // id -> Threat object
         this._lastSaveAt = 0;  // Throttle disk writes for lastSeenAt refreshes
+        this._saveInFlight = false;
+        this._saveQueued = false;
         this.loadState();
     }
 
@@ -192,10 +195,8 @@ class ThreatManager {
             if (!zoneSeenAt) {
                 continue;
             }
-            for (const timestamp of zoneSeenAt.values()) {
-                if (timestamp > cutoff) {
-                    count++;
-                }
+            if ([...zoneSeenAt.values()].some((timestamp) => timestamp > cutoff)) {
+                count++;
             }
         }
         return count;
@@ -222,6 +223,10 @@ class ThreatManager {
     // --- Persistence ---
 
     saveState() {
+        if (this._saveInFlight) {
+            this._saveQueued = true;
+            return;
+        }
         try {
             const data = JSON.stringify([...this.activeThreats.values()].map(t => ({
                 ...t,
@@ -229,7 +234,23 @@ class ThreatManager {
                 zoneAddedAt: t.zoneAddedAt ? [...t.zoneAddedAt.entries()] : [], // Serialize Map to [[k,v]]
                 zoneSeenAt: t.zoneSeenAt ? [...t.zoneSeenAt.entries()] : [],
             })), null, 2);
-            fs.writeFileSync(STATE_FILE, data);
+            this._saveInFlight = true;
+            fs.writeFile(STATE_FILE_TMP, data, (writeErr) => {
+                if (writeErr) {
+                    this._saveInFlight = false;
+                    console.error('[threatManager] Failed to save state:', writeErr.message);
+                    return;
+                }
+                fs.rename(STATE_FILE_TMP, STATE_FILE, (renameErr) => {
+                    this._saveInFlight = false;
+                    if (renameErr) {
+                        console.error('[threatManager] Failed to save state:', renameErr.message);
+                    } else if (this._saveQueued) {
+                        this._saveQueued = false;
+                        this.saveState();
+                    }
+                });
+            });
         } catch (e) {
             console.error('[threatManager] Failed to save state:', e.message);
         }

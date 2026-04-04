@@ -28,7 +28,6 @@ android-app/**/*.apk
 android-app/**/*.aab
 android-app/**/*.ap_
 # Temp build logs & artifacts
-*.txt
 *.log
 !RELEASE_NOTES.md
 !README.md
@@ -55,6 +54,7 @@ override_policy.yaml
 login_url.txt
 setup_android.ps1
 temp_restore/
+tmp_review/
 pikud-alert*.zip
 test-app/
 siren_video.mp4

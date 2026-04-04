@@ -2,7 +2,6 @@ import json
 import urllib.request
 import zipfile
 import io
-import ssl
 from pathlib import Path
 
 try:
@@ -34,10 +33,9 @@ def main():
         except Exception as e:
             print("Skipping invalid base geom:", e)
 
-    ctx = ssl._create_unverified_context()
     url = 'https://raw.githubusercontent.com/amitfin/oref_alert/main/custom_components/oref_alert/metadata/area_to_polygon.json.zip'
     print(f"Downloading alert zones from {url}")
-    buf = urllib.request.urlopen(url, context=ctx, timeout=60).read()
+    buf = urllib.request.urlopen(url, timeout=60).read()
     z = zipfile.ZipFile(io.BytesIO(buf))
     name = [n for n in z.namelist() if n.endswith('.json')][0]
     raw = json.loads(z.read(name).decode('utf-8'))

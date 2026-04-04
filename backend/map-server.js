@@ -18,7 +18,8 @@ const polygonCache = require('./polygonCache');
 const mapState     = require('./mapState');
 const axios        = require('axios');
 const { OAuth2Client } = require('google-auth-library');
-const BACKEND_SERVICE_URL = process.env.BACKEND_SERVICE_URL || 'https://homefront-backend-cjnpwpm63q-zf.a.run.app';
+const BACKEND_SERVICE_URL = process.env.BACKEND_SERVICE_URL;
+const MAP_SERVICE_AUDIENCE = process.env.MAP_SERVICE_AUDIENCE;
 const client = new OAuth2Client();
 
 const app  = express();
@@ -111,8 +112,7 @@ async function verifyOidcToken(req, res, next) {
   try {
     const ticket = await client.verifyIdToken({
       idToken,
-      // Map service validates that we are the intended audience. 
-      // If deployed without generic URL yet, we skip audience check or use env var.
+      audience: MAP_SERVICE_AUDIENCE || undefined,
     });
     req.user = ticket.getPayload();
     

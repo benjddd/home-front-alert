@@ -27,7 +27,7 @@ steps:
       - '--min-instances=0'
       - '--max-instances=10'
       - '--memory=512Mi'
-      - '--update-env-vars=NODE_ENV=production'
+      - '--update-env-vars=NODE_ENV=production,BACKEND_SERVICE_URL=$_BACKEND_SERVICE_URL,MAP_SERVICE_AUDIENCE=$_MAP_SERVICE_AUDIENCE,RELAY_SERVICE_ACCOUNT=$_RELAY_SERVICE_ACCOUNT'
 
 images:
   - '$_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/homefront-map:latest'
@@ -36,6 +36,9 @@ substitutions:
   _REGION: me-west1
   _AR_HOSTNAME: me-west1-docker.pkg.dev
   _AR_REPOSITORY: backend-repo
+  _BACKEND_SERVICE_URL: https://homefront-backend-cjnpwpm63q-zf.a.run.app
+  _MAP_SERVICE_AUDIENCE: https://homefront-map-cjnpwpm63q-zf.a.run.app
+  _RELAY_SERVICE_ACCOUNT: 344391280523-compute@developer.gserviceaccount.com
 
 options:
   logging: CLOUD_LOGGING_ONLY
