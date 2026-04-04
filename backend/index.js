@@ -56,7 +56,7 @@ app.use(limiter);
 
 // Dashboard Password Check Utility
 const dashboardAuth = (req, res, next) => {
-    const pass = req.headers['x-dashboard-pass'] || req.query.pass;
+    const pass = req.headers['x-dashboard-pass'];
     const correctPass = process.env.DASHBOARD_PASS;
 
     if (!correctPass) {

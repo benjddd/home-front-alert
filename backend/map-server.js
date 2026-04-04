@@ -31,8 +31,8 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc:  ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
-      styleSrc:   ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
+      scriptSrc:  ["'self'", "'unsafe-inline'"],
+      styleSrc:   ["'self'", "'unsafe-inline'"],
       // No external tile servers — basemap is our own GeoJSON outline.
       // blob: needed for MapLibre's internal Web Worker comms.
       // demotiles.maplibre.org: glyph PBF endpoint for symbol labels (cities/water/neighbors).

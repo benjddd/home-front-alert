@@ -30,6 +30,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tabLayout: TabLayout
 
     private val uiHandler = Handler(Looper.getMainLooper())
+
+    private var nativeHealthCheckThread: Thread? = null
     
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "shield_active") {
@@ -152,6 +154,12 @@ class MainActivity : AppCompatActivity() {
         uiHandler.removeCallbacks(stateMaintenanceRunnable)
     }
 
+    override fun onDestroy() {
+        nativeHealthCheckThread?.interrupt()
+        nativeHealthCheckThread = null
+        super.onDestroy()
+    }
+
     fun showLocationExplanation() {
         val lm = getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
         val isGpsEnabled = lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) || 
@@ -222,8 +230,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startNativeHealthCheckLoop() {
-        kotlin.concurrent.thread(start = true) {
-            while (true) {
+        if (nativeHealthCheckThread?.isAlive == true) return
+        nativeHealthCheckThread = kotlin.concurrent.thread(start = true) {
+            while (!Thread.currentThread().isInterrupted) {
                 evaluateFailoverCondition()
                 try {
                     Thread.sleep(2 * 60 * 1000L)
