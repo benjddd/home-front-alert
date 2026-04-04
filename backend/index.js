@@ -2,6 +2,7 @@ const admin = require('firebase-admin');
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const fs = require('fs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { GoogleAuth } = require('google-auth-library');
@@ -44,14 +45,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Run string extraction script on startup to ensure SSOT
 const extractScriptPath = path.join(__dirname, '..', 'scripts', 'extract_strings.js');
-execFile('node', [extractScriptPath], (error, stdout, stderr) => {
-    if (error) {
-        console.error(`❌ String extraction failed: ${error.message}`);
-        return;
-    }
-    if (stderr) console.warn(`⚠️ String extraction warning: ${stderr}`);
-    console.log(`✅ String extraction successful: ${stdout.trim()}`);
-});
+if (fs.existsSync(extractScriptPath)) {
+    execFile('node', [extractScriptPath], (error, stdout, stderr) => {
+        if (error) {
+            console.error(`❌ String extraction failed: ${error.message}`);
+            return;
+        }
+        if (stderr) console.warn(`⚠️ String extraction warning: ${stderr}`);
+        console.log(`✅ String extraction successful: ${stdout.trim()}`);
+    });
+} else {
+    console.warn(`⚠️ String extraction script not found at startup: ${extractScriptPath}`);
+}
 
 // Strict Rate Limiting: 100 requests per 15 minutes
 const limiter = rateLimit({
