@@ -29,8 +29,8 @@ android {
         applicationId = "com.attius.homefrontalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 32
-        versionName = "2.0.0"
+        versionCode = 33
+        versionName = "2.1.0"
 
         buildConfigField("String", "BACKEND_URL", "\"$backendUrlEnv\"")
         buildConfigField("String", "API_KEY", "\"$apiKeyEnv\"")
@@ -95,6 +95,9 @@ android {
 
     buildTypes {
         release {
+            // R8 minification disabled: AGP R8 task fails on Google Drive paths
+            // (proguard-android-optimize.txt not found at intermediates path).
+            // TODO: Enable when building via CI (GitHub Actions) on a normal filesystem.
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(

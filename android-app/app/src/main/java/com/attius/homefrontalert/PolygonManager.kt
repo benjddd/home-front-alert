@@ -124,9 +124,11 @@ object PolygonManager {
                 return
             }
 
-            // Validate JSON to prevent JS injection via compromised upstream
+            // Validate and roundtrip JSON to prevent JS injection via compromised upstream.
+            // JSONObject.toString() guarantees safe JS-expression output on all engines.
+            val sanitized: String
             try {
-                JSONObject(json)
+                sanitized = JSONObject(json).toString()
             } catch (e: Exception) {
                 Log.e(TAG, "Downloaded polygon data is not valid JSON, rejecting", e)
                 return
@@ -134,14 +136,14 @@ object PolygonManager {
 
             val cacheFile = File(appContext.filesDir, CACHE_FILE)
             val tmpFile = File(appContext.filesDir, "$CACHE_FILE.tmp")
-            tmpFile.writeText(json)
+            tmpFile.writeText(sanitized)
             if (!tmpFile.renameTo(cacheFile)) {
                 tmpFile.copyTo(cacheFile, overwrite = true)
                 tmpFile.delete()
             }
 
-            cachedJson = json
-            zoneCount = countZones(json)
+            cachedJson = sanitized
+            zoneCount = countZones(sanitized)
             prefs.edit().putLong(CACHE_TS_KEY, System.currentTimeMillis()).apply()
             Log.i(TAG, "Polygon refresh complete: $zoneCount zones")
         } catch (e: Exception) {
