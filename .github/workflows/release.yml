@@ -49,8 +49,14 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Debug - List AAB output
-        run: find android-app/app/build/outputs -name "*.aab" -o -name "*.apk" 2>/dev/null || echo "No build outputs found"
+      - name: Find AAB
+        id: find-aab
+        run: |
+          AAB=$(find . -name "*.aab" -type f | head -1)
+          echo "Found: $AAB"
+          ls -la "$AAB" 2>/dev/null || echo "No AAB found, listing build dir:"
+          ls -laR android-app/app/build/ 2>/dev/null | tail -30
+          echo "aab_path=$AAB" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate to Google Cloud
         id: gcp-auth
@@ -68,7 +74,7 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ steps.wif-creds.outputs.json }}
           packageName: com.attius.homefrontalert
-          releaseFiles: android-app/app/build/outputs/bundle/proRelease/*.aab
+          releaseFiles: ${{ steps.find-aab.outputs.aab_path }}
           track: internal
           status: completed
           changesNotSentForReview: false
