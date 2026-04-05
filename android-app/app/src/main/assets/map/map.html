@@ -146,6 +146,7 @@
 // ── Config ──────────────────────────────────────────────────────────────
 const CLEAR_FADE_MS = 15 * 60 * 1000;
 const CLEAR_BASE_OPACITY = 0.45;
+const CLEAR_BORDER_OPACITY = 0.6;
 const RECENT_ZONE_MS = 15 * 1000;
 const URGENT_BASE_OPACITY = 0.5;
 const CAUTION_BASE_OPACITY = 0.45;
@@ -563,7 +564,7 @@ function renderFromThreatMap(threats, status, popAtRisk) {
       if (ct > 0 && (now - ct) < CLEAR_FADE_MS) {
         const fadeFactor = Math.max(0, 1 - (now - ct) / CLEAR_FADE_MS);
         const opacity = CLEAR_BASE_OPACITY * fadeFactor;
-        const borderOpacity = 0.6 * fadeFactor;
+        const borderOpacity = CLEAR_BORDER_OPACITY * fadeFactor;
         newClearingFeatures.push({
           ...poly,
           properties: { ...poly.properties, state: 'CLEARING', ct, alertType: 'CLEARING', opacity, borderOpacity },
@@ -691,7 +692,7 @@ function tickClearingFade() {
       if (elapsed >= CLEAR_FADE_MS) { changed = true; continue; }
       const fadeFactor = Math.max(0, 1 - elapsed / CLEAR_FADE_MS);
       const newOpacity = CLEAR_BASE_OPACITY * fadeFactor;
-      const newBorderOpacity = 0.6 * fadeFactor;
+      const newBorderOpacity = CLEAR_BORDER_OPACITY * fadeFactor;
       if (f.properties.opacity === undefined || Math.abs(f.properties.opacity - newOpacity) > 0.005) {
         f.properties.opacity = newOpacity;
         f.properties.borderOpacity = newBorderOpacity;

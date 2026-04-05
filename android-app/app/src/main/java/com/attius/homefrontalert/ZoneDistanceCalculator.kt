@@ -9,6 +9,14 @@ import kotlin.math.sqrt
 
 data class CityLocation(val nameHe: String, val nameEn: String, val lat: Double, val lng: Double, val countdown: Int = 0, val population: Long = 0)
 
+data class PopulationAtRisk(
+    val alert: Long = 0L,
+    val preWarning: Long = 0L,
+    val byType: Map<String, Long> = emptyMap()
+) {
+    val total: Long get() = alert + preWarning
+}
+
 /**
  * Handles the geographic distance logic between the user and active alert polygons.
  * This will parse the JSON data into a fast RAM lookup table.
@@ -152,16 +160,12 @@ class ZoneDistanceCalculator(private val context: Context) {
         return zoneCache[name] ?: normalizedCache[normalize(name)]
     }
 
-    /**
-     * Computes population at risk from the active threat map.
-     * Returns a map with keys: "alert", "preWarning", "total", and canonical type keys.
-     */
-    fun getPopulationAtRisk(threatMapJson: String): Map<String, Long> {
+    /** Computes population at risk from the active threat map. */
+    fun getPopulationAtRisk(threats: org.json.JSONObject): PopulationAtRisk {
         var alertPop = 0L
         var preWarningPop = 0L
         val byType = mutableMapOf<String, Long>()
         try {
-            val threats = org.json.JSONObject(threatMapJson)
             val iter = threats.keys()
             while (iter.hasNext()) {
                 val normKey = iter.next()
@@ -183,12 +187,7 @@ class ZoneDistanceCalculator(private val context: Context) {
         } catch (e: Exception) {
             Log.w("ZoneCalc", "getPopulationAtRisk parse error", e)
         }
-        val result = mutableMapOf<String, Long>()
-        result["alert"] = alertPop
-        result["preWarning"] = preWarningPop
-        result["total"] = alertPop + preWarningPop
-        byType.forEach { (k, v) -> result[k] = v }
-        return result
+        return PopulationAtRisk(alertPop, preWarningPop, byType)
     }
 
     /** Sum of all cached city populations (used as donut chart denominator). */
