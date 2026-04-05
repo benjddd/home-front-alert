@@ -37,6 +37,7 @@ app.use(helmet({
 }));
 
 app.use(cors({ origin: '*', methods: ['GET', 'POST'] }));
+app.use(express.static(path.join(__dirname, 'public')));
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
 const limiter = rateLimit({
@@ -105,7 +106,7 @@ app.use(express.json());
 app.post('/test-fcm', (req, res) => {
     const apiKey = req.headers['x-api-key'];
     const acceptedKeys = (process.env.API_KEYS || process.env.API_KEY || '')
-        .split(/[\s,]+/).filter(Boolean);
+        .split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
     if (acceptedKeys.length === 0 || !acceptedKeys.includes(apiKey)) {
         return res.status(403).json({ error: 'Forbidden' });
     }

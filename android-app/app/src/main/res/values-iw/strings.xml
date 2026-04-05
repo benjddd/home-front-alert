@@ -93,12 +93,7 @@
     <string name="settings_bulb_token_hint">קוד אבטחה של שיאומי (אופציונלי)</string>
     <string name="settings_bulb_discover">גילוי אוטומטי</string>
     <string name="settings_advanced_experimental">הגדרות מפתח (ניסיוני)</string>
-    <string name="settings_dedup_title">מניעת התרעות כפולות (Smart Sync)</string>
-    <string name="settings_dedup_desc">מונע צפצופים חוזרים עבור שידורי פיקוד העורף רציפים באותו אזור.</string>
-    <string name="settings_dedup_ttl_label">זמן המתנה לאזור (Alert TTL)</string>
-    <string name="settings_dedup_unit_sec">שנ\'</string>
-    <string name="settings_map_url_title">כתובת שירות המפה</string>
-    <string name="settings_map_url_hint">https://…/map</string>
+
     <string name="yeelight_searching">מחפש…</string>
     <string name="yeelight_found">נמצא Yeelight ב-%s</string>
     <string name="yeelight_not_found">לא נמצא מכשיר Yeelight</string>

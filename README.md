@@ -70,27 +70,40 @@ Frequencies: 300 Hz = 0 km away, 1500 Hz = 500 km away. Linear interpolation per
 
 ```
 android-app/                        # Android Kotlin app (com.attius.homefrontalert)
-├── MainActivity.kt                 # Dashboard & alert status display
+├── MainActivity.kt                 # ViewPager2 host — Dashboard + Map tabs
+├── DashboardFragment.kt            # Live alert status, countdown, zone grouping
+├── MapFragment.kt                  # WebView bridge → bundled MapLibre GL JS map
 ├── LocalPollingService.kt          # Direct HFC API polling (Standard mode)
 ├── MyFirebaseMessagingService.kt   # FCM push handler (Pro mode)
 ├── BootReceiver.kt                 # Restarts LocalPollingService after device reboot
 ├── DynamicToneGenerator.kt         # Synthesizes distance-mapped audio tones (44.1kHz)
 ├── ZoneDistanceCalculator.kt       # GPS → Haversine distance to alerted zones
 ├── AlertStyleRegistry.kt           # Maps HFC category strings → URGENT/CAUTION/CALM
-├── StatusManager.kt                # Stateful threat map (30-min zone persistence)
-├── SettingsActivity.kt             # GPS, volume, mode selection, diagnostics
+├── AlertColors.kt                  # Single source of truth for alert colors (all surfaces)
+├── StatusManager.kt                # SSOT threat map, severity gate, clearing lifecycle
+├── PolygonManager.kt               # Bundled polygon zip + daily GitHub refresh
+├── SettingsActivity.kt             # GPS, volume, mode selection, diagnostics, sound test
 ├── AppLocationManager.kt           # Fused Location Provider + saved fallback zone
 └── TOSActivity.kt                  # Terms of Service (first launch)
 
-backend/                            # Node.js — Google Cloud Run (Pro tier)
-└── index.js                        # HFC relay: polls API, dispatches FCM to 'alerts' topic
+assets/map/                         # Bundled map assets (no network dependency)
+├── map.html                        # MapLibre GL JS dark-themed threat map
+├── israel-outline.json             # Country outline GeoJSON
+├── geo-extras.json                 # Cities, water bodies, neighbor anchors
+├── polygons.zip                    # Zone polygon data (bundled fallback)
+└── vendor/                         # MapLibre GL JS + CSS (vendored)
+
+backend/                            # Node.js — Google Cloud Run (minimal relay)
+├── index.js                        # HFC poll → normalize → FCM dispatch
+├── dedup.js                        # Zone+type TTL deduplication for FCM
+└── config.js                       # Alert type normalization map + tunables
 
 proxy-microsite/                    # Firebase Hosting config
 └── firebase.json                   # Routes *.web.app → Cloud Run backend
 ```
 
 **Infrastructure (GCP project: `home-front-alert-hfc`):**
-- Cloud Run: `homefront-backend`, region `me-west1`, `min-instances=1`, no CPU throttling
+- Cloud Run: `homefront-backend`, region `me-west1`, `min-instances=1`, 512Mi, no CPU throttling
 - Firebase Hosting: `home-front-alert-hfc.web.app` → `homefront-backend`
 - Firebase Cloud Messaging: topic `alerts`, project `home-front-alert-hfc`
 
