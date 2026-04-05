@@ -50,6 +50,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Authenticate to Google Cloud
+        id: gcp-auth
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: projects/344391280523/locations/global/workloadIdentityPools/github-actions/providers/github
@@ -58,6 +59,7 @@ jobs:
       - name: Upload AAB to Play Store (Internal Testing)
         uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb # v1
         with:
+          serviceAccountJson: ${{ steps.gcp-auth.outputs.credentials_file_path }}
           packageName: com.attius.homefrontalert
           releaseFiles: android-app/app/build/outputs/bundle/proRelease/app-pro-release.aab
           track: internal
