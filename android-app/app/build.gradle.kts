@@ -4,7 +4,6 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.gms.google-services")
-    id("com.github.triplet.play")
 }
 
 val localProperties = Properties()
@@ -155,15 +154,6 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.1.0")
 }
 
-
-play {
-    track.set("internal")
-    defaultToAppBundles.set(true)
-    val credsFile = System.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-    if (credsFile != null) {
-        serviceAccountCredentials.set(file(credsFile))
-    }
-}
 
 // Redirect build output to temp dir locally to avoid Google Drive sync locks.
 // On CI (where GOOGLE_APPLICATION_CREDENTIALS is set), use the default location.
