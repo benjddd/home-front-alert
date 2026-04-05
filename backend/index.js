@@ -55,13 +55,9 @@ try {
             const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
             admin.initializeApp({ credential: admin.credential.cert(sa) });
             console.log('🔥 Firebase: Initialized via env var.');
-        } else if (process.env.K_SERVICE) {
-            admin.initializeApp({ credential: admin.credential.applicationDefault() });
-            console.log('🔥 Firebase: Initialized via ADC (Cloud Run).');
         } else {
-            const keyPath = path.join(__dirname, 'serviceAccountKey.json');
-            admin.initializeApp({ credential: admin.credential.cert(require(keyPath)) });
-            console.log('🔥 Firebase: Initialized via local file.');
+            admin.initializeApp({ credential: admin.credential.applicationDefault() });
+            console.log('🔥 Firebase: Initialized via ADC.');
         }
     }
 } catch (e) {
