@@ -6,6 +6,10 @@ on:
       - 'v*.*.*'           # triggers on version tags like v1.3.4
   workflow_dispatch:       # manual trigger from GitHub UI
 
+permissions:
+  contents: read
+  id-token: write          # required for Workload Identity Federation
+
 jobs:
   build-and-deploy:
     name: Build Signed AAB & Deploy to Internal Testing
@@ -41,10 +45,15 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/344391280523/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: play-publisher@home-front-alert-hfc.iam.gserviceaccount.com
+
       - name: Upload AAB to Play Store (Internal Testing)
         uses: r0adkll/upload-google-play@v1
         with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.attius.homefrontalert
           releaseFiles: android-app/app/build/outputs/bundle/proRelease/app-pro-release.aab
           track: internal
