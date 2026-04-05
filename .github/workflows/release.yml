@@ -56,10 +56,14 @@ jobs:
           workload_identity_provider: projects/344391280523/locations/global/workloadIdentityPools/github-actions/providers/github
           service_account: play-publisher@home-front-alert-hfc.iam.gserviceaccount.com
 
+      - name: Read WIF credentials
+        id: wif-creds
+        run: echo "json=$(cat '${{ steps.gcp-auth.outputs.credentials_file_path }}')" >> "$GITHUB_OUTPUT"
+
       - name: Upload AAB to Play Store (Internal Testing)
         uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb # v1
         with:
-          serviceAccountJson: ${{ steps.gcp-auth.outputs.credentials_file_path }}
+          serviceAccountJsonPlainText: ${{ steps.wif-creds.outputs.json }}
           packageName: com.attius.homefrontalert
           releaseFiles: android-app/app/build/outputs/bundle/proRelease/app-pro-release.aab
           track: internal
