@@ -19,6 +19,7 @@
 
 ---
 
+
 ## v2.0.0 (2026-04-05) — Client-Driven Map, UI Overhaul & Alert System v3
 
 ### Client-Driven Real-Time Map
@@ -57,6 +58,22 @@
 - **Silent URGENT fix**: Restored silent URGENT alerts by waiting for playback completion.
 - **Single zone pip**: Shortened to 125ms for snappier feedback.
 
+### Smart Home Integration
+- **Mi smart bulb / Yeelight**: Experimental integration for visual alert feedback via smart bulbs.
+
+### Security
+- **WebView bridge hardening**: Threat timeout, chunk timer guards, and map cleanup on navigation.
+- **Rotation-safe auth**: Backend auth secret support survives key rotation.
+- **Public repo hardening**: Removed emails, added CONTRIBUTING.md and LICENSE.
+- **Code review fixes**: Addressed all findings from PR #18 security review.
+
+### Infrastructure & Housekeeping
+- **Deploy memory**: Bumped to 512Mi for no-cpu-throttling requirement.
+- **Cloud Run guard**: Backend string extraction guarded on Cloud Run environment.
+- **Notification channels**: Split into separate channels with responsive scalable widget strategy.
+- **Build cleanup**: Removed compiled APK from repo, hardened .gitignore, ignored local utility scripts.
+- **Centralized config**: StatusManager SSOT helper, AlertColors single source of truth across all surfaces.
+
 ---
 
 ## v1.7.7 (2026-03-31) — High-Precision Alert Map & Clustering
@@ -66,6 +83,8 @@
 - **Dynamic Unification**: Intelligent concave hull and lightweight unions dependent on the number of zones in the salvo.
 - **Attributions**: New "Thanks / Credits" page to explicitly credit `amitfin` for polygons and `dleshem` for data insights.
 - **UI Architecture**: Shifted the main navigation to a ViewPager2 with tabs.
+
+
 ## v1.6.0 (2026-03-16) — FCM Fix + Infrastructure Consolidation
 
 ### Critical Fix
