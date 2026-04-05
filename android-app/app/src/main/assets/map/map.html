@@ -403,7 +403,7 @@ map.on('load', () => {
   });
   map.addLayer({
     id: 'clearing-border', type: 'line', source: 'clearing-src',
-    paint: { 'line-color': '#34D399', 'line-width': 1.5, 'line-opacity': 0.6 },
+    paint: { 'line-color': '#34D399', 'line-width': 1.5, 'line-opacity': ['number', ['get', 'borderOpacity'], 0.6] },
   });
 
   // Data-driven alert layers — fill/border color from per-feature properties
@@ -553,10 +553,12 @@ function renderFromThreatMap(threats, status, popAtRisk) {
     if (state === 'CLEARING') {
       const ct = entry.ct || 0;
       if (ct > 0 && (now - ct) < CLEAR_FADE_MS) {
-        const opacity = Math.max(0, CLEAR_BASE_OPACITY * (1 - (now - ct) / CLEAR_FADE_MS));
+        const fadeFactor = Math.max(0, 1 - (now - ct) / CLEAR_FADE_MS);
+        const opacity = CLEAR_BASE_OPACITY * fadeFactor;
+        const borderOpacity = 0.6 * fadeFactor;
         newClearingFeatures.push({
           ...poly,
-          properties: { ...poly.properties, state: 'CLEARING', ct, alertType: 'CLEARING', opacity },
+          properties: { ...poly.properties, state: 'CLEARING', ct, alertType: 'CLEARING', opacity, borderOpacity },
         });
       }
       continue;
@@ -667,9 +669,12 @@ function tickClearingFade() {
     for (const f of clearingFeatures) {
       const elapsed = now - f.properties.ct;
       if (elapsed >= CLEAR_FADE_MS) { changed = true; continue; }
-      const newOpacity = Math.max(0, CLEAR_BASE_OPACITY * (1 - elapsed / CLEAR_FADE_MS));
+      const fadeFactor = Math.max(0, 1 - elapsed / CLEAR_FADE_MS);
+      const newOpacity = CLEAR_BASE_OPACITY * fadeFactor;
+      const newBorderOpacity = 0.6 * fadeFactor;
       if (f.properties.opacity === undefined || Math.abs(f.properties.opacity - newOpacity) > 0.005) {
         f.properties.opacity = newOpacity;
+        f.properties.borderOpacity = newBorderOpacity;
         changed = true;
       }
       updated.push(f);
