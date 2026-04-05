@@ -159,6 +159,10 @@ dependencies {
 play {
     track.set("internal")
     defaultToAppBundles.set(true)
+    val credsFile = System.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if (credsFile != null) {
+        serviceAccountCredentials.set(file(credsFile))
+    }
 }
 
 // Redirect build output to temp dir locally to avoid Google Drive sync locks.
