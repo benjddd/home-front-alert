@@ -607,39 +607,30 @@ function tickClearingFade() {
 }
 
 // ── Alert Fade Animation (visual-only fadeoff for URGENT/CAUTION) ───────
-function tickAlertFade() {
+function fadeFeatures(features) {
   const now = Date.now();
-  let urgentChanged = false;
-  let cautionChanged = false;
-
-  for (const f of alertUrgentFeatures) {
+  let changed = false;
+  for (const f of features) {
     const elapsed = now - (f.properties.t || now);
     const fadeFactor = Math.max(0, 1 - elapsed / CLEAR_FADE_MS);
-    const newOpacity = f.properties.baseOpacity * fadeFactor;
-    const newBorderOpacity = f.properties.baseBorderOpacity * fadeFactor;
-    if (Math.abs((f.properties.opacity || 0) - newOpacity) > 0.005) {
-      f.properties.opacity = newOpacity;
-      f.properties.borderOpacity = newBorderOpacity;
-      urgentChanged = true;
+    if (fadeFactor <= 0) continue; // already fully faded
+    const newOp = f.properties.baseOpacity * fadeFactor;
+    const newBorderOp = f.properties.baseBorderOpacity * fadeFactor;
+    if (Math.abs((f.properties.opacity || 0) - newOp) > 0.005 ||
+        Math.abs((f.properties.borderOpacity || 0) - newBorderOp) > 0.005) {
+      f.properties.opacity = newOp;
+      f.properties.borderOpacity = newBorderOp;
+      changed = true;
     }
   }
+  return changed;
+}
 
-  for (const f of alertCautionFeatures) {
-    const elapsed = now - (f.properties.t || now);
-    const fadeFactor = Math.max(0, 1 - elapsed / CLEAR_FADE_MS);
-    const newOpacity = f.properties.baseOpacity * fadeFactor;
-    const newBorderOpacity = f.properties.baseBorderOpacity * fadeFactor;
-    if (Math.abs((f.properties.opacity || 0) - newOpacity) > 0.005) {
-      f.properties.opacity = newOpacity;
-      f.properties.borderOpacity = newBorderOpacity;
-      cautionChanged = true;
-    }
-  }
-
-  if (urgentChanged) {
+function tickAlertFade() {
+  if (fadeFeatures(alertUrgentFeatures)) {
     map.getSource('urgent-src').setData({ type: 'FeatureCollection', features: alertUrgentFeatures });
   }
-  if (cautionChanged) {
+  if (fadeFeatures(alertCautionFeatures)) {
     map.getSource('caution-src').setData({ type: 'FeatureCollection', features: alertCautionFeatures });
   }
   setTimeout(tickAlertFade, 1000);
