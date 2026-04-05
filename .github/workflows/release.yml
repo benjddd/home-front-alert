@@ -49,6 +49,9 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
+      - name: Find AAB
+        run: find . -name "*.aab" && ls -R android-app/app/build/ 2>/dev/null | head -50
+
       - name: Authenticate to Google Cloud
         id: gcp-auth
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
