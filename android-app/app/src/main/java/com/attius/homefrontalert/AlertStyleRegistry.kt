@@ -35,9 +35,9 @@ object AlertStyleRegistry {
             return AlertType.URGENT
         }
 
-        // CALM / ALL-CLEAR PHRASES
+        // CALM / ALL-CLEAR PHRASES (documented HFC phrases)
         if (trimmedTitle == "האירוע הסתיים" ||
-            trimmedTitle.contains("השוהים במרחב המוגן יכולים לצאת") || // From clear description/title
+            trimmedTitle.contains("השוהים במרחב המוגן יכולים לצאת") ||
             trimmedTitle == "חזרה לשגרה") {
             return AlertType.CALM
         }
@@ -65,11 +65,10 @@ object AlertStyleRegistry {
         // --- 3rd PRIORITY: KEYWORD FALLBACK ---
 
         // CALM Keywords
-        if (lowerTitle.contains("רגיעה") || 
-            lowerTitle.contains("סיום") || 
-            lowerTitle.contains("clear") || 
-            lowerTitle.contains("הסתיים") ||
-            lowerTitle.contains("הסתיים האירוע")) {
+        if (lowerTitle.contains("רגיעה") ||
+            lowerTitle.contains("סיום") ||
+            lowerTitle.contains("clear") ||
+            lowerTitle.contains("הסתיים")) {
             return AlertType.CALM
         }
 

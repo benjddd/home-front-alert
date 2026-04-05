@@ -1,27 +1,24 @@
 {
-  "name": "backend",
-  "version": "1.7.7",
-  "description": "",
+  "name": "hfc-relay",
+  "version": "2.0.0",
+  "description": "Minimal HFC alert relay — polls oref.org.il, dispatches FCM",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "axios": "^1.13.6",
     "cors": "^2.8.6",
-    "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "express-rate-limit": "^7.1.5",
     "firebase-admin": "^13.7.0",
-    "helmet": "^8.1.0",
-    "@turf/turf": "^6.5.0",
-    "adm-zip": "^0.5.16",
-    "concaveman": "^1.2.1",
-    "google-auth-library": "^9.6.0"
+    "helmet": "^8.1.0"
   }
 }

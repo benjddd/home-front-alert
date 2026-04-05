@@ -23,6 +23,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     companion object {
         private val chunkBuffers = ConcurrentHashMap<String, MutableMap<Int, List<String>>>()
+        private val chunkTimers = ConcurrentHashMap<String, Runnable>()
         private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     }
 
@@ -132,22 +133,25 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                             buffer[chunkIdx] = chunkCities
                             
                             val processFullPayload = Runnable {
+                                chunkTimers.remove(alertId)
                                 val buffer = chunkBuffers.remove(alertId) ?: return@Runnable
                                 val fullCities = mutableListOf<String>()
                                 for (i in 1..totalChunks) { buffer[i]?.let { fullCities.addAll(it) } }
                                 StatusManager.logFcmDiagnostic(this@MyFirebaseMessagingService, "Assembled ${buffer.size}/$totalChunks chunks internally")
-                                StatusManager.processAlert(this@MyFirebaseMessagingService, alertId, type, fullCities, "[FCM-CHUNKS]", toneGenerator, remoteMessage.data.toString())
+                                StatusManager.processAlert(this@MyFirebaseMessagingService, alertId, type, fullCities, "[FCM-CHUNKS]", toneGenerator, remoteMessage.data.toString(), canonicalType)
                                 LocalBroadcastManager.getInstance(this@MyFirebaseMessagingService)
                                     .sendBroadcast(Intent(StatusManager.ACTION_MAP_REFRESH))
                             }
 
-                            // If this is the FIRST chunk received for this alert, set a safety fallback timer
-                            if (buffer.size == 1) {
-                                handler.postDelayed(processFullPayload, 2000) // Wait up to 2.0s for remaining chunks before processing what we have
+                            // Set safety fallback timer on first chunk received for this alert
+                            if (!chunkTimers.containsKey(alertId)) {
+                                chunkTimers[alertId] = processFullPayload
+                                handler.postDelayed(processFullPayload, 2000)
                             }
 
                             if (buffer.size == totalChunks) {
-                                // We have all chunks, process immediately (the timeout runnable will become a no-op)
+                                // We have all chunks — cancel this alert's fallback timer and process immediately
+                                chunkTimers.remove(alertId)?.let { handler.removeCallbacks(it) }
                                 processFullPayload.run()
                             } else {
                                 Log.d("HomeFrontAlerts", "Buffered chunk $chunkIdx/$totalChunks for $alertId")
@@ -158,7 +162,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
                     // Single-chunk / Normal behavior
                     StatusManager.logFcmDiagnostic(this, remoteMessage.data.toString())
-                    StatusManager.processAlert(this, alertId, type, chunkCities, "[FCM]", toneGenerator, remoteMessage.data.toString())
+                    StatusManager.processAlert(this, alertId, type, chunkCities, "[FCM]", toneGenerator, remoteMessage.data.toString(), canonicalType)
                     // Notify MapFragment to refresh immediately
                     LocalBroadcastManager.getInstance(this)
                         .sendBroadcast(Intent(StatusManager.ACTION_MAP_REFRESH))

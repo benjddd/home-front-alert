@@ -87,7 +87,7 @@
     <string name="lang_change_message">The app will restart to apply the new language and layout direction.</string>
     <string name="lang_change_confirm">Restart Now</string>
     <string name="cancel">Cancel</string>
-    <string name="settings_bulb_title">Mi Smart Bulb Integration (Experimental)</string>
+    <string name="settings_bulb_title">Mi Smart Bulb Integration (Highly Experimental)</string>
     <string name="settings_bulb_desc">Flashes local network Mi/Yeelight bulbs synchronously during alerts. Requires \'LAN Control\' enabled in Yeelight app.</string>
     <string name="settings_bulb_ip_hint">Bulb IP (e.g. 192.168.1.15)</string>
     <string name="settings_bulb_token_hint">Xiaomi Crypto Token (Optional)</string>
@@ -99,4 +99,7 @@
     <string name="settings_dedup_unit_sec">sec</string>
     <string name="settings_map_url_title">Map Service URL</string>
     <string name="settings_map_url_hint">https://…/map</string>
+    <string name="yeelight_searching">Searching…</string>
+    <string name="yeelight_found">Found Yeelight at %s</string>
+    <string name="yeelight_not_found">No Yeelight device found</string>
 </resources>

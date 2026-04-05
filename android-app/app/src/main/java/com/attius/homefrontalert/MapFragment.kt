@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -17,33 +18,41 @@ import androidx.fragment.app.Fragment
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import org.json.JSONObject
 
+/**
+ * MapFragment — displays a MapLibre alert map from a bundled local HTML asset.
+ *
+ * Threat data is injected from the Android SSOT (active_threat_map in SharedPrefs)
+ * via the JS bridge. Polygons are loaded once from the bundled/cached zip.
+ * No network dependency for map rendering.
+ */
 class MapFragment : Fragment() {
+
+    companion object {
+        private const val TAG = "MapFragment"
+        private const val LOCAL_MAP_URL = "file:///android_asset/map/map.html"
+    }
 
     private lateinit var mapWebView: WebView
     private lateinit var locationManager: AppLocationManager
-    private lateinit var sharedPrefs: android.content.SharedPreferences
+    @Volatile private var pageReady = false
 
-    // Updates zone and dot immediately when GPS resolves a new zone (no tab switch required)
     private val zoneReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val zoneHe = intent?.getStringExtra(StatusManager.EXTRA_ZONE_HE) ?: return
-            val lat    = intent.getDoubleExtra(StatusManager.EXTRA_LAT, 0.0)
-            val lng    = intent.getDoubleExtra(StatusManager.EXTRA_LNG, 0.0)
+            val lat = intent.getDoubleExtra(StatusManager.EXTRA_LAT, 0.0)
+            val lng = intent.getDoubleExtra(StatusManager.EXTRA_LNG, 0.0)
             mapWebView.post {
                 mapWebView.evaluateJavascript("if(window.setUserZone) window.setUserZone(${JSONObject.quote(zoneHe)});", null)
-                if (lat != 0.0 && lng != 0.0) {
-                    mapWebView.evaluateJavascript("if(window.onLocationUpdate) window.onLocationUpdate($lat,$lng);", null)
+                if (lat != 0.0 && lng != 0.0 && lat.isFinite() && lng.isFinite()) {
+                    mapWebView.evaluateJavascript("if(window.onLocationUpdate) window.onLocationUpdate(${lat.coerceIn(-90.0, 90.0)},${lng.coerceIn(-180.0, 180.0)});", null)
                 }
             }
         }
     }
 
-    // Triggers map data refresh when an FCM alert or CLEAR arrives
     private val mapRefreshReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            mapWebView.post {
-                mapWebView.evaluateJavascript("if(window.fetchAndRender) fetchAndRender();", null)
-            }
+            injectThreatData()
         }
     }
 
@@ -54,7 +63,6 @@ class MapFragment : Fragment() {
         val root = inflater.inflate(R.layout.fragment_map, container, false)
         mapWebView = root.findViewById(R.id.mapWebView)
         locationManager = AppLocationManager.getInstance(requireContext())
-        sharedPrefs = requireContext().getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
         setupWebView()
         return root
     }
@@ -65,58 +73,111 @@ class MapFragment : Fragment() {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
+        settings.allowFileAccess = true
         mapWebView.webChromeClient = WebChromeClient()
 
-        mapWebView.setOnTouchListener { view, event ->
-            // Prevent parent ViewPager2 from stealing the pinch/drag gesture
+        mapWebView.setOnTouchListener { view, _ ->
             view.parent.requestDisallowInterceptTouchEvent(true)
-            false // allow the WebView to handle the actual touch/pinch
+            false
         }
 
         mapWebView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                // Inject app language so map labels match app locale
+                pageReady = true
+
+                // Inject language
                 val lang = LocaleHelper.getLanguage(requireContext())
-                view?.evaluateJavascript("if (window.setAppLanguage) window.setAppLanguage(${JSONObject.quote(lang)});", null)
-                
-                // Inject user's selected area for map focus
-                val userCity = requireContext()
-                    .getSharedPreferences("HomeFrontAlertsPrefs", android.content.Context.MODE_PRIVATE)
-                    .getString("selected_area", null)
+                view?.evaluateJavascript("if(window.setAppLanguage) window.setAppLanguage(${JSONObject.quote(lang)});", null)
+
+                // Inject user zone
+                val prefs = requireContext().getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
+                val userCity = prefs.getString("selected_area", null)
                 if (!userCity.isNullOrEmpty()) {
-                    view?.evaluateJavascript("if (window.setUserZone) window.setUserZone(${JSONObject.quote(userCity)});", null)
+                    view?.evaluateJavascript("if(window.setUserZone) window.setUserZone(${JSONObject.quote(userCity)});", null)
                 }
 
+                // Inject user location
                 updateUserLocationOnMap()
+
+                // Load basemap + polygons on background thread, then inject all data
+                val ctx = requireContext().applicationContext
+                Thread {
+                    try {
+                        // Read basemap assets from bundled files
+                        val outline = ctx.assets.open("map/israel-outline.json").bufferedReader().readText()
+                        val extras = ctx.assets.open("map/geo-extras.json").bufferedReader().readText()
+                        val polygons = PolygonManager.getPolygonsJson(ctx)
+                        mapWebView.post {
+                            if (!isAdded || view == null) return@post
+                            mapWebView.evaluateJavascript("if(window.loadBasemap) window.loadBasemap($outline, $extras);", null)
+                            mapWebView.evaluateJavascript("if(window.loadPolygons) window.loadPolygons($polygons);", null)
+                            injectThreatData()
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to load map assets", e)
+                        mapWebView.post {
+                            if (!isAdded) return@post
+                            mapWebView.evaluateJavascript(
+                                "if(window.showError) window.showError(${JSONObject.quote(e.message ?: "Unknown error")});",
+                                null
+                            )
+                        }
+                    }
+
+                    // Background polygon refresh (non-blocking, daily)
+                    PolygonManager.refreshInBackground(ctx)
+                }.start()
             }
 
-            override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
-                // Prevent navigation away from the map
-                return true // block all external navigation
-            }
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: android.webkit.WebResourceRequest?
+            ): Boolean = true
         }
 
-        // Map URL from Developer Settings (or hardcoded default)
-        val defaultUrl = "https://homefront-map-cjnpwpm63q-zf.a.run.app/map"
-        val mapUrl = sharedPrefs.getString("map_service_url", defaultUrl) ?: defaultUrl
-        mapWebView.loadUrl(mapUrl)
+        mapWebView.loadUrl(LOCAL_MAP_URL)
     }
 
-    fun updateUserLocationOnMap() {
+    /**
+     * Inject the current threat map from SharedPreferences SSOT into the WebView.
+     * Lightweight call — only zone names + states (~few KB).
+     */
+    private fun injectThreatData() {
+        if (!pageReady || !::mapWebView.isInitialized) return
+        val ctx = context ?: return
+        val prefs = ctx.getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
+        val threatMap = prefs.getString("active_threat_map", "{}") ?: "{}"
+        val status = StatusManager.getCurrentStatusString(ctx)
+        val json = JSONObject().apply {
+            put("threats", JSONObject(threatMap))
+            put("status", status)
+            put("ts", System.currentTimeMillis())
+        }.toString()
+        mapWebView.post {
+            mapWebView.evaluateJavascript("if(window.onThreatUpdate) window.onThreatUpdate($json);", null)
+        }
+    }
+
+    private fun updateUserLocationOnMap() {
         if (!::mapWebView.isInitialized) return
         val currentLoc = locationManager.resolveCurrentLocation()
-        if (currentLoc.lat != 0.0 && currentLoc.lng != 0.0) {
-            mapWebView.evaluateJavascript("if (window.onLocationUpdate) { window.onLocationUpdate(${currentLoc.lat}, ${currentLoc.lng}); }", null)
-            // Also refresh zone string so badge reflects current zone on tab-return
-            mapWebView.evaluateJavascript("if (window.setUserZone) window.setUserZone(${JSONObject.quote(currentLoc.zoneNameHe)});", null)
+        if (currentLoc.lat != 0.0 && currentLoc.lng != 0.0 && currentLoc.lat.isFinite() && currentLoc.lng.isFinite()) {
+            mapWebView.evaluateJavascript(
+                "if(window.onLocationUpdate) window.onLocationUpdate(${currentLoc.lat.coerceIn(-90.0, 90.0)},${currentLoc.lng.coerceIn(-180.0, 180.0)});",
+                null
+            )
+            mapWebView.evaluateJavascript(
+                "if(window.setUserZone) window.setUserZone(${JSONObject.quote(currentLoc.zoneNameHe)});",
+                null
+            )
         }
     }
 
     override fun onStart() {
         super.onStart()
         val lbm = LocalBroadcastManager.getInstance(requireContext())
-        lbm.registerReceiver(zoneReceiver,       IntentFilter(StatusManager.ACTION_ZONE_CHANGED))
+        lbm.registerReceiver(zoneReceiver, IntentFilter(StatusManager.ACTION_ZONE_CHANGED))
         lbm.registerReceiver(mapRefreshReceiver, IntentFilter(StatusManager.ACTION_MAP_REFRESH))
     }
 
@@ -130,13 +191,16 @@ class MapFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         updateUserLocationOnMap()
+        injectThreatData()
     }
 
     override fun onDestroyView() {
+        pageReady = false
         mapWebView.stopLoading()
         mapWebView.loadUrl("about:blank")
         mapWebView.webChromeClient = null
         mapWebView.webViewClient = WebViewClient()
+        (mapWebView.parent as? ViewGroup)?.removeView(mapWebView)
         mapWebView.removeAllViews()
         mapWebView.destroy()
         super.onDestroyView()

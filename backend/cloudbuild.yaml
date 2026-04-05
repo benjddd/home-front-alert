@@ -1,13 +1,11 @@
 steps:
-  # 1. Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', '$_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest', '.']
 
-  # 2. Push the image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', '$_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest']
 
-  # 3. Deploy to Cloud Run (min-instances=1 keeps the polling loop alive 24/7)
+  # Deploy minimal relay (min=1 keeps the HFC polling loop alive 24/7)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -20,10 +18,10 @@ steps:
       - '--allow-unauthenticated'
       - '--min-instances=1'
       - '--max-instances=1'
+      - '--memory=512Mi'
       - '--no-cpu-throttling'
-      - '--update-env-vars=NODE_ENV=production,MAP_SERVICE_URL=$_MAP_SERVICE_URL,RELAY_SERVICE_ACCOUNT=$_RELAY_SERVICE_ACCOUNT'
-      - '--update-secrets=API_KEYS=$_API_KEYS_SECRET:latest,DASHBOARD_PASSES=$_DASHBOARD_PASSES_SECRET:latest'
-      - '--remove-env-vars=API_KEY,DASHBOARD_PASS'
+      - '--update-env-vars=NODE_ENV=production'
+      - '--update-secrets=API_KEYS=$_API_KEYS_SECRET:latest'
 
 images:
   - '$_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest'
@@ -33,10 +31,7 @@ substitutions:
   _REGION: me-west1
   _AR_HOSTNAME: me-west1-docker.pkg.dev
   _AR_REPOSITORY: backend-repo
-  _MAP_SERVICE_URL: https://homefront-map-cjnpwpm63q-zf.a.run.app
-  _RELAY_SERVICE_ACCOUNT: 344391280523-compute@developer.gserviceaccount.com
   _API_KEYS_SECRET: homefront-backend-api-keys
-  _DASHBOARD_PASSES_SECRET: homefront-backend-dashboard-passes
 
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -87,7 +87,7 @@
     <string name="lang_change_message">האפליקציה תופעל מחדש כדי להחיל את השפה החדשה וכיוון התצוגה.</string>
     <string name="lang_change_confirm">הפעל מחדש</string>
     <string name="cancel">ביטול</string>
-    <string name="settings_bulb_title">שילוב נורת Mi Smart (ניסיוני)</string>
+    <string name="settings_bulb_title">שילוב נורת Mi Smart (ניסיוני מאוד)</string>
     <string name="settings_bulb_desc">מהבהב בנורות Mi/Yeelight ברשת המקומית בסנכרון עם התרעות. דורש הפעלת \'LAN Control\' באפליקציית Yeelight.</string>
     <string name="settings_bulb_ip_hint">IP של הנורה (למשל 192.168.1.15)</string>
     <string name="settings_bulb_token_hint">קוד אבטחה של שיאומי (אופציונלי)</string>
@@ -99,4 +99,7 @@
     <string name="settings_dedup_unit_sec">שנ\'</string>
     <string name="settings_map_url_title">כתובת שירות המפה</string>
     <string name="settings_map_url_hint">https://…/map</string>
+    <string name="yeelight_searching">מחפש…</string>
+    <string name="yeelight_found">נמצא Yeelight ב-%s</string>
+    <string name="yeelight_not_found">לא נמצא מכשיר Yeelight</string>
 </resources>

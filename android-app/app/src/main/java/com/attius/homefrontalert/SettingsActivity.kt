@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.widget.*
+import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.graphics.Color
@@ -26,7 +27,9 @@ class SettingsActivity : AppCompatActivity() {
 
     private lateinit var locationManager: AppLocationManager
     private lateinit var distanceCalculator: ZoneDistanceCalculator
-    private var isResolvingLocation = false
+    @Volatile private var isResolvingLocation = false
+    private lateinit var logHandler: Handler
+    private lateinit var logUpdater: Runnable
     private lateinit var sharedPrefs: android.content.SharedPreferences
     private lateinit var toneGenerator: DynamicToneGenerator
     private lateinit var tvConnectivityDetail: TextView
@@ -61,7 +64,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         // 1. Location Tracking Mode
-        val switchLiveGps = findViewById<Switch>(R.id.switchLiveGps)
+        val switchLiveGps = findViewById<SwitchCompat>(R.id.switchLiveGps)
         switchLiveGps.isChecked = locationManager.isUsingLiveGps()
         switchLiveGps.setOnCheckedChangeListener { _, isChecked ->
             locationManager.setUsingLiveGps(isChecked)
@@ -96,7 +99,7 @@ class SettingsActivity : AppCompatActivity() {
 
 
         // 4. Connectivity Shield Toggle
-        val switchShieldActive = findViewById<Switch>(R.id.switchHybridMode)
+        val switchShieldActive = findViewById<SwitchCompat>(R.id.switchHybridMode)
         switchShieldActive.isChecked = sharedPrefs.getBoolean("shield_active", false)
         switchShieldActive.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
@@ -136,7 +139,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         // Yeelight Smart Home Integration
-        val switchYeelight = findViewById<Switch>(R.id.switchYeelight)
+        val switchYeelight = findViewById<SwitchCompat>(R.id.switchYeelight)
         val etYeelightIp = findViewById<EditText>(R.id.etYeelightIp)
         val etYeelightToken = findViewById<EditText>(R.id.etYeelightToken)
         val btnDiscoverYeelight = findViewById<Button>(R.id.btnDiscoverYeelight)
@@ -163,7 +166,7 @@ class SettingsActivity : AppCompatActivity() {
 
         btnDiscoverYeelight.setOnClickListener {
             val originalText = btnDiscoverYeelight.text
-            btnDiscoverYeelight.text = "Searching..."
+            btnDiscoverYeelight.text = getString(R.string.yeelight_searching)
             btnDiscoverYeelight.isEnabled = false
             etYeelightIp.isEnabled = false
 
@@ -176,9 +179,9 @@ class SettingsActivity : AppCompatActivity() {
                     if (ip != null) {
                         etYeelightIp.setText(ip)
                         sharedPrefs.edit().putString("yeelight_ip", ip).apply()
-                        Toast.makeText(this@SettingsActivity, "Found Yeelight at $ip", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@SettingsActivity, getString(R.string.yeelight_found, ip), Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this@SettingsActivity, "No Yeelight device found", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@SettingsActivity, getString(R.string.yeelight_not_found), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -189,7 +192,7 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tvAppVersion).text = "v${BuildConfig.VERSION_NAME}-$flavor"
 
         // 6. Advanced Section
-        val switchShowAdvanced = findViewById<Switch>(R.id.switchShowAdvanced)
+        val switchShowAdvanced = findViewById<SwitchCompat>(R.id.switchShowAdvanced)
         val layoutAdvancedSection = findViewById<LinearLayout>(R.id.layoutAdvancedSection)
         val isAdvancedVisible = sharedPrefs.getBoolean("show_advanced_settings", false)
         switchShowAdvanced.isChecked = isAdvancedVisible
@@ -199,18 +202,7 @@ class SettingsActivity : AppCompatActivity() {
             sharedPrefs.edit().putBoolean("show_advanced_settings", isChecked).apply()
         }
 
-        // 6c. Alert TTL (Smart Deduplication)
-        val etAlertTtl = findViewById<EditText>(R.id.etAlertTtl)
-        val currentTtl = sharedPrefs.getLong("alert_ttl_seconds", 180L)
-        etAlertTtl.setText(currentTtl.toString())
-        etAlertTtl.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                val input = s?.toString()?.toLongOrNull() ?: 180L
-                sharedPrefs.edit().putLong("alert_ttl_seconds", input).apply()
-            }
-        })
+        // Alert TTL — no longer user-configurable (stays in SharedPrefs code at 180s default)
 
         // 6b. Alert Source Selector (PRO only)
         val cardAlertSource = findViewById<androidx.cardview.widget.CardView>(R.id.cardAlertSource)
@@ -257,20 +249,7 @@ class SettingsActivity : AppCompatActivity() {
         if (BuildConfig.IS_PAID) cardShield.visibility = android.view.View.GONE
 
 
-        // 6d. Map Service URL override
-        val etMapUrl = findViewById<EditText>(R.id.etMapServiceUrl)
-        val defaultMapUrl = "https://homefront-map-cjnpwpm63q-zf.a.run.app/map"
-        etMapUrl?.setText(sharedPrefs.getString("map_service_url", defaultMapUrl))
-        etMapUrl?.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                val input = s?.toString()?.trim() ?: return
-                if (isAllowedMapServiceUrl(input)) {
-                    sharedPrefs.edit().putString("map_service_url", input).apply()
-                }
-            }
-        })
+        // Map Service URL — removed (map is now bundled locally)
 
         // 7. Dynamic UI Refresh (Zone Status)
         val tvShieldLog = findViewById<TextView>(R.id.tvHybridLog)
@@ -280,8 +259,8 @@ class SettingsActivity : AppCompatActivity() {
         val tvResolvedZone = findViewById<TextView>(R.id.tvResolvedZone)
         val tvLastSync = findViewById<TextView>(R.id.tvLastSync)
 
-        val logHandler = Handler(Looper.getMainLooper())
-        val logUpdater = object : Runnable {
+        logHandler = Handler(Looper.getMainLooper())
+        logUpdater = object : Runnable {
             override fun run() {
                 tvShieldLog?.text = sharedPrefs.getString("shield_last_log", "...")
                 tvRawHistory?.text = sharedPrefs.getString("raw_alert_history", "...")
@@ -374,8 +353,6 @@ class SettingsActivity : AppCompatActivity() {
                 logHandler.postDelayed(this, 1500)
             }
         }
-        logHandler.post(logUpdater)
-
         setupSoundTestSection()
         setupLanguageSwitch()
     }
@@ -384,8 +361,6 @@ class SettingsActivity : AppCompatActivity() {
         val rootUrl = BuildConfig.BACKEND_URL
         var backendResult = "Proxy: Checking..."
         var hfcResult = "Direct HFC: Checking..."
-        var lastAlertProof = ""
-        
         try {
             val url = URL("$rootUrl/health")
             val conn = url.openConnection() as HttpURLConnection
@@ -404,26 +379,7 @@ class SettingsActivity : AppCompatActivity() {
             hfcResult = if (conn.responseCode == 200 || conn.responseCode == 204) "🟢 Direct HFC: OK" else "🟡 Direct HFC: Blocked"
         } catch (e: Exception) { hfcResult = "🔴 Direct HFC: Unavailable" }
 
-        // Proof of Backend History Capability
-        try {
-            val url = URL("$rootUrl/alerts/history")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.setRequestProperty("X-API-Key", BuildConfig.API_KEY)
-            conn.setRequestProperty("User-Agent", "TzevaArtzi/${BuildConfig.VERSION_NAME}")
-            conn.connectTimeout = 5000
-            if (conn.responseCode == 200) {
-                val body = conn.inputStream.bufferedReader().use { it.readText() }
-                val arr = org.json.JSONArray(body)
-                if (arr.length() > 0) {
-                    val last = arr.getJSONObject(0)
-                    val title = if (last.has("type")) last.getString("type") else last.optString("title", "Unknown")
-                    val time = if (last.has("serverTime")) last.getString("serverTime") else last.optString("time", "...")
-                    lastAlertProof = "\n✨ Last Proof: $title @ $time"
-                }
-            }
-        } catch (e: Exception) {}
-
-        return "$backendResult\n$hfcResult$lastAlertProof"
+        return "$backendResult\n$hfcResult"
     }
 
     private fun setupSoundTestSection() {
@@ -512,10 +468,12 @@ class SettingsActivity : AppCompatActivity() {
         super.onResume()
         sharedPrefs.registerOnSharedPreferenceChangeListener(prefsListener)
         locationManager.startTracking()
+        logHandler.post(logUpdater)
     }
 
     override fun onPause() {
         super.onPause()
+        logHandler.removeCallbacks(logUpdater)
         sharedPrefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
         locationManager.stopTracking()
     }
@@ -546,13 +504,6 @@ class SettingsActivity : AppCompatActivity() {
         }
         val color = if (isShieldActive) AlertColors.THREAT else Color.parseColor("#606060")
         tvConnectivityDetail.setTextColor(color)
-    }
-
-    private fun isAllowedMapServiceUrl(input: String): Boolean {
-        val uri = android.net.Uri.parse(input)
-        val host = uri.host?.lowercase() ?: return false
-        if (uri.scheme != "https") return false
-        return host == "homefront-map-cjnpwpm63q-zf.a.run.app" || host == "localhost" || host == "127.0.0.1"
     }
 
     private fun refreshSettingsUI() {
