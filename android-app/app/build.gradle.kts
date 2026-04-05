@@ -14,8 +14,8 @@ if (localPropertiesFile.exists()) {
 
 val backendUrlEnv = localProperties.getProperty("backend.url") ?: "https://home-front-alert-hfc.web.app"
 val apiKeyEnv = localProperties.getProperty("backend.api_key") ?: "DEVELOPMENT_MODE_UNSET"
-val storePasswordEnv = localProperties.getProperty("keystore.password") ?: ""
-val keyPasswordEnv = localProperties.getProperty("key.password") ?: ""
+val storePasswordEnv = localProperties.getProperty("keystore.password") ?: System.getenv("STORE_PASSWORD") ?: ""
+val keyPasswordEnv = localProperties.getProperty("key.password") ?: System.getenv("KEY_PASSWORD") ?: ""
 
 android {
     namespace = "com.attius.homefrontalert"
