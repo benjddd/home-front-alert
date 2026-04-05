@@ -180,13 +180,25 @@ class ZoneDistanceCalculator(private val context: Context) {
                     byType["CAUTION"] = (byType["CAUTION"] ?: 0L) + pop
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.w("ZoneCalc", "getPopulationAtRisk parse error", e)
+        }
         val result = mutableMapOf<String, Long>()
         result["alert"] = alertPop
         result["preWarning"] = preWarningPop
         result["total"] = alertPop + preWarningPop
         byType.forEach { (k, v) -> result[k] = v }
         return result
+    }
+
+    /** Sum of all cached city populations (used as donut chart denominator). */
+    fun getTotalPopulation(): Long {
+        val seen = mutableSetOf<String>()
+        var total = 0L
+        for ((_, loc) in zoneCache) {
+            if (seen.add(loc.nameHe)) total += loc.population
+        }
+        return total
     }
 
     /**

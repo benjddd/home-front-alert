@@ -159,6 +159,7 @@ class MapFragment : Fragment() {
             put("alert", popData["alert"] ?: 0L)
             put("preWarning", popData["preWarning"] ?: 0L)
             put("total", popData["total"] ?: 0L)
+            put("totalPopulation", zoneCalculator.getTotalPopulation())
             put("byType", byType)
         }
         val json = JSONObject().apply {

@@ -173,7 +173,7 @@ const L = () => STATUS_LABELS[appLang];
 const AL = () => ALERT_LABELS[appLang];
 
 // ── Population Donut ───────────────────────────────────────────────────
-const TOTAL_POPULATION = 10178000;
+let TOTAL_POPULATION = 10178000; // fallback; overridden by Kotlin payload
 const POP_LABELS = {
   he: { ROCKET: 'רקטות', UAV: 'כלי טיס', INFILTRATION: 'חדירה', CAUTION: 'התרעה מוקדמת' },
   en: { ROCKET: 'Rockets', UAV: 'UAV', INFILTRATION: 'Infiltration', CAUTION: 'Pre-Warning' },
@@ -195,6 +195,7 @@ function updatePopulationChart(popAtRisk) {
     chartEl.style.display = 'none';
     return;
   }
+  if (popAtRisk.totalPopulation > 0) TOTAL_POPULATION = popAtRisk.totalPopulation;
   svg.querySelectorAll('.pop-arc').forEach(el => el.remove());
   const r = 17;
   const circumference = 2 * Math.PI * r;
