@@ -597,18 +597,19 @@ object StatusManager {
                     }
 
                     val obj = org.json.JSONObject()
-                    obj.put("t", nowMs)
                     obj.put("c", calculator.getZoneCountdown(zone))
                     obj.put("name", zone) // Store raw name for display if needed
                     if (!canonicalType.isNullOrEmpty()) obj.put("ctype", canonicalType)
 
                     if (existing != null && !isReactivation && incomingSeverity <= existingSeverity) {
-                        // Preserve one-way severity (never downgrade).
+                        // Non-escalation: preserve original timestamp so pulse doesn't restart
+                        obj.put("t", existing.optLong("t", nowMs))
                         obj.put("s", existingState)
                         val prevClearedAt = existing.optLong("ct", 0L)
                         if (prevClearedAt > 0L) obj.put("ct", prevClearedAt)
                     } else {
-                        // New threat / escalation / reactivation.
+                        // New threat / escalation / reactivation: fresh timestamp
+                        obj.put("t", nowMs)
                         obj.put("s", type.name)
                         obj.put("ct", org.json.JSONObject.NULL)
                     }
