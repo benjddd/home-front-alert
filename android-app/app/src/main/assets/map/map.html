@@ -121,6 +121,10 @@
 const CLEAR_FADE_MS = 15 * 60 * 1000;
 const CLEAR_BASE_OPACITY = 0.45;
 const RECENT_ZONE_MS = 15 * 1000;
+const URGENT_BASE_OPACITY = 0.5;
+const CAUTION_BASE_OPACITY = 0.45;
+const URGENT_BORDER_OPACITY = 0.9;
+const CAUTION_BORDER_OPACITY = 0.8;
 
 const ALERT_COLORS = {
   // Per-canonical-type fills (modern, toned-down palette)
@@ -233,6 +237,8 @@ let pendingUpdate = null;
 
 // Track clearing features for animation
 let clearingFeatures = [];
+let alertUrgentFeatures = [];
+let alertCautionFeatures = [];
 
 // ── Basemap injection from Android JS bridge ─────────────────────────────
 // fetch() cannot access file:// assets in WebView; Android reads the JSON
@@ -319,21 +325,21 @@ map.on('load', () => {
   map.addSource('caution-src', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'caution-fill', type: 'fill', source: 'caution-src',
-    paint: { 'fill-color': ['string', ['get', 'fillColor'], '#D4A030'], 'fill-opacity': 0.45 },
+    paint: { 'fill-color': ['string', ['get', 'fillColor'], '#D4A030'], 'fill-opacity': ['number', ['get', 'opacity'], CAUTION_BASE_OPACITY] },
   });
   map.addLayer({
     id: 'caution-border', type: 'line', source: 'caution-src',
-    paint: { 'line-color': ['string', ['get', 'borderColor'], '#B8892A'], 'line-width': 1.5, 'line-opacity': 0.8 },
+    paint: { 'line-color': ['string', ['get', 'borderColor'], '#B8892A'], 'line-width': 1.5, 'line-opacity': ['number', ['get', 'borderOpacity'], CAUTION_BORDER_OPACITY] },
   });
 
   map.addSource('urgent-src', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'urgent-fill', type: 'fill', source: 'urgent-src',
-    paint: { 'fill-color': ['string', ['get', 'fillColor'], '#C93545'], 'fill-opacity': 0.5 },
+    paint: { 'fill-color': ['string', ['get', 'fillColor'], '#C93545'], 'fill-opacity': ['number', ['get', 'opacity'], URGENT_BASE_OPACITY] },
   });
   map.addLayer({
     id: 'urgent-border', type: 'line', source: 'urgent-src',
-    paint: { 'line-color': ['string', ['get', 'borderColor'], '#A52835'], 'line-width': 1.5, 'line-opacity': 0.9 },
+    paint: { 'line-color': ['string', ['get', 'borderColor'], '#A52835'], 'line-width': 1.5, 'line-opacity': ['number', ['get', 'borderOpacity'], URGENT_BORDER_OPACITY] },
   });
 
   // Recent-zone highlight overlay (on top) — fill + bright border for visibility
@@ -422,8 +428,9 @@ map.on('load', () => {
     pendingUpdate = null;
   }
 
-  // Start clearing fade animation
+  // Start fade animations
   requestAnimationFrame(tickClearingFade);
+  requestAnimationFrame(tickAlertFade);
   // Start recent-zone pulse
   requestAnimationFrame(tickRecentPulse);
 });
@@ -476,6 +483,10 @@ function renderFromThreatMap(threats, status) {
     const alertType = (state === 'URGENT') ? 'URGENT' : 'CAUTION';
     const colorKey = ALERT_COLORS[ctype] ? ctype : alertType;
     const colors = ALERT_COLORS[colorKey] || ALERT_COLORS[alertType];
+    const baseOpacity = (alertType === 'URGENT') ? URGENT_BASE_OPACITY : CAUTION_BASE_OPACITY;
+    const baseBorderOpacity = (alertType === 'URGENT') ? URGENT_BORDER_OPACITY : CAUTION_BORDER_OPACITY;
+    const elapsed = now - (entry.t || now);
+    const fadeFactor = Math.max(0, 1 - elapsed / CLEAR_FADE_MS);
     const feature = {
       ...poly,
       properties: {
@@ -484,6 +495,10 @@ function renderFromThreatMap(threats, status) {
         t: entry.t || 0,
         fillColor: colors.fill,
         borderColor: colors.border,
+        opacity: baseOpacity * fadeFactor,
+        borderOpacity: baseBorderOpacity * fadeFactor,
+        baseOpacity,
+        baseBorderOpacity,
       },
     };
 
@@ -517,6 +532,10 @@ function renderFromThreatMap(threats, status) {
       recentFeatures.push(feature);
     }
   }
+
+  // Expose alert features for tick-based fade animation
+  alertUrgentFeatures = urgentFeatures;
+  alertCautionFeatures = cautionFeatures;
 
   // Update all sources in one batch
   map.getSource('urgent-src').setData({ type: 'FeatureCollection', features: urgentFeatures });
@@ -585,6 +604,36 @@ function tickClearingFade() {
     }
   }
   setTimeout(tickClearingFade, 1000);
+}
+
+// ── Alert Fade Animation (visual-only fadeoff for URGENT/CAUTION) ───────
+function fadeFeatures(features) {
+  const now = Date.now();
+  let changed = false;
+  for (const f of features) {
+    const elapsed = now - (f.properties.t || now);
+    const fadeFactor = Math.max(0, 1 - elapsed / CLEAR_FADE_MS);
+    if (fadeFactor <= 0) continue; // already fully faded
+    const newOp = f.properties.baseOpacity * fadeFactor;
+    const newBorderOp = f.properties.baseBorderOpacity * fadeFactor;
+    if (Math.abs((f.properties.opacity || 0) - newOp) > 0.005 ||
+        Math.abs((f.properties.borderOpacity || 0) - newBorderOp) > 0.005) {
+      f.properties.opacity = newOp;
+      f.properties.borderOpacity = newBorderOp;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function tickAlertFade() {
+  if (fadeFeatures(alertUrgentFeatures)) {
+    map.getSource('urgent-src').setData({ type: 'FeatureCollection', features: alertUrgentFeatures });
+  }
+  if (fadeFeatures(alertCautionFeatures)) {
+    map.getSource('caution-src').setData({ type: 'FeatureCollection', features: alertCautionFeatures });
+  }
+  setTimeout(tickAlertFade, 1000);
 }
 
 // ── Recent Zone Pulse Animation ─────────────────────────────────────────
