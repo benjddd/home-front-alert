@@ -4,6 +4,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.gms.google-services")
+    id("com.github.triplet.play")
 }
 
 val localProperties = Properties()
@@ -29,8 +30,8 @@ android {
         applicationId = "com.attius.homefrontalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 34
-        versionName = "2.2.0"
+        versionCode = 35
+        versionName = "2.3.0"
 
         buildConfigField("String", "BACKEND_URL", "\"$backendUrlEnv\"")
         buildConfigField("String", "API_KEY", "\"$apiKeyEnv\"")
@@ -155,5 +156,13 @@ dependencies {
 }
 
 
-// Build output default (restored for faster builds and to avoid Google Drive sync locks)
-project.layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/homefrontalert/app/build"))
+play {
+    track.set("internal")
+    defaultToAppBundles.set(true)
+}
+
+// Redirect build output to temp dir locally to avoid Google Drive sync locks.
+// On CI (where GOOGLE_APPLICATION_CREDENTIALS is set), use the default location.
+if (System.getenv("CI") == null) {
+    project.layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/homefrontalert/app/build"))
+}
