@@ -8,7 +8,7 @@
 - **Safety-net labels**: Added fallback entries in population label dictionary for PRE_WARNING and URGENT keys to prevent raw internal strings from leaking to the UI.
 
 ### CI
-- **R8 fix**: Consolidated duplicate packaging blocks and added META-INF resource excludes to resolve R8 jar-reading failures on CI.
+- **R8 fix**: Root-caused `cleanDesktopInit` task's `projectDir.walkBottomUp()` causing I/O contention with R8 on CI runners. Task now skips on CI (where Google Drive `desktop.ini` files don't exist). Also consolidated duplicate packaging blocks and added META-INF resource excludes.
 
 ---
 
