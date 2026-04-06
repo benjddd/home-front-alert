@@ -48,6 +48,8 @@
     }
     #tooltip .zone-name { font-weight: 700; font-size: 16px; margin-bottom: 2px; }
     #tooltip .alert-type { opacity: 0.75; font-size: 12px; }
+    #tooltip .pop-line { white-space: nowrap; font-size: 13px; line-height: 1.5; }
+    #tooltip .pop-total { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
 
     #status {
       position: absolute;
@@ -180,8 +182,8 @@ const AL = () => ALERT_LABELS[appLang];
 // ── Population Donut ───────────────────────────────────────────────────
 let TOTAL_POPULATION = 10178000; // fallback; overridden by Kotlin payload
 const POP_LABELS = {
-  he: { ROCKET: 'רקטות', UAV: 'כלי טיס', INFILTRATION: 'חדירה', CAUTION: 'התרעה מוקדמת' },
-  en: { ROCKET: 'Rockets', UAV: 'UAV', INFILTRATION: 'Infiltration', CAUTION: 'Pre-Warning' },
+  he: { ROCKET: 'רקטות', UAV: 'כלי טיס', INFILTRATION: 'חדירה', CAUTION: 'התרעה מוקדמת', PRE_WARNING: 'התרעה מוקדמת', URGENT: 'איום דחוף' },
+  en: { ROCKET: 'Rockets', UAV: 'UAV', INFILTRATION: 'Infiltration', CAUTION: 'Pre-Warning', PRE_WARNING: 'Pre-Warning', URGENT: 'Urgent' },
 };
 const PL = () => POP_LABELS[appLang];
 let lastPopData = null;
@@ -232,12 +234,17 @@ document.getElementById('pop-chart').addEventListener('click', function(e) {
   e.stopPropagation();
   if (!lastPopData || lastPopData.total <= 0) return;
   const byType = lastPopData.byType || {};
-  const parts = [];
-  for (const [type, pop] of Object.entries(byType)) {
-    if (pop > 0) parts.push(formatPopulation(pop) + ' ' + (PL()[type] || type));
+  const totalLabel = appLang === 'he' ? 'סה"כ' : 'Total';
+  let html = '<div class="pop-total">' + formatPopulation(lastPopData.total) + ' ' + totalLabel + '</div>';
+  for (const [type, pop] of Object.entries(byType).sort((a, b) => b[1] - a[1])) {
+    if (pop > 0) {
+      const color = (ALERT_COLORS[type] || ALERT_COLORS['URGENT']).fill;
+      html += '<div class="pop-line"><span style="color:' + color + ';">\u25CF</span> '
+            + formatPopulation(pop) + ' ' + (PL()[type] || type) + '</div>';
+    }
   }
-  ttZone.textContent = parts.join(' | ');
-  ttType.textContent = formatPopulation(lastPopData.total) + ' ' + (appLang === 'he' ? 'סה"כ' : 'total');
+  ttZone.innerHTML = html;
+  ttType.textContent = '';
   tooltip.style.display = 'block';
   clearTimeout(tooltipTimer);
   tooltipTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 5000);
