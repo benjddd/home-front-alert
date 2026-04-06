@@ -43,7 +43,12 @@ jobs:
 
       - name: Build Release AAB
         working-directory: android-app
-        run: ./gradlew clean bundleProRelease --stacktrace
+        run: |
+          ./gradlew clean mergeProReleaseJavaResource --stacktrace
+          echo "--- Checking merged_java_res output ---"
+          find app/build/intermediates/merged_java_res -type f 2>/dev/null || echo "NO merged_java_res output found"
+          ls -la app/build/intermediates/merged_java_res/proRelease/ 2>/dev/null || echo "proRelease dir missing"
+          ./gradlew bundleProRelease --stacktrace
         env:
           CI: true
           STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
