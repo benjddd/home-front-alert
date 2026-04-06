@@ -7,6 +7,9 @@
 - **Tooltip layout**: Replaced single pipe-separated line with structured per-line layout — each threat type on its own row with a colored bullet matching the donut chart arc, sorted by population. Eliminates arbitrary mid-label line breaks.
 - **Safety-net labels**: Added fallback entries in population label dictionary for PRE_WARNING and URGENT keys to prevent raw internal strings from leaking to the UI.
 
+### CI
+- **R8 fix**: Consolidated duplicate packaging blocks and added META-INF resource excludes to resolve R8 jar-reading failures on CI.
+
 ---
 
 ## v2.2.0 (2026-04-06) — Population-at-Risk Indicator & CI Pipeline

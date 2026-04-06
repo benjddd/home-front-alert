@@ -54,17 +54,18 @@ android {
         resources {
             excludes += "/desktop.ini"
             excludes += "**/desktop.ini"
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/LICENSE.txt"
+            excludes += "META-INF/LICENSE.md"
+            excludes += "META-INF/NOTICE"
+            excludes += "META-INF/NOTICE.txt"
+            excludes += "META-INF/NOTICE.md"
         }
     }
 
     aaptOptions {
         ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:desktop.ini"
-    }
-
-    packaging {
-        resources {
-            excludes += "**/desktop.ini"
-        }
     }
 
     // NUCLEAR OPTION: Delete any auto-generated desktop.ini files 
