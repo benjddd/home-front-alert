@@ -92,10 +92,8 @@ android {
 
     buildTypes {
         release {
-            // R8 minification disabled: AGP R8 task fails on Google Drive paths
-            // (proguard-android-optimize.txt not found at intermediates path).
-            // TODO: Enable when building via CI (GitHub Actions) on a normal filesystem.
-            isMinifyEnabled = false
+            // R8 minification: enabled on CI, disabled locally (fails on Google Drive paths)
+            isMinifyEnabled = System.getenv("CI") != null
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
