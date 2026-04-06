@@ -324,8 +324,15 @@ function sendKeepalive() {
 
 // ── Start ───────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`[relay] Listening on :${PORT}`);
     poll();
-    setInterval(sendKeepalive, config.KEEPALIVE_INTERVAL_MS);
+});
+
+const keepaliveTimer = setInterval(sendKeepalive, config.KEEPALIVE_INTERVAL_MS);
+
+process.on('SIGTERM', () => {
+    console.log('[relay] SIGTERM received, shutting down…');
+    clearInterval(keepaliveTimer);
+    server.close(() => process.exit(0));
 });
