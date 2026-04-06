@@ -10,6 +10,7 @@ module.exports = {
     // ── HFC Poller ──────────────────────────────────────────────────────────
     POLL_INTERVAL_MS: 1000,
     HFC_REQUEST_TIMEOUT_MS: 3000,
+    KEEPALIVE_INTERVAL_MS: 5 * 60 * 1000, // 5 minutes
 
     // ── Alert type normalization ────────────────────────────────────────────
     ALERT_TYPE_MAP: {
