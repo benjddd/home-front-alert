@@ -85,9 +85,12 @@ android {
         }
     }
 
-    tasks.all {
-        if (this.name.startsWith("mergePro") || this.name == "preBuild") {
-            this.dependsOn("cleanDesktopInit")
+    // Only wire cleanDesktopInit locally; CI has no Google Drive desktop.ini files.
+    if (System.getenv("CI") == null) {
+        tasks.all {
+            if (this.name.startsWith("mergePro") || this.name == "preBuild") {
+                this.dependsOn("cleanDesktopInit")
+            }
         }
     }
 
