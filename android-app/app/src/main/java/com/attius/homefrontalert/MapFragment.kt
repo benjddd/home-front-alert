@@ -34,6 +34,7 @@ class MapFragment : Fragment() {
 
     private lateinit var mapWebView: WebView
     private lateinit var locationManager: AppLocationManager
+    private val zoneCalculator by lazy { ZoneDistanceCalculator(requireContext()) }
     @Volatile private var pageReady = false
 
     private val zoneReceiver = object : BroadcastReceiver() {
@@ -149,10 +150,22 @@ class MapFragment : Fragment() {
         val prefs = ctx.getSharedPreferences("HomeFrontAlertsPrefs", Context.MODE_PRIVATE)
         val threatMap = prefs.getString("active_threat_map", "{}") ?: "{}"
         val status = StatusManager.getCurrentStatusString(ctx)
+        val threats = JSONObject(threatMap)
+        val popData = zoneCalculator.getPopulationAtRisk(threats)
+        val byTypeJson = JSONObject()
+        popData.byType.forEach { (k, v) -> byTypeJson.put(k, v) }
+        val popJson = JSONObject().apply {
+            put("alert", popData.alert)
+            put("preWarning", popData.preWarning)
+            put("total", popData.total)
+            put("totalPopulation", zoneCalculator.getTotalPopulation())
+            put("byType", byTypeJson)
+        }
         val json = JSONObject().apply {
-            put("threats", JSONObject(threatMap))
+            put("threats", threats)
             put("status", status)
             put("ts", System.currentTimeMillis())
+            put("populationAtRisk", popJson)
         }.toString()
         mapWebView.post {
             mapWebView.evaluateJavascript("if(window.onThreatUpdate) window.onThreatUpdate($json);", null)

@@ -14,8 +14,8 @@ if (localPropertiesFile.exists()) {
 
 val backendUrlEnv = localProperties.getProperty("backend.url") ?: "https://home-front-alert-hfc.web.app"
 val apiKeyEnv = localProperties.getProperty("backend.api_key") ?: "DEVELOPMENT_MODE_UNSET"
-val storePasswordEnv = localProperties.getProperty("keystore.password") ?: ""
-val keyPasswordEnv = localProperties.getProperty("key.password") ?: ""
+val storePasswordEnv = localProperties.getProperty("keystore.password") ?: System.getenv("STORE_PASSWORD") ?: ""
+val keyPasswordEnv = localProperties.getProperty("key.password") ?: System.getenv("KEY_PASSWORD") ?: ""
 
 android {
     namespace = "com.attius.homefrontalert"
@@ -29,15 +29,12 @@ android {
         applicationId = "com.attius.homefrontalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 33
-        versionName = "2.1.0"
+        versionCode = 36
+        versionName = "2.2.0"
 
         buildConfigField("String", "BACKEND_URL", "\"$backendUrlEnv\"")
         buildConfigField("String", "API_KEY", "\"$apiKeyEnv\"")
     }
-
-    val storePasswordEnv = localProperties.getProperty("keystore.password") ?: ""
-    val keyPasswordEnv = localProperties.getProperty("key.password") ?: ""
 
     signingConfigs {
         create("release") {
@@ -95,10 +92,8 @@ android {
 
     buildTypes {
         release {
-            // R8 minification disabled: AGP R8 task fails on Google Drive paths
-            // (proguard-android-optimize.txt not found at intermediates path).
-            // TODO: Enable when building via CI (GitHub Actions) on a normal filesystem.
-            isMinifyEnabled = false
+            // R8 minification: enabled on CI, disabled locally (fails on Google Drive paths)
+            isMinifyEnabled = System.getenv("CI") != null
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -158,5 +153,8 @@ dependencies {
 }
 
 
-// Build output default (restored for faster builds and to avoid Google Drive sync locks)
-project.layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/homefrontalert/app/build"))
+// Redirect build output to temp dir locally to avoid Google Drive sync locks.
+// On CI (where GOOGLE_APPLICATION_CREDENTIALS is set), use the default location.
+if (System.getenv("CI") == null) {
+    project.layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/homefrontalert/app/build"))
+}

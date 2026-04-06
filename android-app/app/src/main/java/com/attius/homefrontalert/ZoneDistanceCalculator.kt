@@ -7,7 +7,15 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-data class CityLocation(val nameHe: String, val nameEn: String, val lat: Double, val lng: Double, val countdown: Int = 0)
+data class CityLocation(val nameHe: String, val nameEn: String, val lat: Double, val lng: Double, val countdown: Int = 0, val population: Long = 0)
+
+data class PopulationAtRisk(
+    val alert: Long = 0L,
+    val preWarning: Long = 0L,
+    val byType: Map<String, Long> = emptyMap()
+) {
+    val total: Long get() = alert + preWarning
+}
 
 /**
  * Handles the geographic distance logic between the user and active alert polygons.
@@ -34,11 +42,12 @@ class ZoneDistanceCalculator(private val context: Context) {
                 val zoneNameHe = cityObj.optString("name", "")
                 val zoneNameEn = cityObj.optString("name_en", zoneNameHe)
                 val countdown = cityObj.optInt("countdown", 0)
+                val population = cityObj.optLong("population", 0L)
                 val lat = cityObj.optDouble("lat", 0.0)
                 val lng = cityObj.optDouble("lng", 0.0)
-                
+
                 if (zoneNameHe.isNotEmpty() && lat != 0.0 && lng != 0.0) {
-                    val location = CityLocation(zoneNameHe, zoneNameEn, lat, lng, countdown)
+                    val location = CityLocation(zoneNameHe, zoneNameEn, lat, lng, countdown, population)
                     zoneCache[zoneNameHe] = location
                     zoneCache[zoneNameEn] = location // Direct English lookup
                     
@@ -151,8 +160,48 @@ class ZoneDistanceCalculator(private val context: Context) {
         return zoneCache[name] ?: normalizedCache[normalize(name)]
     }
 
+    /** Computes population at risk from the active threat map. */
+    fun getPopulationAtRisk(threats: org.json.JSONObject): PopulationAtRisk {
+        var alertPop = 0L
+        var preWarningPop = 0L
+        val byType = mutableMapOf<String, Long>()
+        try {
+            val iter = threats.keys()
+            while (iter.hasNext()) {
+                val normKey = iter.next()
+                val obj = threats.getJSONObject(normKey)
+                val state = obj.optString("s", "URGENT")
+                if (state == "CLEARING") continue
+                val city = normalizedCache[normKey] ?: continue
+                val pop = city.population
+                if (state == "URGENT") {
+                    alertPop += pop
+                    val ctype = obj.optString("ctype", "ROCKET")
+                    if (ctype.isEmpty()) byType["ROCKET"] = (byType["ROCKET"] ?: 0L) + pop
+                    else byType[ctype] = (byType[ctype] ?: 0L) + pop
+                } else {
+                    preWarningPop += pop
+                    byType["CAUTION"] = (byType["CAUTION"] ?: 0L) + pop
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("ZoneCalc", "getPopulationAtRisk parse error", e)
+        }
+        return PopulationAtRisk(alertPop, preWarningPop, byType)
+    }
+
+    /** Sum of all cached city populations (used as donut chart denominator). */
+    fun getTotalPopulation(): Long {
+        val seen = mutableSetOf<String>()
+        var total = 0L
+        for ((_, loc) in zoneCache) {
+            if (seen.add(loc.nameHe)) total += loc.population
+        }
+        return total
+    }
+
     /**
-     * Standard implementation of the Haversine formula to calculate the 
+     * Standard implementation of the Haversine formula to calculate the
      * great-circle distance between two points on a sphere given their longitudes and latitudes.
      * 
      * @return Distance in Kilometers

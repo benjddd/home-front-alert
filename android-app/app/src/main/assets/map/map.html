@@ -100,6 +100,21 @@
       z-index: 5;
       border-radius: 6px;
     }
+
+    #pop-chart {
+      position: absolute;
+      bottom: 14px;
+      left: 14px;
+      background: rgba(10,10,26,0.85);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 50%;
+      padding: 6px;
+      display: none;
+      backdrop-filter: blur(6px);
+      z-index: 10;
+      cursor: pointer;
+      transition: opacity 0.3s ease;
+    }
   </style>
 </head>
 <body>
@@ -112,6 +127,17 @@
   <div class="zone-name" id="tt-zone"></div>
   <div class="alert-type" id="tt-type"></div>
 </div>
+<div id="pop-chart">
+  <svg id="pop-svg" viewBox="0 0 44 44" width="44" height="44">
+    <circle cx="22" cy="22" r="17" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5"/>
+    <g transform="translate(14,13) scale(0.7)" fill="rgba(255,255,255,0.45)">
+      <circle cx="8" cy="5" r="3.5"/>
+      <path d="M1.5 18c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/>
+      <circle cx="18" cy="6" r="2.5"/>
+      <path d="M14 18c0.5-3 2.5-5 4-5s3 1.5 3.5 5"/>
+    </g>
+  </svg>
+</div>
 <img id="app-logo" src="app_icon.png" alt="" />
 
 <script>
@@ -120,6 +146,7 @@
 // ── Config ──────────────────────────────────────────────────────────────
 const CLEAR_FADE_MS = 15 * 60 * 1000;
 const CLEAR_BASE_OPACITY = 0.45;
+const CLEAR_BORDER_OPACITY = 0.6;
 const RECENT_ZONE_MS = 15 * 1000;
 const URGENT_BASE_OPACITY = 0.5;
 const CAUTION_BASE_OPACITY = 0.45;
@@ -149,6 +176,72 @@ const ALERT_LABELS = {
 let appLang = 'he';
 const L = () => STATUS_LABELS[appLang];
 const AL = () => ALERT_LABELS[appLang];
+
+// ── Population Donut ───────────────────────────────────────────────────
+let TOTAL_POPULATION = 10178000; // fallback; overridden by Kotlin payload
+const POP_LABELS = {
+  he: { ROCKET: 'רקטות', UAV: 'כלי טיס', INFILTRATION: 'חדירה', CAUTION: 'התרעה מוקדמת' },
+  en: { ROCKET: 'Rockets', UAV: 'UAV', INFILTRATION: 'Infiltration', CAUTION: 'Pre-Warning' },
+};
+const PL = () => POP_LABELS[appLang];
+let lastPopData = null;
+
+function formatPopulation(n) {
+  if (n >= 1_000_000) return '~' + (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 10_000) return '~' + Math.round(n / 1000) + 'K';
+  if (n >= 1_000) return '~' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return '~' + n.toLocaleString();
+}
+
+function updatePopulationChart(popAtRisk) {
+  const chartEl = document.getElementById('pop-chart');
+  const svg = document.getElementById('pop-svg');
+  if (!popAtRisk || popAtRisk.total <= 0) {
+    chartEl.style.display = 'none';
+    return;
+  }
+  if (popAtRisk.totalPopulation > 0) TOTAL_POPULATION = popAtRisk.totalPopulation;
+  svg.querySelectorAll('.pop-arc').forEach(el => el.remove());
+  const r = 17;
+  const circumference = 2 * Math.PI * r;
+  const byType = popAtRisk.byType || {};
+  const types = Object.entries(byType).filter(([_, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  let offset = 0;
+  const centerG = svg.querySelector('g');
+  for (const [type, pop] of types) {
+    const arcLen = (pop / TOTAL_POPULATION) * circumference;
+    const colors = ALERT_COLORS[type] || ALERT_COLORS['URGENT'];
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('class', 'pop-arc');
+    circle.setAttribute('cx', '22');
+    circle.setAttribute('cy', '22');
+    circle.setAttribute('r', String(r));
+    circle.setAttribute('fill', 'none');
+    circle.setAttribute('stroke', colors.fill);
+    circle.setAttribute('stroke-width', '5');
+    circle.setAttribute('stroke-dasharray', `${arcLen} ${circumference - arcLen}`);
+    circle.setAttribute('stroke-dashoffset', String(-offset));
+    circle.setAttribute('transform', 'rotate(-90 22 22)');
+    svg.insertBefore(circle, centerG);
+    offset += arcLen;
+  }
+  chartEl.style.display = 'block';
+}
+
+document.getElementById('pop-chart').addEventListener('click', function(e) {
+  e.stopPropagation();
+  if (!lastPopData || lastPopData.total <= 0) return;
+  const byType = lastPopData.byType || {};
+  const parts = [];
+  for (const [type, pop] of Object.entries(byType)) {
+    if (pop > 0) parts.push(formatPopulation(pop) + ' ' + (PL()[type] || type));
+  }
+  ttZone.textContent = parts.join(' | ');
+  ttType.textContent = formatPopulation(lastPopData.total) + ' ' + (appLang === 'he' ? 'סה"כ' : 'total');
+  tooltip.style.display = 'block';
+  clearTimeout(tooltipTimer);
+  tooltipTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 5000);
+});
 
 // ── JS Bridge: Language & Zone ──────────────────────────────────────────
 window.setAppLanguage = (lang) => {
@@ -318,7 +411,7 @@ map.on('load', () => {
   });
   map.addLayer({
     id: 'clearing-border', type: 'line', source: 'clearing-src',
-    paint: { 'line-color': '#34D399', 'line-width': 1.5, 'line-opacity': 0.6 },
+    paint: { 'line-color': '#34D399', 'line-width': 1.5, 'line-opacity': ['number', ['get', 'borderOpacity'], 0.6] },
   });
 
   // Data-driven alert layers — fill/border color from per-feature properties
@@ -424,7 +517,7 @@ map.on('load', () => {
 
   mapReady = true;
   if (pendingUpdate) {
-    renderFromThreatMap(pendingUpdate.threats, pendingUpdate.status);
+    renderFromThreatMap(pendingUpdate.threats, pendingUpdate.status, pendingUpdate.populationAtRisk || null);
     pendingUpdate = null;
   }
 
@@ -444,13 +537,13 @@ window.onThreatUpdate = function(data) {
       pendingUpdate = d;
       return;
     }
-    renderFromThreatMap(d.threats || {}, d.status || 'GREEN');
+    renderFromThreatMap(d.threats || {}, d.status || 'GREEN', d.populationAtRisk || null);
   } catch (e) {
     console.error('onThreatUpdate failed:', e);
   }
 };
 
-function renderFromThreatMap(threats, status) {
+function renderFromThreatMap(threats, status, popAtRisk) {
   const now = Date.now();
   const urgentFeatures = [];
   const cautionFeatures = [];
@@ -469,10 +562,12 @@ function renderFromThreatMap(threats, status) {
     if (state === 'CLEARING') {
       const ct = entry.ct || 0;
       if (ct > 0 && (now - ct) < CLEAR_FADE_MS) {
-        const opacity = Math.max(0, CLEAR_BASE_OPACITY * (1 - (now - ct) / CLEAR_FADE_MS));
+        const fadeFactor = Math.max(0, 1 - (now - ct) / CLEAR_FADE_MS);
+        const opacity = CLEAR_BASE_OPACITY * fadeFactor;
+        const borderOpacity = CLEAR_BORDER_OPACITY * fadeFactor;
         newClearingFeatures.push({
           ...poly,
-          properties: { ...poly.properties, state: 'CLEARING', ct, alertType: 'CLEARING', opacity },
+          properties: { ...poly.properties, state: 'CLEARING', ct, alertType: 'CLEARING', opacity, borderOpacity },
         });
       }
       continue;
@@ -556,6 +651,10 @@ function renderFromThreatMap(threats, status) {
 
   // Status badge
   updateStatusBadge(status);
+
+  // Population donut
+  lastPopData = popAtRisk;
+  updatePopulationChart(popAtRisk);
 }
 
 // ── Status Badge ────────────────────────────────────────────────────────
@@ -591,9 +690,12 @@ function tickClearingFade() {
     for (const f of clearingFeatures) {
       const elapsed = now - f.properties.ct;
       if (elapsed >= CLEAR_FADE_MS) { changed = true; continue; }
-      const newOpacity = Math.max(0, CLEAR_BASE_OPACITY * (1 - elapsed / CLEAR_FADE_MS));
+      const fadeFactor = Math.max(0, 1 - elapsed / CLEAR_FADE_MS);
+      const newOpacity = CLEAR_BASE_OPACITY * fadeFactor;
+      const newBorderOpacity = CLEAR_BORDER_OPACITY * fadeFactor;
       if (f.properties.opacity === undefined || Math.abs(f.properties.opacity - newOpacity) > 0.005) {
         f.properties.opacity = newOpacity;
+        f.properties.borderOpacity = newBorderOpacity;
         changed = true;
       }
       updated.push(f);

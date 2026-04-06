@@ -3,50 +3,56 @@ name: Android Release
 on:
   push:
     tags:
-      - 'v*.*.*'           # triggers on version tags like v1.3.4
-  workflow_dispatch:       # manual trigger from GitHub UI
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   build-and-deploy:
-    name: Build Signed AAB & Deploy to Internal Testing
+    name: Build & Deploy to Internal Testing
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Set Up JDK 17
-        uses: actions/setup-java@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts') }}
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4
 
       - name: Decode Keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android-app/release.jks
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android-app/release.jks
 
-      - name: Build Signed Release Bundle
+      - name: Decode google-services.json
+        run: echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 --decode > android-app/app/google-services.json
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: projects/344391280523/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: play-publisher@home-front-alert-hfc.iam.gserviceaccount.com
+
+      - name: Build Release AAB
         working-directory: android-app
-        run: ./gradlew bundleProRelease
+        run: ./gradlew clean bundleProRelease
         env:
+          CI: true
           STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Upload AAB to Play Store (Internal Testing)
-        uses: r0adkll/upload-google-play@v1
+      - name: Upload to Play Store (Internal)
+        uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb # v1.1.3
         with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          serviceAccountJson: ${{ steps.auth.outputs.credentials_file_path }}
           packageName: com.attius.homefrontalert
           releaseFiles: android-app/app/build/outputs/bundle/proRelease/app-pro-release.aab
           track: internal
-          status: completed
-          changesNotSentForReview: false
