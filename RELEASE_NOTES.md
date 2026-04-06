@@ -1,5 +1,26 @@
 # Release Notes — Tzeva Artzi 🚨
 
+## v2.2.0 (2026-04-06) — Population-at-Risk Indicator & CI Pipeline
+
+### Features
+- **Population donut chart**: SVG donut on the alert map shows population under active alert/pre-warning, color-coded by threat type (rocket/UAV/infiltration/caution) with tap-to-tooltip.
+- **CBS population data**: Enriched cities.json with Israel CBS population data (~10.18M total, scaled), via new `enrich_population.js` build script.
+- **Clearing border fade**: Zone borders now fade alongside fill opacity during all-clear.
+
+### CI/CD Pipeline (new)
+- **Automated Play Store deploy**: Push a tag or trigger manually to build, sign, and upload AAB to internal testing — fully automated via GitHub Actions.
+- **Workload Identity Federation**: Keyless GCP auth (no service account JSON keys), using `google-github-actions/auth` + `r0adkll/upload-google-play`.
+- **R8 minification on CI**: Enabled for smaller APKs; disabled locally to avoid Google Drive path issues.
+- **SHA-pinned actions**: All third-party GitHub Actions pinned to commit SHAs for supply-chain security.
+- **Auto-sync main → develop**: New workflow merges main back to develop after each release.
+
+### Housekeeping
+- Retired local `serviceAccountKey.json` fallback; backend uses ADC everywhere.
+- Fixed signing config env var shadowing that broke CI builds.
+- Added `google-services.json` decode step (was missing, broke all prior CI runs).
+
+---
+
 ## v2.1.0 (2026-04-05) — Stability, Security & CI Hardening
 
 ### Map Improvements
