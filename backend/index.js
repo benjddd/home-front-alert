@@ -87,8 +87,9 @@ let lastSuccessfulPoll = null;
 
 // ── API Endpoints ───────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
-    res.json({
-        status: 'ok',
+    const healthy = isConnected && lastSuccessfulPoll !== null;
+    res.status(healthy ? 200 : 503).json({
+        status: healthy ? 'ok' : 'degraded',
         connectedToHomeFront: isConnected,
         source: activeSource,
         timestamp: new Date().toISOString(),
@@ -308,9 +309,30 @@ function sendFCMClear(alertData = {}) {
     });
 }
 
+// ── FCM Keepalive ──────────────────────────────────────────────────────
+function sendKeepalive() {
+    if (!isConnected) return;
+    const message = {
+        data: { type: 'KEEPALIVE', timestamp: new Date().toISOString() },
+        android: { priority: 'normal', ttl: config.KEEPALIVE_INTERVAL_MS },
+        topic: 'alerts',
+    };
+    admin.messaging().send(message)
+        .then(() => console.log('💓 FCM keepalive sent'))
+        .catch(err => console.error('❌ FCM keepalive error:', err.message));
+}
+
 // ── Start ───────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`[relay] Listening on :${PORT}`);
     poll();
+});
+
+const keepaliveTimer = setInterval(sendKeepalive, config.KEEPALIVE_INTERVAL_MS);
+
+process.on('SIGTERM', () => {
+    console.log('[relay] SIGTERM received, shutting down…');
+    clearInterval(keepaliveTimer);
+    server.close(() => process.exit(0));
 });
