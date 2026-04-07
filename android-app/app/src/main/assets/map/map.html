@@ -340,6 +340,7 @@ let pendingUpdate = null;
 let clearingFeatures = [];
 let alertUrgentFeatures = [];
 let alertCautionFeatures = [];
+let recentExpireTimer = null;
 
 // ── Basemap injection from Android JS bridge ─────────────────────────────
 // fetch() cannot access file:// assets in WebView; Android reads the JSON
@@ -644,6 +645,22 @@ function renderFromThreatMap(threats, status, popAtRisk) {
   map.getSource('urgent-src').setData({ type: 'FeatureCollection', features: urgentFeatures });
   map.getSource('caution-src').setData({ type: 'FeatureCollection', features: cautionFeatures });
   map.getSource('recent-src').setData({ type: 'FeatureCollection', features: recentFeatures });
+
+  // Auto-expire recent pulse after RECENT_ZONE_MS window elapses
+  if (recentExpireTimer) { clearTimeout(recentExpireTimer); recentExpireTimer = null; }
+  if (recentFeatures.length > 0) {
+    let latestT = 0;
+    for (const f of recentFeatures) {
+      if (f.properties.t > latestT) latestT = f.properties.t;
+    }
+    const delay = Math.max(0, RECENT_ZONE_MS - (now - latestT)) + 100;
+    recentExpireTimer = setTimeout(() => {
+      recentExpireTimer = null;
+      const src = map.getSource('recent-src');
+      if (src) src.setData({ type: 'FeatureCollection', features: [] });
+    }, delay);
+  }
+
   map.getSource('heat-urgent-src').setData({ type: 'FeatureCollection', features: heatUrgentFeatures });
   map.getSource('heat-caution-src').setData({ type: 'FeatureCollection', features: heatCautionFeatures });
   map.getSource('heat-uav-src').setData({ type: 'FeatureCollection', features: heatUavFeatures });
