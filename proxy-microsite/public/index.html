@@ -10,9 +10,10 @@
     <p>Status: <span id="status">Checking...</span></p>
     <script>
       fetch('/health')
-        .then(r => r.json())
-        .then(data => {
-          document.getElementById('status').innerText = 'Backend Online (' + data.status + ')';
+        .then(r => r.json().then(data => ({ ok: r.ok, data })))
+        .then(({ ok, data }) => {
+          const el = document.getElementById('status');
+          el.innerText = ok ? 'Backend Online' : 'Backend Degraded (' + data.status + ')';
         })
         .catch(err => {
           document.getElementById('status').innerText = 'Error: ' + err.message;

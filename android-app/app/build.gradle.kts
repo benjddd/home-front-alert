@@ -29,8 +29,8 @@ android {
         applicationId = "com.attius.homefrontalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 36
-        versionName = "2.2.0"
+        versionCode = 38
+        versionName = "2.2.1"
 
         buildConfigField("String", "BACKEND_URL", "\"$backendUrlEnv\"")
         buildConfigField("String", "API_KEY", "\"$apiKeyEnv\"")
@@ -54,17 +54,18 @@ android {
         resources {
             excludes += "/desktop.ini"
             excludes += "**/desktop.ini"
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/LICENSE.txt"
+            excludes += "META-INF/LICENSE.md"
+            excludes += "META-INF/NOTICE"
+            excludes += "META-INF/NOTICE.txt"
+            excludes += "META-INF/NOTICE.md"
         }
     }
 
     aaptOptions {
         ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:desktop.ini"
-    }
-
-    packaging {
-        resources {
-            excludes += "**/desktop.ini"
-        }
     }
 
     // NUCLEAR OPTION: Delete any auto-generated desktop.ini files 
@@ -84,9 +85,12 @@ android {
         }
     }
 
-    tasks.all {
-        if (this.name.startsWith("mergePro") || this.name == "preBuild") {
-            this.dependsOn("cleanDesktopInit")
+    // Only wire cleanDesktopInit locally; CI has no Google Drive desktop.ini files.
+    if (System.getenv("CI") == null) {
+        tasks.all {
+            if (this.name.startsWith("mergePro") || this.name == "preBuild") {
+                this.dependsOn("cleanDesktopInit")
+            }
         }
     }
 

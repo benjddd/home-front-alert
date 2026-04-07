@@ -1,5 +1,17 @@
 # Release Notes — Tzeva Artzi 🚨
 
+## v2.2.1 (2026-04-06) — Population Tooltip Fix
+
+### Bug Fixes
+- **Population data aggregation**: Fixed corrupted tooltip when zones had mismatched state/ctype (e.g., URGENT state with PRE_WARNING ctype from non-escalation overwrite). Unknown ctype values under URGENT are now normalized to known threat types.
+- **Tooltip layout**: Replaced single pipe-separated line with structured per-line layout — each threat type on its own row with a colored bullet matching the donut chart arc, sorted by population. Eliminates arbitrary mid-label line breaks.
+- **Safety-net labels**: Added fallback entries in population label dictionary for PRE_WARNING and URGENT keys to prevent raw internal strings from leaking to the UI.
+
+### CI
+- **R8 fix**: Root-caused `cleanDesktopInit` task's `projectDir.walkBottomUp()` causing I/O contention with R8 on CI runners. Task now skips on CI (where Google Drive `desktop.ini` files don't exist). Also consolidated duplicate packaging blocks and added META-INF resource excludes.
+
+---
+
 ## v2.2.0 (2026-04-06) — Population-at-Risk Indicator & CI Pipeline
 
 ### Features

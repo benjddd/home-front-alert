@@ -176,9 +176,9 @@ class ZoneDistanceCalculator(private val context: Context) {
                 val pop = city.population
                 if (state == "URGENT") {
                     alertPop += pop
-                    val ctype = obj.optString("ctype", "ROCKET")
-                    if (ctype.isEmpty()) byType["ROCKET"] = (byType["ROCKET"] ?: 0L) + pop
-                    else byType[ctype] = (byType[ctype] ?: 0L) + pop
+                    val rawCtype = obj.optString("ctype", "ROCKET")
+                    val ctype = if (rawCtype == "ROCKET" || rawCtype == "UAV" || rawCtype == "INFILTRATION") rawCtype else "ROCKET"
+                    byType[ctype] = (byType[ctype] ?: 0L) + pop
                 } else {
                     preWarningPop += pop
                     byType["CAUTION"] = (byType["CAUTION"] ?: 0L) + pop
