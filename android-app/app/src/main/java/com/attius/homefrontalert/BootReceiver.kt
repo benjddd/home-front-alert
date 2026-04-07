@@ -20,7 +20,7 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
 
-        val prefs = context.getSharedPreferences("AppSettings", Context.MODE_PRIVATE)
+        val prefs = context.getSharedPreferences(StatusManager.PREFS_NAME, Context.MODE_PRIVATE)
         val shieldActive = prefs.getBoolean("shield_active", !BuildConfig.IS_PAID)
 
         if (shieldActive) {

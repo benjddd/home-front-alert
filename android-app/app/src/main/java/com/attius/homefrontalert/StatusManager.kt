@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Tracks active threats per-zone with a 30-minute stateful persistence.
  */
 object StatusManager {
-    private const val PREFS_NAME = "HomeFrontAlertsPrefs"
+    const val PREFS_NAME = "HomeFrontAlertsPrefs"
     const val STATE_MAINTENANCE_INTERVAL_MS = 30 * 1000L
     private const val THREAT_TIMEOUT_MS_DEFAULT = 30 * 60 * 1000L
     // Must match backend/config.js CLEARING_FADE_MS (15 minutes)
@@ -616,7 +616,7 @@ object StatusManager {
                     threats.put(normZone, obj)
                 }
             }
-            prefs.edit().putString("active_threat_map", threats.toString()).commit()
+            prefs.edit().putString("active_threat_map", threats.toString()).apply()
         }
 
         val newCitiesForAudio = cities.filter { city ->
