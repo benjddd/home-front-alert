@@ -178,6 +178,7 @@ class ZoneDistanceCalculator(private val context: Context) {
                     alertPop += pop
                     val rawCtype = obj.optString("ctype", "ROCKET")
                     val ctype = if (rawCtype == "ROCKET" || rawCtype == "UAV" || rawCtype == "INFILTRATION") rawCtype else "ROCKET"
+                    if (ctype != rawCtype) Log.w("ZoneCalc", "Normalized unknown ctype '$rawCtype' → ROCKET")
                     byType[ctype] = (byType[ctype] ?: 0L) + pop
                 } else {
                     preWarningPop += pop

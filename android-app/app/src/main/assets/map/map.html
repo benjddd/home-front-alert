@@ -239,8 +239,9 @@ document.getElementById('pop-chart').addEventListener('click', function(e) {
   for (const [type, pop] of Object.entries(byType).sort((a, b) => b[1] - a[1])) {
     if (pop > 0) {
       const color = (ALERT_COLORS[type] || ALERT_COLORS['URGENT']).fill;
+      const label = PL()[type] || type.replace(/[<>&"']/g, '');
       html += '<div class="pop-line"><span style="color:' + color + ';">\u25CF</span> '
-            + formatPopulation(pop) + ' ' + (PL()[type] || type) + '</div>';
+            + formatPopulation(pop) + ' ' + label + '</div>';
     }
   }
   ttZone.innerHTML = html;
