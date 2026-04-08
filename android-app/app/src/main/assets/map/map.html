@@ -160,6 +160,7 @@ const ALERT_COLORS = {
   ROCKET:       { fill: '#C93545', border: '#A52835' },
   UAV:          { fill: '#8B5CF6', border: '#7340D8' },
   INFILTRATION: { fill: '#D97706', border: '#B45F05' },
+  PRE_WARNING:  { fill: '#D4A030', border: '#B8892A' },
   // Fallback for generic URGENT/CAUTION (no canonical type)
   URGENT:  { fill: '#C93545', border: '#A52835' },
   CAUTION: { fill: '#D4A030', border: '#B8892A' },
@@ -171,8 +172,8 @@ const STATUS_LABELS = {
 };
 
 const ALERT_LABELS = {
-  he: { ROCKET: 'ירי רקטות וטילים', UAV: 'כלי טיס עוין', INFILTRATION: 'חדירת מחבלים', URGENT: 'איום דחוף', CAUTION: 'התרעה מוקדמת' },
-  en: { ROCKET: 'Rockets / Missiles', UAV: 'Hostile UAV', INFILTRATION: 'Infiltration', URGENT: 'Urgent Threat', CAUTION: 'Pre-Warning' },
+  he: { ROCKET: 'ירי רקטות וטילים', UAV: 'כלי טיס עוין', INFILTRATION: 'חדירת מחבלים', PRE_WARNING: 'התרעה מוקדמת', URGENT: 'איום דחוף', CAUTION: 'התרעה מוקדמת' },
+  en: { ROCKET: 'Rockets / Missiles', UAV: 'Hostile UAV', INFILTRATION: 'Infiltration', PRE_WARNING: 'Pre-Warning', URGENT: 'Urgent Threat', CAUTION: 'Pre-Warning' },
 };
 
 let appLang = 'he';

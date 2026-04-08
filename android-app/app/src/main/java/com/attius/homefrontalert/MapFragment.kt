@@ -176,8 +176,7 @@ class MapFragment : Fragment() {
         val threats = try {
             JSONObject(threatMap)
         } catch (e: Exception) {
-            Log.e(TAG, "Corrupt active_threat_map, resetting", e)
-            prefs.edit().putString("active_threat_map", "{}").apply()
+            Log.e(TAG, "Corrupt active_threat_map, skipping display update", e)
             JSONObject()
         }
         val popData = zoneCalculator.getPopulationAtRisk(threats)
