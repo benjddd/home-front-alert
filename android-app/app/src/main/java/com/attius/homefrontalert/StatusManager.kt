@@ -215,6 +215,8 @@ object StatusManager {
             }
         }
 
+        val homeZone = normalizeCity(prefs.getString("current_home_zone", "") ?: "")
+
         // Simpler PRUNING: If registry gets too large, clear oldest entries to maintain memory safety
         if (signaledCitiesPerAlert.size > 100) {
             val oldestKey = signaledCitiesPerAlert.keys.firstOrNull()
