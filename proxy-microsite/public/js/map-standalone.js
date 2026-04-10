@@ -330,10 +330,9 @@ map.on('load', () => {
   initMapData();
 });
 
-// ── Fetch basemap + polygons over HTTP ─────────────────────────────────
+// ── Fetch basemap over HTTP (polygons loaded lazily on first alert) ────
 async function initMapData() {
   try {
-    // Load basemap first (small files, fast) — show the map outline immediately
     const [outlineRes, extrasRes] = await Promise.all([
       fetch('data/israel-outline.json'),
       fetch('data/geo-extras.json'),
@@ -341,15 +340,33 @@ async function initMapData() {
     const outline = await outlineRes.json();
     const extras = await extrasRes.json();
     loadBasemap(outline, extras);
-
-    // Load polygons in background (1.8MB) — don't block map interaction
-    const polyRes = await fetch('data/polygons.json');
-    const polygons = await polyRes.json();
-    // Yield to the main thread before heavy processing
-    await new Promise(r => setTimeout(r, 0));
-    loadPolygons(polygons);
   } catch (e) {
-    console.error('[map] Failed to load geo data:', e);
+    console.error('[map] Failed to load basemap:', e);
+  }
+}
+
+// Lazy polygon loading — only fetched when first alert has active zones
+let polygonsLoaded = false;
+let polygonsLoading = false;
+
+async function ensurePolygons() {
+  if (polygonsLoaded || polygonsLoading) return;
+  polygonsLoading = true;
+  try {
+    const res = await fetch('data/polygons.json');
+    const data = await res.json();
+    await new Promise(r => setTimeout(r, 0)); // yield before heavy processing
+    loadPolygons(data);
+    polygonsLoaded = true;
+    // Re-render with pending threat data if any
+    if (pendingUpdate) {
+      renderFromThreatMap(pendingUpdate.threats, pendingUpdate.status, pendingUpdate.populationAtRisk || null);
+      pendingUpdate = null;
+    }
+  } catch (e) {
+    console.error('[map] Failed to load polygons:', e);
+  } finally {
+    polygonsLoading = false;
   }
 }
 
@@ -357,11 +374,23 @@ async function initMapData() {
 window.onThreatUpdate = function(data) {
   try {
     const d = typeof data === 'string' ? JSON.parse(data) : data;
+    const threats = d.threats || {};
+    const hasThreats = Object.keys(threats).length > 0;
+
+    // Lazy-load polygons only when there are active threats
+    if (hasThreats && !polygonsLoaded) {
+      pendingUpdate = d;
+      ensurePolygons();
+      // Update status badge immediately even while polygons load
+      if (mapReady) updateStatusBadge(d.status || 'GREEN');
+      return;
+    }
+
     if (!mapReady) {
       pendingUpdate = d;
       return;
     }
-    renderFromThreatMap(d.threats || {}, d.status || 'GREEN', d.populationAtRisk || null);
+    renderFromThreatMap(threats, d.status || 'GREEN', d.populationAtRisk || null);
   } catch (e) {
     console.error('onThreatUpdate failed:', e);
   }
