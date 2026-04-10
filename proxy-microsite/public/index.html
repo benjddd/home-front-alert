@@ -37,45 +37,14 @@
   </a>
   <div class="navbar-actions">
     <button class="lang-toggle" onclick="toggleLang()" id="lang-btn">HE / EN</button>
-    <a href="https://play.google.com/store/apps/details?id=com.attius.homefrontalert"
+    <a href="https://groups.google.com/u/1/g/tzeva-artzi"
        target="_blank" rel="noopener" class="btn-cta">
-      Get the App
+      Join Beta
     </a>
   </div>
 </nav>
 
-<!-- ── Hero Section ──────────────────────────────────────────────────── -->
-<section class="hero" id="hero">
-  <img src="logo.png" alt="Tzeva Artzi" class="hero-logo" />
-  <h1>
-    Tzeva Artzi
-    <span class="subtitle" id="hero-subtitle">Real-Time Home Front Alerts</span>
-  </h1>
-
-  <div class="hero-status">
-    <div class="hero-dot calm" id="hero-status-dot"></div>
-    <span id="hero-status-text">Connecting...</span>
-  </div>
-
-  <div class="features" id="features">
-    <div class="feature-chip"><span class="icon">&#x1F6A8;</span> <span data-i18n="feat-alerts">Real-time push alerts</span></div>
-    <div class="feature-chip"><span class="icon">&#x1F5FA;</span> <span data-i18n="feat-map">Live threat map</span></div>
-    <div class="feature-chip"><span class="icon">&#x1F50A;</span> <span data-i18n="feat-audio">Distance-mapped audio</span></div>
-  </div>
-
-  <div class="hero-actions">
-    <a href="https://play.google.com/store/apps/details?id=com.attius.homefrontalert"
-       target="_blank" rel="noopener" class="btn-play-store">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zM18.3 11.04l2.18 1.264a1 1 0 0 1 0 1.732L18.3 15.3l-2.543-2.543L18.3 11.04zM5.864 3.457L16.8 9.789l-2.302 2.302-8.634-8.634z"/></svg>
-      <span data-i18n="download">Download on Google Play</span>
-    </a>
-    <a href="#live-map" class="btn-scroll">
-      <span data-i18n="view-map">View Live Map</span> &#x2193;
-    </a>
-  </div>
-</section>
-
-<!-- ── Live Map Section ──────────────────────────────────────────────── -->
+<!-- ── Live Map Section (primary) ─────────────────────────────────────── -->
 <section class="map-section" id="live-map">
   <div id="map"></div>
   <div id="status">
@@ -100,9 +69,44 @@
   <img id="app-logo" src="app_icon.png" alt="" />
 
   <div class="map-banner">
-    <a href="https://play.google.com/store/apps/details?id=com.attius.homefrontalert"
-       target="_blank" rel="noopener"
-       data-i18n="map-banner">Get alerts on your phone &mdash; Download Tzeva Artzi</a>
+    <a href="#get-the-app"
+       data-i18n="map-banner">Join the closed beta to get alerts on your phone</a>
+  </div>
+</section>
+
+<!-- ── App Promo Section (secondary) ─────────────────────────────────── -->
+<section class="hero" id="get-the-app">
+  <img src="logo.png" alt="Tzeva Artzi" class="hero-logo" />
+  <h1>
+    Tzeva Artzi
+    <span class="subtitle" id="hero-subtitle">Real-Time Home Front Alerts</span>
+  </h1>
+
+  <div class="hero-status">
+    <div class="hero-dot calm" id="hero-status-dot"></div>
+    <span id="hero-status-text">Connecting...</span>
+  </div>
+
+  <div class="features" id="features">
+    <div class="feature-chip"><span class="icon">&#x1F6A8;</span> <span data-i18n="feat-alerts">Real-time push alerts</span></div>
+    <div class="feature-chip"><span class="icon">&#x1F5FA;</span> <span data-i18n="feat-map">Live threat map</span></div>
+    <div class="feature-chip"><span class="icon">&#x1F50A;</span> <span data-i18n="feat-audio">Distance-mapped audio</span></div>
+  </div>
+
+  <div class="join-steps">
+    <p class="join-label" data-i18n="join-label">Closed Beta &mdash; two steps to join:</p>
+    <div class="hero-actions">
+      <a href="https://groups.google.com/u/1/g/tzeva-artzi"
+         target="_blank" rel="noopener" class="btn-play-store">
+        <span class="step-num">1</span>
+        <span data-i18n="step1">Join the Google Group</span>
+      </a>
+      <a href="https://play.google.com/apps/testing/com.attius.homefrontalert"
+         target="_blank" rel="noopener" class="btn-play-store">
+        <span class="step-num">2</span>
+        <span data-i18n="step2">Join Closed Testing</span>
+      </a>
+    </div>
   </div>
 </section>
 
@@ -125,18 +129,22 @@ const i18n = {
     'feat-alerts': 'Real-time push alerts',
     'feat-map': 'Live threat map',
     'feat-audio': 'Distance-mapped audio',
-    'download': 'Download on Google Play',
+    'join-label': 'Closed Beta \u2014 two steps to join:',
+    'step1': 'Join the Google Group',
+    'step2': 'Join Closed Testing',
     'view-map': 'View Live Map',
-    'map-banner': 'Get alerts on your phone \u2014 Download Tzeva Artzi',
+    'map-banner': 'Join the closed beta to get alerts on your phone',
   },
   he: {
     'hero-subtitle': '\u05D4\u05EA\u05E8\u05E2\u05D5\u05EA \u05E4\u05D9\u05E7\u05D5\u05D3 \u05D4\u05E2\u05D5\u05E8\u05E3 \u05D1\u05D6\u05DE\u05DF \u05D0\u05DE\u05EA',
     'feat-alerts': '\u05D4\u05EA\u05E8\u05E2\u05D5\u05EA \u05D1\u05D6\u05DE\u05DF \u05D0\u05DE\u05EA',
     'feat-map': '\u05DE\u05E4\u05EA \u05D0\u05D9\u05D5\u05DE\u05D9\u05DD \u05D7\u05D9\u05D4',
     'feat-audio': '\u05E6\u05DC\u05D9\u05DC \u05DE\u05D5\u05EA\u05D0\u05DD \u05DC\u05DE\u05E8\u05D7\u05E7',
-    'download': '\u05D4\u05D5\u05E8\u05D3\u05D4 \u05DE-Google Play',
+    'join-label': '\u05D1\u05D8\u05D0 \u05E1\u05D2\u05D5\u05E8 \u2014 \u05E9\u05E0\u05D9 \u05E6\u05E2\u05D3\u05D9\u05DD \u05DC\u05D4\u05E6\u05D8\u05E8\u05E4\u05D5\u05EA:',
+    'step1': '\u05D4\u05E6\u05D8\u05E8\u05E4\u05D5 \u05DC\u05E7\u05D1\u05D5\u05E6\u05EA Google',
+    'step2': '\u05D4\u05E6\u05D8\u05E8\u05E4\u05D5 \u05DC\u05D1\u05D3\u05D9\u05E7\u05D4 \u05E1\u05D2\u05D5\u05E8\u05D4',
     'view-map': '\u05E6\u05E4\u05D4 \u05D1\u05DE\u05E4\u05D4 \u05D4\u05D7\u05D9\u05D4',
-    'map-banner': '\u05E7\u05D1\u05DC \u05D4\u05EA\u05E8\u05E2\u05D5\u05EA \u05D1\u05E0\u05D9\u05D9\u05D3 \u2014 \u05D4\u05D5\u05E8\u05D3 \u05D0\u05EA \u05E6\u05D1\u05E2 \u05D0\u05E8\u05E6\u05D9',
+    'map-banner': '\u05D4\u05E6\u05D8\u05E8\u05E4\u05D5 \u05DC\u05D1\u05D8\u05D0 \u05D4\u05E1\u05D2\u05D5\u05E8 \u05DC\u05E7\u05D1\u05DC\u05EA \u05D4\u05EA\u05E8\u05E2\u05D5\u05EA \u05D1\u05E0\u05D9\u05D9\u05D3',
   }
 };
 
@@ -164,6 +172,13 @@ function applyLang(lang) {
     window.setAppLanguage(lang);
   }
   document.getElementById('lang-btn').textContent = lang === 'en' ? 'HE / EN' : 'EN / HE';
+  // Hebrew branding
+  const brandName = lang === 'he' ? '\u05E6\u05D1\u05E2 \u05D0\u05E8\u05E6\u05D9' : 'Tzeva Artzi';
+  document.querySelectorAll('.navbar-brand span, .hero h1').forEach(el => {
+    if (!el.classList.contains('subtitle')) el.childNodes[0].textContent = brandName;
+  });
+  const navJoin = document.querySelector('.navbar-actions .btn-cta');
+  if (navJoin) navJoin.textContent = lang === 'he' ? '\u05D4\u05E6\u05D8\u05E8\u05E4\u05D5 \u05DC\u05D1\u05D8\u05D0' : 'Join Beta';
 }
 
 // Auto-detect language

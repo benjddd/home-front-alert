@@ -231,11 +231,42 @@ body {
   background: rgba(76, 175, 80, 0.1);
 }
 
+/* ── Join Steps ──────────────────────────────────────────────────────── */
+.join-steps {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.join-label {
+  font-size: 15px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 /* ── Map Section ─────────────────────────────────────────────────────── */
 .map-section {
   position: relative;
   width: 100%;
   height: 100vh;
+  padding-top: 52px; /* offset for fixed navbar */
+}
+
+.map-section #map {
+  height: calc(100vh - 52px);
 }
 
 #map {
