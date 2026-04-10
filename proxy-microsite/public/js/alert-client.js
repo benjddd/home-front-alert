@@ -12,7 +12,7 @@
  * the Android app's behavior instead of abruptly wiping.
  */
 
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = 3000;
 const MAX_BACKOFF_MS = 30000;
 const CLEARING_DURATION_MS = 15 * 60 * 1000; // match map's CLEAR_FADE_MS
 let pollTimer = null;
