@@ -97,6 +97,21 @@ app.get('/health', (_req, res) => {
     });
 });
 
+// ── Web Alert Snapshot (read-only) ─────────────────────────────────────
+app.get('/api/alerts/current', (_req, res) => {
+    const threats = {};
+    for (const [zone, info] of dedup.armedZones) {
+        threats[zone] = { type: info.type, since: info.dispatchedAt };
+    }
+    const types = Object.values(threats).map(t => t.type);
+    const hasUrgent = types.some(t => ['ROCKET', 'UAV', 'INFILTRATION'].includes(t));
+    const hasWarning = types.length > 0;
+    const status = hasUrgent ? 'RED' : hasWarning ? 'YELLOW' : 'GREEN';
+
+    res.set('Cache-Control', 'no-cache, no-store');
+    res.json({ threats, status, ts: Date.now() });
+});
+
 // Manual test FCM (requires API key)
 app.use(express.json());
 

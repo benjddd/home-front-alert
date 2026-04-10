@@ -1,23 +1,177 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>Home Front Proxy</title>
-  </head>
-  <body>
-    <h1>Home Front Bypass Proxy</h1>
-    <p>This site proxies requests to the Home Front Command Backend.</p>
-    <p>Status: <span id="status">Checking...</span></p>
-    <script>
-      fetch('/health')
-        .then(r => r.json().then(data => ({ ok: r.ok, data })))
-        .then(({ ok, data }) => {
-          const el = document.getElementById('status');
-          el.innerText = ok ? 'Backend Online' : 'Backend Degraded (' + data.status + ')';
-        })
-        .catch(err => {
-          document.getElementById('status').innerText = 'Error: ' + err.message;
-        });
-    </script>
-  </body>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>Tzeva Artzi — Live Alert Map | Home Front Alerts</title>
+  <meta name="description" content="Live real-time alert map for Israel. See active rocket, UAV, and infiltration alerts. Download the Tzeva Artzi app for instant audio alerts on your phone." />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Tzeva Artzi — Live Alert Map" />
+  <meta property="og:description" content="Real-time Home Front Command alerts on a live map. Download the app for instant push notifications." />
+  <meta property="og:image" content="https://tzeva-artzi.online/logo.png" />
+  <meta property="og:url" content="https://tzeva-artzi.online/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:locale:alternate" content="he_IL" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Tzeva Artzi — Live Alert Map" />
+  <meta name="twitter:description" content="Real-time Home Front Command alerts on a live map." />
+  <meta name="twitter:image" content="https://tzeva-artzi.online/logo.png" />
+
+  <link rel="canonical" href="https://tzeva-artzi.online/" />
+  <link rel="icon" href="logo.png" type="image/png" />
+
+  <link href="vendor/maplibre-gl.css" rel="stylesheet" />
+  <link href="css/site.css" rel="stylesheet" />
+</head>
+<body>
+
+<!-- ── Navbar ─────────────────────────────────────────────────────────── -->
+<nav class="navbar">
+  <a href="#" class="navbar-brand">
+    <img src="logo.png" alt="Tzeva Artzi" />
+    <span>Tzeva Artzi</span>
+  </a>
+  <div class="navbar-actions">
+    <button class="lang-toggle" onclick="toggleLang()" id="lang-btn">HE / EN</button>
+    <a href="https://play.google.com/store/apps/details?id=com.attius.homefrontalert"
+       target="_blank" rel="noopener" class="btn-cta">
+      Get the App
+    </a>
+  </div>
+</nav>
+
+<!-- ── Hero Section ──────────────────────────────────────────────────── -->
+<section class="hero" id="hero">
+  <img src="logo.png" alt="Tzeva Artzi" class="hero-logo" />
+  <h1>
+    Tzeva Artzi
+    <span class="subtitle" id="hero-subtitle">Real-Time Home Front Alerts</span>
+  </h1>
+
+  <div class="hero-status">
+    <div class="hero-dot calm" id="hero-status-dot"></div>
+    <span id="hero-status-text">Connecting...</span>
+  </div>
+
+  <div class="features" id="features">
+    <div class="feature-chip"><span class="icon">&#x1F6A8;</span> <span data-i18n="feat-alerts">Real-time push alerts</span></div>
+    <div class="feature-chip"><span class="icon">&#x1F5FA;</span> <span data-i18n="feat-map">Live threat map</span></div>
+    <div class="feature-chip"><span class="icon">&#x1F50A;</span> <span data-i18n="feat-audio">Distance-mapped audio</span></div>
+  </div>
+
+  <div class="hero-actions">
+    <a href="https://play.google.com/store/apps/details?id=com.attius.homefrontalert"
+       target="_blank" rel="noopener" class="btn-play-store">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zM18.3 11.04l2.18 1.264a1 1 0 0 1 0 1.732L18.3 15.3l-2.543-2.543L18.3 11.04zM5.864 3.457L16.8 9.789l-2.302 2.302-8.634-8.634z"/></svg>
+      <span data-i18n="download">Download on Google Play</span>
+    </a>
+    <a href="#live-map" class="btn-scroll">
+      <span data-i18n="view-map">View Live Map</span> &#x2193;
+    </a>
+  </div>
+</section>
+
+<!-- ── Live Map Section ──────────────────────────────────────────────── -->
+<section class="map-section" id="live-map">
+  <div id="map"></div>
+  <div id="status">
+    <div id="status-dot"></div>
+    <span id="status-text"></span>
+  </div>
+  <div id="tooltip">
+    <div class="zone-name" id="tt-zone"></div>
+    <div class="alert-type" id="tt-type"></div>
+  </div>
+  <div id="pop-chart">
+    <svg id="pop-svg" viewBox="0 0 44 44" width="44" height="44">
+      <circle cx="22" cy="22" r="17" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5"/>
+      <g transform="translate(14,13) scale(0.7)" fill="rgba(255,255,255,0.45)">
+        <circle cx="8" cy="5" r="3.5"/>
+        <path d="M1.5 18c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/>
+        <circle cx="18" cy="6" r="2.5"/>
+        <path d="M14 18c0.5-3 2.5-5 4-5s3 1.5 3.5 5"/>
+      </g>
+    </svg>
+  </div>
+  <img id="app-logo" src="app_icon.png" alt="" />
+
+  <div class="map-banner">
+    <a href="https://play.google.com/store/apps/details?id=com.attius.homefrontalert"
+       target="_blank" rel="noopener"
+       data-i18n="map-banner">Get alerts on your phone &mdash; Download Tzeva Artzi</a>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <a href="privacy.html">Privacy Policy</a>
+  &nbsp;&middot;&nbsp;
+  <span>Tzeva Artzi &copy; 2025</span>
+</footer>
+
+<!-- ── Scripts ────────────────────────────────────────────────────────── -->
+<script src="vendor/maplibre-gl.js"></script>
+<script src="js/map-standalone.js"></script>
+<script src="js/alert-client.js"></script>
+<script>
+// ── i18n toggle ─────────────────────────────────────────────────────
+const i18n = {
+  en: {
+    'hero-subtitle': 'Real-Time Home Front Alerts',
+    'feat-alerts': 'Real-time push alerts',
+    'feat-map': 'Live threat map',
+    'feat-audio': 'Distance-mapped audio',
+    'download': 'Download on Google Play',
+    'view-map': 'View Live Map',
+    'map-banner': 'Get alerts on your phone \u2014 Download Tzeva Artzi',
+  },
+  he: {
+    'hero-subtitle': '\u05D4\u05EA\u05E8\u05E2\u05D5\u05EA \u05E4\u05D9\u05E7\u05D5\u05D3 \u05D4\u05E2\u05D5\u05E8\u05E3 \u05D1\u05D6\u05DE\u05DF \u05D0\u05DE\u05EA',
+    'feat-alerts': '\u05D4\u05EA\u05E8\u05E2\u05D5\u05EA \u05D1\u05D6\u05DE\u05DF \u05D0\u05DE\u05EA',
+    'feat-map': '\u05DE\u05E4\u05EA \u05D0\u05D9\u05D5\u05DE\u05D9\u05DD \u05D7\u05D9\u05D4',
+    'feat-audio': '\u05E6\u05DC\u05D9\u05DC \u05DE\u05D5\u05EA\u05D0\u05DD \u05DC\u05DE\u05E8\u05D7\u05E7',
+    'download': '\u05D4\u05D5\u05E8\u05D3\u05D4 \u05DE-Google Play',
+    'view-map': '\u05E6\u05E4\u05D4 \u05D1\u05DE\u05E4\u05D4 \u05D4\u05D7\u05D9\u05D4',
+    'map-banner': '\u05E7\u05D1\u05DC \u05D4\u05EA\u05E8\u05E2\u05D5\u05EA \u05D1\u05E0\u05D9\u05D9\u05D3 \u2014 \u05D4\u05D5\u05E8\u05D3 \u05D0\u05EA \u05E6\u05D1\u05E2 \u05D0\u05E8\u05E6\u05D9',
+  }
+};
+
+let currentLang = 'en';
+
+function toggleLang() {
+  currentLang = currentLang === 'en' ? 'he' : 'en';
+  applyLang(currentLang);
+}
+
+function applyLang(lang) {
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
+  const strings = i18n[lang];
+  // Update hero subtitle
+  const subtitle = document.getElementById('hero-subtitle');
+  if (subtitle && strings['hero-subtitle']) subtitle.textContent = strings['hero-subtitle'];
+  // Update all data-i18n elements
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (strings[key]) el.textContent = strings[key];
+  });
+  // Update map language
+  if (typeof window.setAppLanguage === 'function') {
+    window.setAppLanguage(lang);
+  }
+  document.getElementById('lang-btn').textContent = lang === 'en' ? 'HE / EN' : 'EN / HE';
+}
+
+// Auto-detect language
+const bl = (navigator.language || '').toLowerCase();
+if (bl.startsWith('he') || bl.startsWith('iw')) {
+  currentLang = 'he';
+  applyLang('he');
+}
+</script>
+</body>
 </html>
