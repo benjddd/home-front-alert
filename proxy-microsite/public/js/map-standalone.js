@@ -333,15 +333,20 @@ map.on('load', () => {
 // ── Fetch basemap + polygons over HTTP ─────────────────────────────────
 async function initMapData() {
   try {
-    const [outlineRes, extrasRes, polyRes] = await Promise.all([
+    // Load basemap first (small files, fast) — show the map outline immediately
+    const [outlineRes, extrasRes] = await Promise.all([
       fetch('data/israel-outline.json'),
       fetch('data/geo-extras.json'),
-      fetch('data/polygons.json'),
     ]);
     const outline = await outlineRes.json();
     const extras = await extrasRes.json();
     loadBasemap(outline, extras);
+
+    // Load polygons in background (1.8MB) — don't block map interaction
+    const polyRes = await fetch('data/polygons.json');
     const polygons = await polyRes.json();
+    // Yield to the main thread before heavy processing
+    await new Promise(r => setTimeout(r, 0));
     loadPolygons(polygons);
   } catch (e) {
     console.error('[map] Failed to load geo data:', e);

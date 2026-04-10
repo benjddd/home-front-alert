@@ -2,7 +2,7 @@
 
 :root {
   --bg-dark: #121212;
-  --bg-map: #1a1a2e;
+  --bg-map: #0a0a18;
   --primary: #4CAF50;
   --primary-dark: #388E3C;
   --red: #C93545;
@@ -262,11 +262,15 @@ body {
   position: relative;
   width: 100%;
   height: 100vh;
-  padding-top: 52px; /* offset for fixed navbar */
 }
 
-.map-section #map {
-  height: calc(100vh - 52px);
+#map {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #0a0a18;
 }
 
 #map {
@@ -292,7 +296,7 @@ body {
 /* Map overlay elements */
 #status {
   position: absolute;
-  top: 14px;
+  top: 62px;
   left: 14px;
   background: rgba(10,10,26,0.85);
   border: 1px solid rgba(255,255,255,0.1);
