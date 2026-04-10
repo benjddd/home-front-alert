@@ -603,15 +603,11 @@ function tickRecentPulse(ts) {
   try {
     map.setPaintProperty('recent-fill', 'fill-opacity', fillOpacity);
     map.setPaintProperty('recent-border', 'line-opacity', borderOpacity);
-  } catch {}
+  } catch (e) {
+    if (!tickRecentPulse._logged) { console.warn('[map] tickRecentPulse:', e.message); tickRecentPulse._logged = true; }
+  }
   requestAnimationFrame(tickRecentPulse);
 }
 
 // Initial status
 updateStatusBadge('GREEN');
-
-// Auto-detect language from browser
-const browserLang = (navigator.language || '').toLowerCase();
-if (browserLang.startsWith('he') || browserLang.startsWith('iw')) {
-  window.setAppLanguage('he');
-}

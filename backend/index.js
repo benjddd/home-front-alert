@@ -45,6 +45,7 @@ const limiter = rateLimit({
     max: 200,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => req.path === '/api/alerts/current',
 });
 app.use(limiter);
 
@@ -98,7 +99,8 @@ app.get('/health', (_req, res) => {
 });
 
 // ── Web Alert Snapshot (read-only) ─────────────────────────────────────
-app.get('/api/alerts/current', (_req, res) => {
+const alertLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false });
+app.get('/api/alerts/current', alertLimiter, (_req, res) => {
     const threats = {};
     for (const [zone, info] of dedup.armedZones) {
         threats[zone] = { type: info.type, since: info.dispatchedAt };
