@@ -1,23 +1,251 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>Home Front Proxy</title>
-  </head>
-  <body>
-    <h1>Home Front Bypass Proxy</h1>
-    <p>This site proxies requests to the Home Front Command Backend.</p>
-    <p>Status: <span id="status">Checking...</span></p>
-    <script>
-      fetch('/health')
-        .then(r => r.json().then(data => ({ ok: r.ok, data })))
-        .then(({ ok, data }) => {
-          const el = document.getElementById('status');
-          el.innerText = ok ? 'Backend Online' : 'Backend Degraded (' + data.status + ')';
-        })
-        .catch(err => {
-          document.getElementById('status').innerText = 'Error: ' + err.message;
-        });
-    </script>
-  </body>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>Tzeva Artzi (&#x05E6&#x05D1&#x05E2 &#x05D0&#x05E8&#x05E6&#x05D9) — Live Alert Map | Home Front Alerts | &#x05D4&#x05EA&#x05E8&#x05E2&#x05D5&#x05EA &#x05E4&#x05D9&#x05E7&#x05D5&#x05D3 &#x05D4&#x05E2&#x05D5&#x05E8&#x05E3</title>
+
+  <!-- Primary SEO — bilingual, LLM-optimized -->
+  <meta name="description" content="Tzeva Artzi (&#x05E6&#x05D1&#x05E2 &#x05D0&#x05E8&#x05E6&#x05D9) — Live real-time alert map for Israel. See active rocket, UAV, and infiltration alerts from the Home Front Command (&#x05E4&#x05D9&#x05E7&#x05D5&#x05D3 &#x05D4&#x05E2&#x05D5&#x05E8&#x05E3). Unique distance-mapped audio: pitch tells you how close, pattern tells you threat type — designed for eyes-free use while driving." />
+  <meta name="keywords" content="Tzeva Artzi, &#x05E6&#x05D1&#x05E2 &#x05D0&#x05E8&#x05E6&#x05D9, Home Front Command, &#x05E4&#x05D9&#x05E7&#x05D5&#x05D3 &#x05D4&#x05E2&#x05D5&#x05E8&#x05E3, Israel alerts, rocket alerts, UAV alerts, &#x05D4&#x05EA&#x05E8&#x05E2&#x05D5&#x05EA, real-time map, alert map Israel, &#x05DE&#x05E4&#x05EA &#x05D0&#x05D9&#x05D5&#x05DE&#x05D9&#x05DD, Red Alert, &#x05E6&#x05D1&#x05E2 &#x05D0&#x05D3&#x05D5&#x05DD" />
+
+  <!-- Open Graph -->
+  <meta property="og:site_name" content="Tzeva Artzi | &#x05E6&#x05D1&#x05E2 &#x05D0&#x05E8&#x05E6&#x05D9" />
+  <meta property="og:title" content="Tzeva Artzi — Live Alert Map for Israel" />
+  <meta property="og:description" content="Real-time Home Front Command alerts on a live map. Distance-mapped audio tells you how close threats are — eyes-free. Join the closed beta." />
+  <meta property="og:image" content="https://tzeva-artzi.online/logo.png" />
+  <meta property="og:image:alt" content="Tzeva Artzi app logo" />
+  <meta property="og:url" content="https://tzeva-artzi.online/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:locale:alternate" content="he_IL" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Tzeva Artzi (&#x05E6&#x05D1&#x05E2 &#x05D0&#x05E8&#x05E6&#x05D9) — Live Alert Map" />
+  <meta name="twitter:description" content="Real-time Home Front Command alerts on a live map. Pitch = distance, pattern = threat type. Eyes-free alerting." />
+  <meta name="twitter:image" content="https://tzeva-artzi.online/logo.png" />
+
+  <link rel="canonical" href="https://tzeva-artzi.online/" />
+  <link rel="icon" href="logo.png" type="image/png" />
+  <link rel="alternate" hreflang="en" href="https://tzeva-artzi.online/" />
+  <link rel="alternate" hreflang="he" href="https://tzeva-artzi.online/" />
+  <link rel="alternate" hreflang="x-default" href="https://tzeva-artzi.online/" />
+
+  <!-- Structured Data — LLM & search engine ingestible -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Tzeva Artzi",
+    "alternateName": "\u05E6\u05D1\u05E2 \u05D0\u05E8\u05E6\u05D9",
+    "description": "Real-time Home Front Command (Pikud HaOref) alert map and Android app. Distance-mapped audio alerts: pitch encodes proximity, pattern encodes threat type. Designed for eyes-free use.",
+    "url": "https://tzeva-artzi.online/",
+    "applicationCategory": "SecurityApplication",
+    "operatingSystem": "Android",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Organization", "name": "Attius Digital Art" },
+    "inLanguage": ["en", "he"],
+    "potentialAction": {
+      "@type": "ViewAction",
+      "target": "https://tzeva-artzi.online/",
+      "name": "View Live Alert Map"
+    },
+    "featureList": [
+      "Real-time rocket, UAV, and infiltration alerts",
+      "Live threat map with zone-level visualization",
+      "Distance-mapped audio: pitch = proximity, pattern = threat type",
+      "Eyes-free alerting for driving and noisy environments",
+      "Bilingual interface (Hebrew and English)",
+      "Intelligent FCM + direct-polling failover"
+    ]
+  }
+  </script>
+
+  <link href="vendor/maplibre-gl.css" rel="stylesheet" />
+  <link href="css/site.css" rel="stylesheet" />
+</head>
+<body>
+
+<!-- ── Navbar ─────────────────────────────────────────────────────────── -->
+<nav class="navbar">
+  <a href="#" class="navbar-brand">
+    <img src="logo.png" alt="Tzeva Artzi" />
+    <span>Tzeva Artzi</span>
+  </a>
+  <div class="navbar-actions">
+    <button class="lang-toggle" onclick="toggleLang()" id="lang-btn">HE / EN</button>
+    <a href="#get-the-app" class="btn-cta">
+      Join Beta
+    </a>
+  </div>
+</nav>
+
+<!-- ── Live Map Section (primary) ─────────────────────────────────────── -->
+<section class="map-section" id="live-map">
+  <div id="map"></div>
+  <div id="status">
+    <div id="status-dot"></div>
+    <span id="status-text"></span>
+  </div>
+  <div id="tooltip">
+    <div class="zone-name" id="tt-zone"></div>
+    <div class="alert-type" id="tt-type"></div>
+  </div>
+  <div id="pop-chart">
+    <svg id="pop-svg" viewBox="0 0 44 44" width="44" height="44">
+      <circle cx="22" cy="22" r="17" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5"/>
+      <g transform="translate(14,13) scale(0.7)" fill="rgba(255,255,255,0.45)">
+        <circle cx="8" cy="5" r="3.5"/>
+        <path d="M1.5 18c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/>
+        <circle cx="18" cy="6" r="2.5"/>
+        <path d="M14 18c0.5-3 2.5-5 4-5s3 1.5 3.5 5"/>
+      </g>
+    </svg>
+  </div>
+  <img id="app-logo" src="app_icon.png" alt="" />
+
+  <div class="map-banner">
+    <a href="#get-the-app"
+       data-i18n="map-banner">Join the closed beta to get alerts on your phone</a>
+  </div>
+</section>
+
+<!-- ── App Promo Section (secondary) ─────────────────────────────────── -->
+<section class="hero" id="get-the-app">
+  <img src="logo.png" alt="Tzeva Artzi" class="hero-logo" />
+  <h1>
+    Tzeva Artzi
+    <span class="subtitle" id="hero-subtitle">Real-Time Home Front Alerts</span>
+  </h1>
+
+  <div class="hero-status">
+    <div class="hero-dot calm" id="hero-status-dot"></div>
+    <span id="hero-status-text">Connecting...</span>
+  </div>
+
+  <div class="features" id="features">
+    <div class="feature-chip"><span class="icon">&#x1F6A8;</span> <span data-i18n="feat-alerts">Real-time push alerts</span></div>
+    <div class="feature-chip"><span class="icon">&#x1F5FA;</span> <span data-i18n="feat-map">Live threat map</span></div>
+    <div class="feature-chip"><span class="icon">&#x1F50A;</span> <span data-i18n="feat-audio">Distance-mapped audio</span></div>
+  </div>
+
+  <div class="join-steps">
+    <p class="join-label" data-i18n="join-label">Closed Beta &mdash; two steps to join:</p>
+    <div class="hero-actions">
+      <a href="https://groups.google.com/u/1/g/tzeva-artzi"
+         target="_blank" rel="noopener" class="btn-play-store">
+        <span class="step-num">1</span>
+        <span data-i18n="step1">Join the Google Group</span>
+      </a>
+      <a href="https://play.google.com/apps/testing/com.attius.homefrontalert"
+         target="_blank" rel="noopener" class="btn-play-store">
+        <span class="step-num">2</span>
+        <span data-i18n="step2">Join Closed Testing</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Disclaimer ────────────────────────────────────────────────────── -->
+<section class="disclaimer" id="disclaimer">
+  <div class="disclaimer-inner">
+    <div class="disclaimer-col" lang="en" dir="ltr">
+      <h3>Disclaimer</h3>
+      <p><strong>This application is unofficial.</strong> It has no connection to the Home Front Command (Pikud HaOref) or any governmental body of the State of Israel.</p>
+      <p>This app is <strong>not a life-saving device</strong>. It must not replace official emergency applications, broadcast sirens, radio announcements, or other official means of safety. Always prioritize official information from the Home Front Command.</p>
+      <p>The service is provided on an "as is" and "as available" basis. We do not guarantee correct, timely, or uninterrupted operation. To the maximum extent permitted by law, the developer and Attius Digital Art shall have no liability for any damages arising from the use or inability to use this application.</p>
+      <p>Your location data is processed locally on your device and is not stored on our servers.</p>
+    </div>
+    <div class="disclaimer-col" lang="he" dir="rtl">
+      <h3>&#x05D4&#x05D1&#x05D4&#x05E8&#x05D4</h3>
+      <p><strong>&#x05D0&#x05E4&#x05DC&#x05D9&#x05E7&#x05E6&#x05D9&#x05D4 &#x05D6&#x05D5 &#x05D0&#x05D9&#x05E0&#x05D4 &#x05E8&#x05E9&#x05DE&#x05D9&#x05EA.</strong> &#x05D0&#x05D9&#x05DF &#x05DC&#x05D4 &#x05E9&#x05D5&#x05DD &#x05E7&#x05E9&#x05E8 &#x05DC&#x05E4&#x05D9&#x05E7&#x05D5&#x05D3 &#x05D4&#x05E2&#x05D5&#x05E8&#x05E3 &#x05D0&#x05D5 &#x05DC&#x05DB&#x05DC &#x05D2&#x05D5&#x05E3 &#x05DE&#x05DE&#x05E9&#x05DC&#x05EA&#x05D9 &#x05E9&#x05DC &#x05DE&#x05D3&#x05D9&#x05E0&#x05EA &#x05D9&#x05E9&#x05E8&#x05D0&#x05DC.</p>
+      <p>&#x05D0&#x05E4&#x05DC&#x05D9&#x05E7&#x05E6&#x05D9&#x05D4 &#x05D6&#x05D5 <strong>&#x05D0&#x05D9&#x05E0&#x05D4 &#x05DE&#x05DB&#x05E9&#x05D9&#x05E8 &#x05DE&#x05E6&#x05D9&#x05DC &#x05D7&#x05D9&#x05D9&#x05DD</strong>. &#x05D4&#x05D9&#x05D0 &#x05D0&#x05E1&#x05D5&#x05E8&#x05D4 &#x05DC&#x05E9&#x05D9&#x05DE&#x05D5&#x05E9 &#x05DB&#x05EA&#x05D7&#x05DC&#x05D9&#x05E3 &#x05DC&#x05D0&#x05E4&#x05DC&#x05D9&#x05E7&#x05E6&#x05D9&#x05D5&#x05EA &#x05D7&#x05D9&#x05E8&#x05D5&#x05DD &#x05E8&#x05E9&#x05DE&#x05D9&#x05D5&#x05EA, &#x05E6&#x05D5&#x05E4&#x05E8&#x05D9&#x05DD, &#x05D4&#x05D5&#x05D3&#x05E2&#x05D5&#x05EA &#x05E8&#x05D3&#x05D9&#x05D5 &#x05D0&#x05D5 &#x05D0&#x05DE&#x05E6&#x05E2&#x05D9 &#x05D1&#x05D8&#x05D9&#x05D7&#x05D5&#x05EA &#x05E8&#x05E9&#x05DE&#x05D9&#x05D9&#x05DD &#x05D0&#x05D7&#x05E8&#x05D9&#x05DD. &#x05D9&#x05E9 &#x05DC&#x05EA&#x05E2&#x05D3&#x05E3 &#x05EA&#x05DE&#x05D9&#x05D3 &#x05DE&#x05D9&#x05D3&#x05E2 &#x05E8&#x05E9&#x05DE&#x05D9 &#x05DE&#x05E4&#x05D9&#x05E7&#x05D5&#x05D3 &#x05D4&#x05E2&#x05D5&#x05E8&#x05E3.</p>
+      <p>&#x05D4&#x05E9&#x05D9&#x05E8&#x05D5&#x05EA &#x05DE&#x05E1&#x05D5&#x05E4&#x05E7 &#x05E2&#x05DC &#x05D1&#x05E1&#x05D9&#x05E1 "&#x05DB&#x05E4&#x05D9 &#x05E9&#x05D4&#x05D5&#x05D0" &#x05D5-"&#x05DB&#x05E4&#x05D9 &#x05E9&#x05D6&#x05DE&#x05D9&#x05DF". &#x05DC&#x05DE&#x05E4&#x05EA&#x05D7 &#x05D5&#x05DC-Attius Digital Art &#x05DC&#x05D0 &#x05EA&#x05D4&#x05D9&#x05D4 &#x05DB&#x05DC &#x05D0&#x05D7&#x05E8&#x05D9&#x05D5&#x05EA &#x05DC&#x05DB&#x05DC &#x05E0&#x05D6&#x05E7 &#x05D4&#x05E0&#x05D5&#x05D1&#x05E2 &#x05DE&#x05D4&#x05E9&#x05D9&#x05DE&#x05D5&#x05E9 &#x05D0&#x05D5 &#x05DE&#x05D7&#x05D5&#x05E1&#x05E8 &#x05D4&#x05D9&#x05DB&#x05D5&#x05DC&#x05EA &#x05DC&#x05D4&#x05E9&#x05EA&#x05DE&#x05E9 &#x05D1&#x05D0&#x05E4&#x05DC&#x05D9&#x05E7&#x05E6&#x05D9&#x05D4 &#x05D6&#x05D5.</p>
+      <p>&#x05E0&#x05EA&#x05D5&#x05E0&#x05D9 &#x05D4&#x05DE&#x05D9&#x05E7&#x05D5&#x05DD &#x05E9&#x05DC&#x05DA &#x05DE&#x05E2&#x05D5&#x05D1&#x05D3&#x05D9&#x05DD &#x05DE&#x05E7&#x05D5&#x05DE&#x05D9&#x05EA &#x05D1&#x05DE&#x05DB&#x05E9&#x05D9&#x05E8&#x05DA &#x05D5&#x05D0&#x05D9&#x05E0&#x05DD &#x05E0&#x05E9&#x05DE&#x05E8&#x05D9&#x05DD &#x05D1&#x05E9&#x05E8&#x05EA&#x05D9&#x05DD &#x05E9&#x05DC&#x05E0&#x05D5.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <a href="privacy.html">Privacy Policy</a>
+  &nbsp;&middot;&nbsp;
+  <a href="#disclaimer">Disclaimer</a>
+  &nbsp;&middot;&nbsp;
+  <span>Tzeva Artzi &copy; 2025&ndash;2026</span>
+</footer>
+
+<!-- ── Scripts ────────────────────────────────────────────────────────── -->
+<script src="vendor/maplibre-gl.js"></script>
+<script src="js/map-standalone.js"></script>
+<script src="js/alert-client.js"></script>
+<script>
+// ── i18n toggle ─────────────────────────────────────────────────────
+const i18n = {
+  en: {
+    'hero-subtitle': 'Real-Time Home Front Alerts',
+    'feat-alerts': 'Real-time push alerts',
+    'feat-map': 'Live threat map',
+    'feat-audio': 'Distance-mapped audio',
+    'join-label': 'Closed Beta \u2014 two steps to join:',
+    'step1': 'Join the Google Group',
+    'step2': 'Join Closed Testing',
+    'view-map': 'View Live Map',
+    'map-banner': 'Join the closed beta to get alerts on your phone',
+  },
+  he: {
+    'hero-subtitle': '\u05D4\u05EA\u05E8\u05E2\u05D5\u05EA \u05E4\u05D9\u05E7\u05D5\u05D3 \u05D4\u05E2\u05D5\u05E8\u05E3 \u05D1\u05D6\u05DE\u05DF \u05D0\u05DE\u05EA',
+    'feat-alerts': '\u05D4\u05EA\u05E8\u05E2\u05D5\u05EA \u05D1\u05D6\u05DE\u05DF \u05D0\u05DE\u05EA',
+    'feat-map': '\u05DE\u05E4\u05EA \u05D0\u05D9\u05D5\u05DE\u05D9\u05DD \u05D7\u05D9\u05D4',
+    'feat-audio': '\u05E6\u05DC\u05D9\u05DC \u05DE\u05D5\u05EA\u05D0\u05DD \u05DC\u05DE\u05E8\u05D7\u05E7',
+    'join-label': '\u05D1\u05D8\u05D0 \u05E1\u05D2\u05D5\u05E8 \u2014 \u05E9\u05E0\u05D9 \u05E6\u05E2\u05D3\u05D9\u05DD \u05DC\u05D4\u05E6\u05D8\u05E8\u05E4\u05D5\u05EA:',
+    'step1': '\u05D4\u05E6\u05D8\u05E8\u05E4\u05D5 \u05DC\u05E7\u05D1\u05D5\u05E6\u05EA Google',
+    'step2': '\u05D4\u05E6\u05D8\u05E8\u05E4\u05D5 \u05DC\u05D1\u05D3\u05D9\u05E7\u05D4 \u05E1\u05D2\u05D5\u05E8\u05D4',
+    'view-map': '\u05E6\u05E4\u05D4 \u05D1\u05DE\u05E4\u05D4 \u05D4\u05D7\u05D9\u05D4',
+    'map-banner': '\u05D4\u05E6\u05D8\u05E8\u05E4\u05D5 \u05DC\u05D1\u05D8\u05D0 \u05D4\u05E1\u05D2\u05D5\u05E8 \u05DC\u05E7\u05D1\u05DC\u05EA \u05D4\u05EA\u05E8\u05E2\u05D5\u05EA \u05D1\u05E0\u05D9\u05D9\u05D3',
+  }
+};
+
+let currentLang = 'en';
+
+function toggleLang() {
+  currentLang = currentLang === 'en' ? 'he' : 'en';
+  applyLang(currentLang);
+}
+
+function applyLang(lang) {
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
+  const strings = i18n[lang];
+  // Update hero subtitle
+  const subtitle = document.getElementById('hero-subtitle');
+  if (subtitle && strings['hero-subtitle']) subtitle.textContent = strings['hero-subtitle'];
+  // Update all data-i18n elements
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (strings[key]) el.textContent = strings[key];
+  });
+  // Update map language
+  if (typeof window.setAppLanguage === 'function') {
+    window.setAppLanguage(lang);
+  }
+  document.getElementById('lang-btn').textContent = lang === 'en' ? 'HE / EN' : 'EN / HE';
+  // Hebrew branding
+  const brandName = lang === 'he' ? '\u05E6\u05D1\u05E2 \u05D0\u05E8\u05E6\u05D9' : 'Tzeva Artzi';
+  document.querySelectorAll('.navbar-brand span, .hero h1').forEach(el => {
+    if (!el.classList.contains('subtitle')) el.childNodes[0].textContent = brandName;
+  });
+  const navJoin = document.querySelector('.navbar-actions .btn-cta');
+  if (navJoin) navJoin.textContent = lang === 'he' ? '\u05D4\u05E6\u05D8\u05E8\u05E4\u05D5 \u05DC\u05D1\u05D8\u05D0' : 'Join Beta';
+}
+
+// Auto-detect language
+const bl = (navigator.language || '').toLowerCase();
+if (bl.startsWith('he') || bl.startsWith('iw')) {
+  currentLang = 'he';
+  applyLang('he');
+}
+</script>
+</body>
 </html>

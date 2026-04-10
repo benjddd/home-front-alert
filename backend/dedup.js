@@ -79,4 +79,4 @@ function prune() {
 // Auto-prune every 30 seconds
 setInterval(prune, 30 * 1000);
 
-module.exports = { filterNew, filterNewClears, prune };
+module.exports = { filterNew, filterNewClears, prune, armedZones };
