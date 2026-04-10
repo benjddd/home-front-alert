@@ -45,7 +45,6 @@ const limiter = rateLimit({
     max: 200,
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => req.path === '/api/alerts/current',
 });
 app.use(limiter);
 
@@ -98,9 +97,13 @@ app.get('/health', (_req, res) => {
     });
 });
 
-// ── Web Alert Snapshot (read-only) ─────────────────────────────────────
-const alertLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false });
-app.get('/api/alerts/current', alertLimiter, (_req, res) => {
+// ── Web Alert Snapshot (read-only, precomputed) ────────────────────────
+// Snapshot is rebuilt every poll cycle (~1s) so the endpoint does zero
+// computation per request — it just writes a cached string to the socket.
+// This keeps website traffic completely off the critical HFC→FCM path.
+let alertSnapshot = '{"threats":{},"status":"GREEN","ts":0}';
+
+function rebuildAlertSnapshot() {
     const threats = {};
     for (const [zone, info] of dedup.armedZones) {
         threats[zone] = { type: info.type, since: info.dispatchedAt };
@@ -109,9 +112,13 @@ app.get('/api/alerts/current', alertLimiter, (_req, res) => {
     const hasUrgent = types.some(t => ['ROCKET', 'UAV', 'INFILTRATION'].includes(t));
     const hasWarning = types.length > 0;
     const status = hasUrgent ? 'RED' : hasWarning ? 'YELLOW' : 'GREEN';
+    alertSnapshot = JSON.stringify({ threats, status, ts: Date.now() });
+}
 
+app.get('/api/alerts/current', (_req, res) => {
     res.set('Cache-Control', 'no-cache, no-store');
-    res.json({ threats, status, ts: Date.now() });
+    res.set('Content-Type', 'application/json');
+    res.send(alertSnapshot);
 });
 
 // Manual test FCM (requires API key)
@@ -172,6 +179,7 @@ async function poll() {
             lastSuccessfulPoll = new Date().toISOString();
             isConnected = true;
             processAlerts(data);
+            rebuildAlertSnapshot();
         } else {
             isConnected = false;
             activeSource = 'None';
