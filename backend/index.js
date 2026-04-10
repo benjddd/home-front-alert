@@ -116,7 +116,7 @@ function rebuildAlertSnapshot() {
 }
 
 app.get('/api/alerts/current', (_req, res) => {
-    res.set('Cache-Control', 'no-cache, no-store');
+    res.set('Cache-Control', 'public, max-age=0, s-maxage=2');
     res.set('Content-Type', 'application/json');
     res.send(alertSnapshot);
 });
