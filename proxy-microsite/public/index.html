@@ -3,13 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
-  <title>Tzeva Artzi — Live Alert Map | Home Front Alerts</title>
-  <meta name="description" content="Live real-time alert map for Israel. See active rocket, UAV, and infiltration alerts. Download the Tzeva Artzi app for instant audio alerts on your phone." />
+  <title>Tzeva Artzi (&#x05E6&#x05D1&#x05E2 &#x05D0&#x05E8&#x05E6&#x05D9) — Live Alert Map | Home Front Alerts | &#x05D4&#x05EA&#x05E8&#x05E2&#x05D5&#x05EA &#x05E4&#x05D9&#x05E7&#x05D5&#x05D3 &#x05D4&#x05E2&#x05D5&#x05E8&#x05E3</title>
+
+  <!-- Primary SEO — bilingual, LLM-optimized -->
+  <meta name="description" content="Tzeva Artzi (&#x05E6&#x05D1&#x05E2 &#x05D0&#x05E8&#x05E6&#x05D9) — Live real-time alert map for Israel. See active rocket, UAV, and infiltration alerts from the Home Front Command (&#x05E4&#x05D9&#x05E7&#x05D5&#x05D3 &#x05D4&#x05E2&#x05D5&#x05E8&#x05E3). Unique distance-mapped audio: pitch tells you how close, pattern tells you threat type — designed for eyes-free use while driving." />
+  <meta name="keywords" content="Tzeva Artzi, &#x05E6&#x05D1&#x05E2 &#x05D0&#x05E8&#x05E6&#x05D9, Home Front Command, &#x05E4&#x05D9&#x05E7&#x05D5&#x05D3 &#x05D4&#x05E2&#x05D5&#x05E8&#x05E3, Israel alerts, rocket alerts, UAV alerts, &#x05D4&#x05EA&#x05E8&#x05E2&#x05D5&#x05EA, real-time map, alert map Israel, &#x05DE&#x05E4&#x05EA &#x05D0&#x05D9&#x05D5&#x05DE&#x05D9&#x05DD, Red Alert, &#x05E6&#x05D1&#x05E2 &#x05D0&#x05D3&#x05D5&#x05DD" />
 
   <!-- Open Graph -->
-  <meta property="og:title" content="Tzeva Artzi — Live Alert Map" />
-  <meta property="og:description" content="Real-time Home Front Command alerts on a live map. Download the app for instant push notifications." />
+  <meta property="og:site_name" content="Tzeva Artzi | &#x05E6&#x05D1&#x05E2 &#x05D0&#x05E8&#x05E6&#x05D9" />
+  <meta property="og:title" content="Tzeva Artzi — Live Alert Map for Israel" />
+  <meta property="og:description" content="Real-time Home Front Command alerts on a live map. Distance-mapped audio tells you how close threats are — eyes-free. Join the closed beta." />
   <meta property="og:image" content="https://tzeva-artzi.online/logo.png" />
+  <meta property="og:image:alt" content="Tzeva Artzi app logo" />
   <meta property="og:url" content="https://tzeva-artzi.online/" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="en_US" />
@@ -17,12 +22,45 @@
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Tzeva Artzi — Live Alert Map" />
-  <meta name="twitter:description" content="Real-time Home Front Command alerts on a live map." />
+  <meta name="twitter:title" content="Tzeva Artzi (&#x05E6&#x05D1&#x05E2 &#x05D0&#x05E8&#x05E6&#x05D9) — Live Alert Map" />
+  <meta name="twitter:description" content="Real-time Home Front Command alerts on a live map. Pitch = distance, pattern = threat type. Eyes-free alerting." />
   <meta name="twitter:image" content="https://tzeva-artzi.online/logo.png" />
 
   <link rel="canonical" href="https://tzeva-artzi.online/" />
   <link rel="icon" href="logo.png" type="image/png" />
+  <link rel="alternate" hreflang="en" href="https://tzeva-artzi.online/" />
+  <link rel="alternate" hreflang="he" href="https://tzeva-artzi.online/" />
+  <link rel="alternate" hreflang="x-default" href="https://tzeva-artzi.online/" />
+
+  <!-- Structured Data — LLM & search engine ingestible -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Tzeva Artzi",
+    "alternateName": "\u05E6\u05D1\u05E2 \u05D0\u05E8\u05E6\u05D9",
+    "description": "Real-time Home Front Command (Pikud HaOref) alert map and Android app. Distance-mapped audio alerts: pitch encodes proximity, pattern encodes threat type. Designed for eyes-free use.",
+    "url": "https://tzeva-artzi.online/",
+    "applicationCategory": "SecurityApplication",
+    "operatingSystem": "Android",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Organization", "name": "Attius Digital Art" },
+    "inLanguage": ["en", "he"],
+    "potentialAction": {
+      "@type": "ViewAction",
+      "target": "https://tzeva-artzi.online/",
+      "name": "View Live Alert Map"
+    },
+    "featureList": [
+      "Real-time rocket, UAV, and infiltration alerts",
+      "Live threat map with zone-level visualization",
+      "Distance-mapped audio: pitch = proximity, pattern = threat type",
+      "Eyes-free alerting for driving and noisy environments",
+      "Bilingual interface (Hebrew and English)",
+      "Intelligent FCM + direct-polling failover"
+    ]
+  }
+  </script>
 
   <link href="vendor/maplibre-gl.css" rel="stylesheet" />
   <link href="css/site.css" rel="stylesheet" />

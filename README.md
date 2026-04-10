@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/Attius-Digital-Art/home-front-alert?label=version)](https://github.com/Attius-Digital-Art/home-front-alert/releases)
 [![Closed Testing](https://img.shields.io/badge/Play%20Store-Closed%20Testing-blue)](https://play.google.com/store/apps/details?id=com.attius.homefrontalert)
-
+[![Live Map](https://img.shields.io/badge/Live%20Map-tzeva--artzi.online-brightgreen)](https://tzeva-artzi.online)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 > **Home Front Command alerts for Android — pitch and pattern tell you everything, eyes-free.**  
