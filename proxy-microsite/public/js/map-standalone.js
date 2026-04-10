@@ -132,6 +132,14 @@ window.setAppLanguage = (lang) => {
   }
 };
 
+// ── Zone Name Translation (Hebrew → English) ─────────────────────────
+const zoneNameEn = {}; // populated from zone-names-en.json
+
+function getLocalizedZoneName(hebrewName) {
+  if (appLang === 'he') return hebrewName;
+  return zoneNameEn[hebrewName] || hebrewName;
+}
+
 // ── Polygon Index ─────────────────────────────────────────────────────
 const polygonIndex = new Map();
 
@@ -154,6 +162,9 @@ function loadPolygons(json) {
 }
 
 // ── Map Setup ───────────────────────────────────────────────────────────
+// Israel bounding box: [west, south, east, north]
+const ISRAEL_BOUNDS = [[34.22, 29.49], [35.90, 33.35]];
+
 const map = new maplibregl.Map({
   container: 'map',
   style: {
@@ -163,12 +174,15 @@ const map = new maplibregl.Map({
       { id: 'bg', type: 'background', paint: { 'background-color': '#0a0a18' } },
     ],
   },
-  center: [34.85, 31.5],
+  center: [34.85, 31.4],
   zoom: 7,
   minZoom: 5,
   maxZoom: 17,
   attributionControl: false,
 });
+
+// Fit entire country in view with padding for navbar + banner
+map.fitBounds(ISRAEL_BOUNDS, { padding: { top: 70, bottom: 50, left: 20, right: 20 }, duration: 0 });
 
 map.dragRotate.disable();
 map.touchZoomRotate.disableRotation();
@@ -183,7 +197,7 @@ const ttType  = document.getElementById('tt-type');
 let tooltipTimer = null;
 
 function showTooltip(zoneName, alertType) {
-  ttZone.textContent = zoneName;
+  ttZone.textContent = getLocalizedZoneName(zoneName);
   ttType.textContent = AL()[alertType] || alertType;
   tooltip.style.display = 'block';
   clearTimeout(tooltipTimer);
@@ -330,43 +344,39 @@ map.on('load', () => {
   initMapData();
 });
 
-// ── Fetch basemap over HTTP (polygons loaded lazily on first alert) ────
+// ── Fetch basemap fast, then preload polygons in background ────────────
+let polygonsLoaded = false;
+
 async function initMapData() {
   try {
-    const [outlineRes, extrasRes] = await Promise.all([
+    // Basemap + zone names (~20KB total) — map outline appears immediately
+    const [outlineRes, extrasRes, namesRes] = await Promise.all([
       fetch('data/israel-outline.json'),
       fetch('data/geo-extras.json'),
+      fetch('data/zone-names-en.json'),
     ]);
     const outline = await outlineRes.json();
     const extras = await extrasRes.json();
     loadBasemap(outline, extras);
-  } catch (e) {
-    console.error('[map] Failed to load basemap:', e);
-  }
-}
 
-// Lazy polygon loading — only fetched when first alert has active zones
-let polygonsLoaded = false;
-let polygonsLoading = false;
+    // Populate English zone name lookup
+    const names = await namesRes.json();
+    Object.assign(zoneNameEn, names);
 
-async function ensurePolygons() {
-  if (polygonsLoaded || polygonsLoading) return;
-  polygonsLoading = true;
-  try {
-    const res = await fetch('data/polygons.json');
-    const data = await res.json();
+    // Preload polygons in background (1.8MB) — ready when alerts arrive
+    const polyRes = await fetch('data/polygons.json');
+    const polyData = await polyRes.json();
     await new Promise(r => setTimeout(r, 0)); // yield before heavy processing
-    loadPolygons(data);
+    loadPolygons(polyData);
     polygonsLoaded = true;
-    // Re-render with pending threat data if any
+    console.log('[map] Polygons preloaded');
+    // Re-render if an alert arrived while polygons were loading
     if (pendingUpdate) {
       renderFromThreatMap(pendingUpdate.threats, pendingUpdate.status, pendingUpdate.populationAtRisk || null);
       pendingUpdate = null;
     }
   } catch (e) {
-    console.error('[map] Failed to load polygons:', e);
-  } finally {
-    polygonsLoading = false;
+    console.error('[map] Failed to load geo data:', e);
   }
 }
 
@@ -374,23 +384,13 @@ async function ensurePolygons() {
 window.onThreatUpdate = function(data) {
   try {
     const d = typeof data === 'string' ? JSON.parse(data) : data;
-    const threats = d.threats || {};
-    const hasThreats = Object.keys(threats).length > 0;
-
-    // Lazy-load polygons only when there are active threats
-    if (hasThreats && !polygonsLoaded) {
+    if (!mapReady || !polygonsLoaded) {
       pendingUpdate = d;
-      ensurePolygons();
-      // Update status badge immediately even while polygons load
+      // Update status badge immediately even while loading
       if (mapReady) updateStatusBadge(d.status || 'GREEN');
       return;
     }
-
-    if (!mapReady) {
-      pendingUpdate = d;
-      return;
-    }
-    renderFromThreatMap(threats, d.status || 'GREEN', d.populationAtRisk || null);
+    renderFromThreatMap(d.threats || {}, d.status || 'GREEN', d.populationAtRisk || null);
   } catch (e) {
     console.error('onThreatUpdate failed:', e);
   }
