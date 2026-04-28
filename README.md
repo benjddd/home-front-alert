@@ -1,8 +1,8 @@
 # Tzeva Artzi 🚨
 
 [![Release](https://img.shields.io/github/v/release/Attius-Digital-Art/home-front-alert?label=version)](https://github.com/Attius-Digital-Art/home-front-alert/releases)
-[![Closed Testing](https://img.shields.io/badge/Play%20Store-Closed%20Testing-blue)](https://play.google.com/store/apps/details?id=com.attius.homefrontalert)
-
+[![Open Testing](https://img.shields.io/badge/Play%20Store-Open%20Testing-brightgreen)](https://play.google.com/apps/testing/com.attius.homefrontalert)
+[![Live Map](https://img.shields.io/badge/Live%20Map-tzeva--artzi.online-brightgreen)](https://tzeva-artzi.online)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 > **Home Front Command alerts for Android — pitch and pattern tell you everything, eyes-free.**  
@@ -10,14 +10,15 @@
 
 ---
 
-## Join the Testing Program (Closed Beta) 🚀
+## Join the Open Testing Program 🚀
 
-Help us test the app before its public release! Follow these steps to join:
+The app is in **Open Testing** on Google Play — anyone can install it directly, no group membership required.
 
-1.  **Join the Google Group**: [https://groups.google.com/g/tzeva-artzi](https://groups.google.com/g/tzeva-artzi)
-    *   *Alternatively, send an empty email to:* `tzeva-artzi+subscribe@googlegroups.com`
-2.  **Download on Android**: [Play Store Link](https://play.google.com/store/apps/details?id=com.attius.homefrontalert)
-    *   *Note: The Store link will only work AFTER you have joined the Google Group.*
+**[Join Open Testing →](https://play.google.com/apps/testing/com.attius.homefrontalert)**
+
+After joining, install from the Play Store: [com.attius.homefrontalert](https://play.google.com/store/apps/details?id=com.attius.homefrontalert).
+
+> Live alert map (no install needed): **[tzeva-artzi.online](https://tzeva-artzi.online)**
 
 ---
 
