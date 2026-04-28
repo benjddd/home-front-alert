@@ -76,9 +76,9 @@
         &lt;b&gt;הבחנה מצבית&lt;/b&gt;: כל התראה נשמעת ברחבי הארץ, אך דפוס הקול מספר לכם על הדחיפות והקרבה מבלי שתצטרכו להסתכל על המסך.&lt;br/&gt;&lt;br/&gt;
         &lt;b&gt;פחות פולשני&lt;/b&gt;: מספק דופק מידע ברור אך עדין, המפחית את עייפות ה-"אזעקת שווא" של צופרים גנריים.&lt;br/&gt;&lt;br/&gt;
         &lt;b&gt;חשוב&lt;/b&gt;: זהו כלי עצמאי. יש להסתמך תמיד על הצופרים והנחיות פיקוד העורף הרשמיות.&lt;br/&gt;&lt;br/&gt;
-        &lt;b&gt;אלפא פנימית&lt;/b&gt;: הגרסה נמצאת בשלבי פיתוח ובדיקה. אנא דווחו על תקלות.
+        &lt;b&gt;בדיקה פתוחה&lt;/b&gt;: זוהי גרסה מוקדמת לבדיקה. אנא דווחו על תקלות.
     </string>
-    <string name="version_alpha_badge">אלפא פנימית</string>
+    <string name="version_alpha_badge">בדיקה פתוחה</string>
     <string name="current_status_label">מצב נוכחי</string>
     <string name="last_detected_label">איום אחרון שזוהה</string>
     <string name="footer_line1">ניטור אירועי חירום בזמן אמת.</string>
