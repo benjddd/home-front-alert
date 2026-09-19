@@ -373,7 +373,7 @@ class SettingsActivity : AppCompatActivity() {
         try {
             val url = URL("https://www.oref.org.il/WarningMessages/alert/Alerts.json")
             val conn = url.openConnection() as HttpURLConnection
-            conn.setRequestProperty("User-Agent", "PikudHaoref/1.6 (iPhone; iOS 17.4; Scale/3.00)")
+            conn.setRequestProperty("User-Agent", "TzevaArtzi/${BuildConfig.VERSION_NAME} (Android)")
             conn.setRequestProperty("Referer", "https://www.oref.org.il/")
             conn.connectTimeout = 5000
             hfcResult = if (conn.responseCode == 200 || conn.responseCode == 204) "🟢 Direct HFC: OK" else "🟡 Direct HFC: Blocked"
