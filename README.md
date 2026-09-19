@@ -1,12 +1,14 @@
 # Tzeva Artzi 🚨
 
-[![Release](https://img.shields.io/github/v/release/Attius-Digital-Art/home-front-alert?label=version)](https://github.com/Attius-Digital-Art/home-front-alert/releases)
+[![Release](https://img.shields.io/github/v/release/benjddd/home-front-alert?label=version)](https://github.com/benjddd/home-front-alert/releases)
 [![Open Testing](https://img.shields.io/badge/Play%20Store-Open%20Testing-brightgreen)](https://play.google.com/apps/testing/com.attius.homefrontalert)
 [![Live Map](https://img.shields.io/badge/Live%20Map-tzeva--artzi.online-brightgreen)](https://tzeva-artzi.online)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 > **Home Front Command alerts for Android — pitch and pattern tell you everything, eyes-free.**  
 > קצב הצליל ותדרו אומרים לך מה קורה — ללא צורך להסתכל על הטלפון.
+
+**Status:** in open testing on Google Play. Maintained occasionally; not under active development.
 
 ---
 
@@ -183,7 +185,16 @@ firebase deploy --only hosting --project=home-front-alert-hfc
 
 ## License
 
-MIT License — see [LICENSE](LICENSE).
+MIT License — see [LICENSE](LICENSE). The licence covers this repository's code only.
+
+---
+
+## Data and Credits
+
+- **Alerts** come from the Home Front Command's public alert feed on oref.org.il. That data belongs to the Home Front Command and is not covered by this repository's licence.
+- **Zone polygons** come from Amit Finkelstein's [amitfin/oref_alert](https://github.com/amitfin/oref_alert) (Apache-2.0), bundled and refreshed daily.
+- **Historical alerts** from Dedy Leshem's [dleshem/israel-alerts-data](https://github.com/dleshem/israel-alerts-data) were used to calibrate the map's alert clustering.
+- **Inspiration**: Maor Cohen's live alert map, [maorcc/oref-map](https://github.com/maorcc/oref-map).
 
 ---
 
