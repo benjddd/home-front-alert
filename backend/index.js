@@ -42,7 +42,7 @@ app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 200,
+    max: 400,
     standardHeaders: true,
     legacyHeaders: false,
 });
@@ -95,6 +95,30 @@ app.get('/health', (_req, res) => {
         timestamp: new Date().toISOString(),
         lastSync: lastSuccessfulPoll,
     });
+});
+
+// ── Web Alert Snapshot (read-only, precomputed) ────────────────────────
+// Snapshot is rebuilt every poll cycle (~1s) so the endpoint does zero
+// computation per request — it just writes a cached string to the socket.
+// This keeps website traffic completely off the critical HFC→FCM path.
+let alertSnapshot = '{"threats":{},"status":"GREEN","ts":0}';
+
+function rebuildAlertSnapshot() {
+    const threats = {};
+    for (const [zone, info] of dedup.armedZones) {
+        threats[zone] = { type: info.type, since: info.dispatchedAt };
+    }
+    const types = Object.values(threats).map(t => t.type);
+    const hasUrgent = types.some(t => ['ROCKET', 'UAV', 'INFILTRATION'].includes(t));
+    const hasWarning = types.length > 0;
+    const status = hasUrgent ? 'RED' : hasWarning ? 'YELLOW' : 'GREEN';
+    alertSnapshot = JSON.stringify({ threats, status, ts: Date.now() });
+}
+
+app.get('/api/alerts/current', (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=0, s-maxage=2');
+    res.set('Content-Type', 'application/json');
+    res.send(alertSnapshot);
 });
 
 // Manual test FCM (requires API key)
@@ -155,6 +179,7 @@ async function poll() {
             lastSuccessfulPoll = new Date().toISOString();
             isConnected = true;
             processAlerts(data);
+            rebuildAlertSnapshot();
         } else {
             isConnected = false;
             activeSource = 'None';

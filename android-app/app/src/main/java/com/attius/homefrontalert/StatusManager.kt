@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Tracks active threats per-zone with a 30-minute stateful persistence.
  */
 object StatusManager {
-    private const val PREFS_NAME = "HomeFrontAlertsPrefs"
+    const val PREFS_NAME = "HomeFrontAlertsPrefs"
     const val STATE_MAINTENANCE_INTERVAL_MS = 30 * 1000L
     private const val THREAT_TIMEOUT_MS_DEFAULT = 30 * 60 * 1000L
     // Must match backend/config.js CLEARING_FADE_MS (15 minutes)
@@ -172,42 +172,50 @@ object StatusManager {
      */
     fun recalculateStatus(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
-        var threats = try { org.json.JSONObject(threatsStr) } catch (e: Exception) {
-            Log.e("HomeFrontAlerts", "Corrupt active_threat_map, resetting", e)
-            prefs.edit().putString("active_threat_map", "{}").apply()
-            org.json.JSONObject()
-        }
-        val homeZone = normalizeCity(prefs.getString("current_home_zone", "") ?: "")
 
-        val now = System.currentTimeMillis()
+        // Threat map cleanup must be synchronized with processAlert writes
+        // to prevent concurrent read-modify-write races that drop zones.
+        val threats: org.json.JSONObject
+        val mapChanged: Boolean
+        synchronized(this) {
+            val threatsStr = prefs.getString("active_threat_map", "{}") ?: "{}"
+            threats = try { org.json.JSONObject(threatsStr) } catch (e: Exception) {
+                Log.e("HomeFrontAlerts", "Corrupt active_threat_map, resetting", e)
+                prefs.edit().putString("active_threat_map", "{}").apply()
+                org.json.JSONObject()
+            }
 
-        val iter = threats.keys()
-        while (iter.hasNext()) {
-            val z = iter.next()
-            val obj = threats.getJSONObject(z)
-            val state = obj.optString("s", "URGENT")
+            val now = System.currentTimeMillis()
 
-            if (state == STATE_CLEARING) {
-                val clearedAt = obj.optLong("ct", 0L)
-                if (clearedAt <= 0L || now - clearedAt > getClearingFadeMs(prefs)) {
-                    iter.remove()
+            val iter = threats.keys()
+            while (iter.hasNext()) {
+                val z = iter.next()
+                val obj = threats.getJSONObject(z)
+                val state = obj.optString("s", "URGENT")
+
+                if (state == STATE_CLEARING) {
+                    val clearedAt = obj.optLong("ct", 0L)
+                    if (clearedAt <= 0L || now - clearedAt > getClearingFadeMs(prefs)) {
+                        iter.remove()
+                    }
+                } else {
+                    // Remove active threat if it's past the 30-min window
+                    val t = obj.optLong("t", -1L)
+                    if (t <= 0L || now - t > getThreatTimeoutMs(prefs)) {
+                        iter.remove()
+                    }
                 }
-            } else {
-                // Remove active threat if it's past the 30-min window
-                val t = obj.optLong("t", -1L)
-                if (t <= 0L || now - t > getThreatTimeoutMs(prefs)) {
-                    iter.remove()
-                }
+            }
+
+            // Persist cleaned map only if changed
+            val cleanedThreatsStr = threats.toString()
+            mapChanged = cleanedThreatsStr != threatsStr
+            if (mapChanged) {
+                prefs.edit().putString("active_threat_map", cleanedThreatsStr).apply()
             }
         }
 
-        // Persist cleaned map only if changed
-        val cleanedThreatsStr = threats.toString()
-        val mapChanged = cleanedThreatsStr != threatsStr
-        if (mapChanged) {
-            prefs.edit().putString("active_threat_map", cleanedThreatsStr).apply()
-        }
+        val homeZone = normalizeCity(prefs.getString("current_home_zone", "") ?: "")
 
         // Simpler PRUNING: If registry gets too large, clear oldest entries to maintain memory safety
         if (signaledCitiesPerAlert.size > 100) {
@@ -616,7 +624,7 @@ object StatusManager {
                     threats.put(normZone, obj)
                 }
             }
-            prefs.edit().putString("active_threat_map", threats.toString()).commit()
+            prefs.edit().putString("active_threat_map", threats.toString()).apply()
         }
 
         val newCitiesForAudio = cities.filter { city ->

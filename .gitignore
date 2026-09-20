@@ -67,5 +67,12 @@ siren_video.mp4
 # ===== XIAOMI TOKEN EXTRACTOR =====
 Xiaomi-cloud-tokens-extractor/
 
+# ===== DEV / TEST TOOLS =====
+android-app/app/src/main/assets/map/basemap-tester.html
+
+# ===== WEBSITE (generated at deploy time by scripts/prepare-website-data.sh) =====
+proxy-microsite/public/vendor/
+proxy-microsite/public/data/polygons.json
+
 # ===== AI ASSISTANT =====
 .claude/

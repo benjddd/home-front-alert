@@ -1,149 +1,10 @@
-<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
-  <title>Alert Map</title>
-
-  <link href="vendor/maplibre-gl.css" rel="stylesheet" />
-  <script src="vendor/maplibre-gl.js"></script>
-
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #map { width: 100%; height: 100%; background: #1a1a2e; }
-
-    .maplibregl-ctrl-attrib {
-      font-size: 9px;
-      background: rgba(0,0,0,0.55) !important;
-      color: #aaa !important;
-      border-radius: 4px;
-      padding: 2px 5px !important;
-    }
-    .maplibregl-ctrl-attrib a {
-      pointer-events: none !important;
-      text-decoration: none !important;
-      color: inherit !important;
-      cursor: default !important;
-    }
-
-    #tooltip {
-      position: absolute;
-      bottom: 70px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(10, 10, 26, 0.92);
-      color: #fff;
-      border-radius: 12px;
-      padding: 10px 18px;
-      font-family: 'Segoe UI', Arial, sans-serif;
-      font-size: 14px;
-      direction: rtl;
-      text-align: center;
-      pointer-events: none;
-      backdrop-filter: blur(6px);
-      border: 1px solid rgba(255,255,255,0.12);
-      display: none;
-      max-width: 80vw;
-      z-index: 10;
-    }
-    #tooltip .zone-name { font-weight: 700; font-size: 16px; margin-bottom: 2px; }
-    #tooltip .alert-type { opacity: 0.75; font-size: 12px; }
-    #tooltip .pop-line { white-space: nowrap; font-size: 13px; line-height: 1.5; }
-    #tooltip .pop-total { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
-
-    #status {
-      position: absolute;
-      top: 14px;
-      left: 14px;
-      background: rgba(10,10,26,0.85);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 20px;
-      padding: 6px 14px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: #fff;
-      font-family: 'Segoe UI', Arial, sans-serif;
-      font-size: 12px;
-      backdrop-filter: blur(6px);
-      z-index: 10;
-    }
-    #status-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: #4caf50;
-      box-shadow: 0 0 6px #4caf50;
-      flex-shrink: 0;
-    }
-    #status-dot.alert { background: #C93545; box-shadow: 0 0 8px #C93545; animation: pulse 1.2s infinite; }
-    #status-dot.threat { background: #D4A030; box-shadow: 0 0 6px #D4A030; animation: pulse 1.8s infinite; }
-    #status-dot.pre-warning { background: #D4A030; box-shadow: 0 0 6px #D4A030; animation: pulse 2.0s infinite; }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50%       { opacity: 0.6; transform: scale(1.3); }
-    }
-
-    .user-dot {
-      width: 14px; height: 14px;
-      border-radius: 50%;
-      background: #2196f3;
-      border: 2.5px solid #fff;
-      box-shadow: 0 0 0 3px rgba(33,150,243,0.3);
-    }
-
-    #app-logo {
-      position: absolute;
-      bottom: 10px;
-      right: 10px;
-      width: 32px;
-      height: 32px;
-      opacity: 0.4;
-      pointer-events: none;
-      z-index: 5;
-      border-radius: 6px;
-    }
-
-    #pop-chart {
-      position: absolute;
-      bottom: 14px;
-      left: 14px;
-      background: rgba(10,10,26,0.85);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 50%;
-      padding: 6px;
-      display: none;
-      backdrop-filter: blur(6px);
-      z-index: 10;
-      cursor: pointer;
-      transition: opacity 0.3s ease;
-    }
-  </style>
-</head>
-<body>
-<div id="map"></div>
-<div id="status">
-  <div id="status-dot"></div>
-  <span id="status-text"></span>
-</div>
-<div id="tooltip">
-  <div class="zone-name" id="tt-zone"></div>
-  <div class="alert-type" id="tt-type"></div>
-</div>
-<div id="pop-chart">
-  <svg id="pop-svg" viewBox="0 0 44 44" width="44" height="44">
-    <circle cx="22" cy="22" r="17" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5"/>
-    <g transform="translate(14,13) scale(0.7)" fill="rgba(255,255,255,0.45)">
-      <circle cx="8" cy="5" r="3.5"/>
-      <path d="M1.5 18c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/>
-      <circle cx="18" cy="6" r="2.5"/>
-      <path d="M14 18c0.5-3 2.5-5 4-5s3 1.5 3.5 5"/>
-    </g>
-  </svg>
-</div>
-<img id="app-logo" src="app_icon.png" alt="" />
-
-<script>
 'use strict';
+
+/**
+ * map-standalone.js — Standalone web version of the alert map.
+ * Extracted from android-app/app/src/main/assets/map/map.html
+ * with Android WebView bridge calls replaced by HTTP fetches.
+ */
 
 // ── Config ──────────────────────────────────────────────────────────────
 const CLEAR_FADE_MS = 15 * 60 * 1000;
@@ -156,34 +17,32 @@ const URGENT_BORDER_OPACITY = 0.9;
 const CAUTION_BORDER_OPACITY = 0.8;
 
 const ALERT_COLORS = {
-  // Per-canonical-type fills (modern, toned-down palette)
   ROCKET:       { fill: '#C93545', border: '#A52835' },
   UAV:          { fill: '#8B5CF6', border: '#7340D8' },
   INFILTRATION: { fill: '#D97706', border: '#B45F05' },
   PRE_WARNING:  { fill: '#D4A030', border: '#B8892A' },
-  // Fallback for generic URGENT/CAUTION (no canonical type)
-  URGENT:  { fill: '#C93545', border: '#A52835' },
-  CAUTION: { fill: '#D4A030', border: '#B8892A' },
+  URGENT:       { fill: '#C93545', border: '#A52835' },
+  CAUTION:      { fill: '#D4A030', border: '#B8892A' },
 };
 
 const STATUS_LABELS = {
-  he: { no_alerts: 'אין התרעות', threat: 'איום מרוחק', warning: 'אזהרה', critical: 'קריטי' },
+  he: { no_alerts: '\u05D0\u05D9\u05DF \u05D4\u05EA\u05E8\u05E2\u05D5\u05EA', threat: '\u05D0\u05D9\u05D5\u05DD \u05DE\u05E8\u05D5\u05D7\u05E7', warning: '\u05D0\u05D6\u05D4\u05E8\u05D4', critical: '\u05E7\u05E8\u05D9\u05D8\u05D9' },
   en: { no_alerts: 'NO ALERTS', threat: 'REMOTE THREAT', warning: 'WARNING', critical: 'CRITICAL' },
 };
 
 const ALERT_LABELS = {
-  he: { ROCKET: 'ירי רקטות וטילים', UAV: 'כלי טיס עוין', INFILTRATION: 'חדירת מחבלים', PRE_WARNING: 'התרעה מוקדמת', URGENT: 'איום דחוף', CAUTION: 'התרעה מוקדמת' },
+  he: { ROCKET: '\u05D9\u05E8\u05D9 \u05E8\u05E7\u05D8\u05D5\u05EA \u05D5\u05D8\u05D9\u05DC\u05D9\u05DD', UAV: '\u05DB\u05DC\u05D9 \u05D8\u05D9\u05E1 \u05E2\u05D5\u05D9\u05DF', INFILTRATION: '\u05D7\u05D3\u05D9\u05E8\u05EA \u05DE\u05D7\u05D1\u05DC\u05D9\u05DD', PRE_WARNING: '\u05D4\u05EA\u05E8\u05E2\u05D4 \u05DE\u05D5\u05E7\u05D3\u05DE\u05EA', URGENT: '\u05D0\u05D9\u05D5\u05DD \u05D3\u05D7\u05D5\u05E3', CAUTION: '\u05D4\u05EA\u05E8\u05E2\u05D4 \u05DE\u05D5\u05E7\u05D3\u05DE\u05EA' },
   en: { ROCKET: 'Rockets / Missiles', UAV: 'Hostile UAV', INFILTRATION: 'Infiltration', PRE_WARNING: 'Pre-Warning', URGENT: 'Urgent Threat', CAUTION: 'Pre-Warning' },
 };
 
-let appLang = 'he';
+let appLang = 'en';
 const L = () => STATUS_LABELS[appLang];
 const AL = () => ALERT_LABELS[appLang];
 
 // ── Population Donut ───────────────────────────────────────────────────
-let TOTAL_POPULATION = 10178000; // fallback; overridden by Kotlin payload
+let TOTAL_POPULATION = 10178000;
 const POP_LABELS = {
-  he: { ROCKET: 'רקטות', UAV: 'כלי טיס', INFILTRATION: 'חדירה', CAUTION: 'התרעה מוקדמת', PRE_WARNING: 'התרעה מוקדמת', URGENT: 'איום דחוף' },
+  he: { ROCKET: '\u05E8\u05E7\u05D8\u05D5\u05EA', UAV: '\u05DB\u05DC\u05D9 \u05D8\u05D9\u05E1', INFILTRATION: '\u05D7\u05D3\u05D9\u05E8\u05D4', CAUTION: '\u05D4\u05EA\u05E8\u05E2\u05D4 \u05DE\u05D5\u05E7\u05D3\u05DE\u05EA', PRE_WARNING: '\u05D4\u05EA\u05E8\u05E2\u05D4 \u05DE\u05D5\u05E7\u05D3\u05DE\u05EA', URGENT: '\u05D0\u05D9\u05D5\u05DD \u05D3\u05D7\u05D5\u05E3' },
   en: { ROCKET: 'Rockets', UAV: 'UAV', INFILTRATION: 'Infiltration', CAUTION: 'Pre-Warning', PRE_WARNING: 'Pre-Warning', URGENT: 'Urgent' },
 };
 const PL = () => POP_LABELS[appLang];
@@ -231,41 +90,60 @@ function updatePopulationChart(popAtRisk) {
   chartEl.style.display = 'block';
 }
 
-document.getElementById('pop-chart').addEventListener('click', function(e) {
-  e.stopPropagation();
-  if (!lastPopData || lastPopData.total <= 0) return;
-  const byType = lastPopData.byType || {};
-  const totalLabel = appLang === 'he' ? 'סה"כ' : 'Total';
-  let html = '<div class="pop-total">' + formatPopulation(lastPopData.total) + ' ' + totalLabel + '</div>';
-  for (const [type, pop] of Object.entries(byType).sort((a, b) => b[1] - a[1])) {
-    if (pop > 0) {
-      const color = (ALERT_COLORS[type] || ALERT_COLORS['URGENT']).fill;
-      const label = PL()[type] || type.replace(/[<>&"']/g, '');
-      html += '<div class="pop-line"><span style="color:' + color + ';">\u25CF</span> '
-            + formatPopulation(pop) + ' ' + label + '</div>';
-    }
+// Pop chart click → tooltip with breakdown
+document.addEventListener('DOMContentLoaded', () => {
+  const popChart = document.getElementById('pop-chart');
+  if (popChart) {
+    popChart.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (!lastPopData || lastPopData.total <= 0) return;
+      const byType = lastPopData.byType || {};
+      const totalLabel = appLang === 'he' ? '\u05E1\u05D4"\u05DB' : 'Total';
+      let html = '<div class="pop-total">' + formatPopulation(lastPopData.total) + ' ' + totalLabel + '</div>';
+      for (const [type, pop] of Object.entries(byType).sort((a, b) => b[1] - a[1])) {
+        if (pop > 0) {
+          const color = (ALERT_COLORS[type] || ALERT_COLORS['URGENT']).fill;
+          const label = PL()[type] || type.replace(/[<>&"']/g, '');
+          html += '<div class="pop-line"><span style="color:' + color + ';">\u25CF</span> '
+                + formatPopulation(pop) + ' ' + label + '</div>';
+        }
+      }
+      ttZone.innerHTML = html;
+      ttType.textContent = '';
+      tooltip.style.display = 'block';
+      clearTimeout(tooltipTimer);
+      tooltipTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 5000);
+    });
   }
-  ttZone.innerHTML = html;
-  ttType.textContent = '';
-  tooltip.style.display = 'block';
-  clearTimeout(tooltipTimer);
-  tooltipTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 5000);
 });
 
-// ── JS Bridge: Language & Zone ──────────────────────────────────────────
+// ── Language ───────────────────────────────────────────────────────────
 window.setAppLanguage = (lang) => {
   appLang = (lang && (lang.startsWith('iw') || lang === 'he')) ? 'he' : 'en';
   document.documentElement.lang = appLang;
   document.documentElement.dir = appLang === 'he' ? 'rtl' : 'ltr';
+  // Re-render status with current language
+  if (typeof updateStatusBadge === 'function' && dot) {
+    const cls = dot.className;
+    if (cls === 'alert') text.textContent = L().critical;
+    else if (cls === 'threat') text.textContent = L().threat;
+    else if (cls === 'pre-warning') text.textContent = L().warning;
+    else text.textContent = L().no_alerts;
+  }
 };
 
-let userZone = null;
-window.setUserZone = (name) => { if (name) userZone = name.trim(); };
+// ── Zone Name Translation (Hebrew → English) ─────────────────────────
+const zoneNameEn = {}; // populated from zone-names-en.json
 
-// ── Polygon Index (loaded once from bundled data) ───────────────────────
-const polygonIndex = new Map(); // zone name -> GeoJSON Feature
+function getLocalizedZoneName(hebrewName) {
+  if (appLang === 'he') return hebrewName;
+  return zoneNameEn[hebrewName] || hebrewName;
+}
 
-window.loadPolygons = function(json) {
+// ── Polygon Index ─────────────────────────────────────────────────────
+const polygonIndex = new Map();
+
+function loadPolygons(json) {
   const raw = typeof json === 'string' ? JSON.parse(json) : json;
   let count = 0;
   for (const [name, coords] of Object.entries(raw)) {
@@ -281,9 +159,12 @@ window.loadPolygons = function(json) {
     count++;
   }
   console.log('[map] Loaded ' + count + ' polygons');
-};
+}
 
 // ── Map Setup ───────────────────────────────────────────────────────────
+// Israel bounding box: [west, south, east, north]
+const ISRAEL_BOUNDS = [[34.22, 29.49], [35.90, 33.35]];
+
 const map = new maplibregl.Map({
   container: 'map',
   style: {
@@ -293,30 +174,21 @@ const map = new maplibregl.Map({
       { id: 'bg', type: 'background', paint: { 'background-color': '#0a0a18' } },
     ],
   },
-  center: [34.85, 31.5],
+  center: [34.85, 31.4],
   zoom: 7,
   minZoom: 5,
   maxZoom: 17,
   attributionControl: false,
 });
 
+// Fit entire country in view with padding for navbar + banner
+map.fitBounds(ISRAEL_BOUNDS, { padding: { top: 70, bottom: 50, left: 20, right: 20 }, duration: 0 });
+
 map.dragRotate.disable();
 map.touchZoomRotate.disableRotation();
 
 const dot  = document.getElementById('status-dot');
 const text = document.getElementById('status-text');
-
-// ── User Location ───────────────────────────────────────────────────────
-let userMarker = null;
-window.onLocationUpdate = function(lat, lng) {
-  if (lat == null || lng == null) return;
-  const el = document.createElement('div');
-  el.className = 'user-dot';
-  if (userMarker) userMarker.remove();
-  userMarker = new maplibregl.Marker({ element: el })
-    .setLngLat([lng, lat])
-    .addTo(map);
-};
 
 // ── Tooltip ─────────────────────────────────────────────────────────────
 const tooltip = document.getElementById('tooltip');
@@ -325,30 +197,27 @@ const ttType  = document.getElementById('tt-type');
 let tooltipTimer = null;
 
 function showTooltip(zoneName, alertType) {
-  ttZone.textContent = zoneName;
+  ttZone.textContent = getLocalizedZoneName(zoneName);
   ttType.textContent = AL()[alertType] || alertType;
   tooltip.style.display = 'block';
   clearTimeout(tooltipTimer);
   tooltipTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 4000);
 }
 
-// ── Data Sources (3 layers: urgent, caution, clearing) ──────────────────
+// ── Data Sources ──────────────────────────────────────────────────────
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 let mapReady = false;
 let pendingUpdate = null;
 
-// Track clearing features for animation
 let clearingFeatures = [];
 let alertUrgentFeatures = [];
 let alertCautionFeatures = [];
 let recentExpireTimer = null;
 
-// ── Basemap injection from Android JS bridge ─────────────────────────────
-// fetch() cannot access file:// assets in WebView; Android reads the JSON
-// files from bundled assets and injects them here after map.on('load').
+// ── Basemap ──────────────────────────────────────────────────────────
 let basemapLoaded = false;
 
-window.loadBasemap = function(outline, extras) {
+function loadBasemap(outline, extras) {
   try {
     const outlineData = typeof outline === 'string' ? JSON.parse(outline) : outline;
     const extrasData = typeof extras === 'string' ? JSON.parse(extras) : extras;
@@ -358,18 +227,14 @@ window.loadBasemap = function(outline, extras) {
       map.addLayer({
         id: 'country-fill', type: 'fill', source: 'country-src',
         paint: { 'fill-color': '#18182e', 'fill-opacity': 1 },
-      }, firstAlertLayerId()); // insert below alert layers
+      }, firstAlertLayerId());
     }
 
     if (extrasData) {
       map.addSource('extras-src', { type: 'geojson', data: extrasData });
-
-      // Water bodies (Kinneret, Dead Sea)
       map.addLayer({ id: 'water-fill', type: 'fill', source: 'extras-src',
         filter: ['==', ['get', 'type'], 'water'],
         paint: { 'fill-color': '#0a0a18', 'fill-opacity': 0.8 } });
-
-      // City dots
       map.addLayer({ id: 'city-dots', type: 'circle', source: 'extras-src',
         filter: ['==', ['get', 'type'], 'city'],
         paint: {
@@ -377,22 +242,18 @@ window.loadBasemap = function(outline, extras) {
           'circle-color': ['match', ['get', 'rank'], 1, '#9aa3ad', '#6f7780'],
           'circle-opacity': ['match', ['get', 'rank'], 1, 0.8, 0.6],
         } });
-
-      // Neighbor anchors
       map.addLayer({ id: 'neighbor-dots', type: 'circle', source: 'extras-src',
         filter: ['==', ['get', 'type'], 'neighbor'],
         paint: { 'circle-radius': 1.6, 'circle-color': '#5f6770', 'circle-opacity': 0.55 } });
     }
 
     basemapLoaded = true;
-    console.log('[map] Basemap loaded via JS bridge');
+    console.log('[map] Basemap loaded');
   } catch (e) {
     console.error('[map] loadBasemap error:', e);
-    showError('Basemap: ' + e.message);
   }
-};
+}
 
-// Helper: find the first alert layer to insert basemap below it
 function firstAlertLayerId() {
   for (const id of ['heat-caution', 'heat-urgent', 'clearing-fill']) {
     if (map.getLayer(id)) return id;
@@ -400,120 +261,64 @@ function firstAlertLayerId() {
   return undefined;
 }
 
-// ── Subtle error banner (doesn't block alert tiles) ──────────────────────
-window.showError = function(msg) {
-  let el = document.getElementById('map-error');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'map-error';
-    el.style.cssText = 'position:absolute;bottom:6px;left:6px;background:rgba(80,0,0,0.6);color:#c88;padding:4px 10px;border-radius:6px;font:10px monospace;z-index:5;pointer-events:none;';
-    document.body.appendChild(el);
-  }
-  el.textContent = msg;
-};
-
+// ── Map Load: add layers + fetch data ──────────────────────────────────
 map.on('load', () => {
-  // Alert layers (added once, data updated dynamically)
+  // Alert layers
   map.addSource('clearing-src', { type: 'geojson', data: EMPTY_FC });
-  map.addLayer({
-    id: 'clearing-fill', type: 'fill', source: 'clearing-src',
-    paint: { 'fill-color': '#2EA876', 'fill-opacity': ['number', ['get', 'opacity'], 0.45] },
-  });
-  map.addLayer({
-    id: 'clearing-border', type: 'line', source: 'clearing-src',
-    paint: { 'line-color': '#34D399', 'line-width': 1.5, 'line-opacity': ['number', ['get', 'borderOpacity'], 0.6] },
-  });
+  map.addLayer({ id: 'clearing-fill', type: 'fill', source: 'clearing-src',
+    paint: { 'fill-color': '#2EA876', 'fill-opacity': ['number', ['get', 'opacity'], 0.45] } });
+  map.addLayer({ id: 'clearing-border', type: 'line', source: 'clearing-src',
+    paint: { 'line-color': '#34D399', 'line-width': 1.5, 'line-opacity': ['number', ['get', 'borderOpacity'], 0.6] } });
 
-  // Data-driven alert layers — fill/border color from per-feature properties
   map.addSource('caution-src', { type: 'geojson', data: EMPTY_FC });
-  map.addLayer({
-    id: 'caution-fill', type: 'fill', source: 'caution-src',
-    paint: { 'fill-color': ['string', ['get', 'fillColor'], '#D4A030'], 'fill-opacity': ['number', ['get', 'opacity'], CAUTION_BASE_OPACITY] },
-  });
-  map.addLayer({
-    id: 'caution-border', type: 'line', source: 'caution-src',
-    paint: { 'line-color': ['string', ['get', 'borderColor'], '#B8892A'], 'line-width': 1.5, 'line-opacity': ['number', ['get', 'borderOpacity'], CAUTION_BORDER_OPACITY] },
-  });
+  map.addLayer({ id: 'caution-fill', type: 'fill', source: 'caution-src',
+    paint: { 'fill-color': ['string', ['get', 'fillColor'], '#D4A030'], 'fill-opacity': ['number', ['get', 'opacity'], CAUTION_BASE_OPACITY] } });
+  map.addLayer({ id: 'caution-border', type: 'line', source: 'caution-src',
+    paint: { 'line-color': ['string', ['get', 'borderColor'], '#B8892A'], 'line-width': 1.5, 'line-opacity': ['number', ['get', 'borderOpacity'], CAUTION_BORDER_OPACITY] } });
 
   map.addSource('urgent-src', { type: 'geojson', data: EMPTY_FC });
-  map.addLayer({
-    id: 'urgent-fill', type: 'fill', source: 'urgent-src',
-    paint: { 'fill-color': ['string', ['get', 'fillColor'], '#C93545'], 'fill-opacity': ['number', ['get', 'opacity'], URGENT_BASE_OPACITY] },
-  });
-  map.addLayer({
-    id: 'urgent-border', type: 'line', source: 'urgent-src',
-    paint: { 'line-color': ['string', ['get', 'borderColor'], '#A52835'], 'line-width': 1.5, 'line-opacity': ['number', ['get', 'borderOpacity'], URGENT_BORDER_OPACITY] },
-  });
+  map.addLayer({ id: 'urgent-fill', type: 'fill', source: 'urgent-src',
+    paint: { 'fill-color': ['string', ['get', 'fillColor'], '#C93545'], 'fill-opacity': ['number', ['get', 'opacity'], URGENT_BASE_OPACITY] } });
+  map.addLayer({ id: 'urgent-border', type: 'line', source: 'urgent-src',
+    paint: { 'line-color': ['string', ['get', 'borderColor'], '#A52835'], 'line-width': 1.5, 'line-opacity': ['number', ['get', 'borderOpacity'], URGENT_BORDER_OPACITY] } });
 
-  // Recent-zone highlight overlay (on top) — fill + bright border for visibility
+  // Recent-zone highlight
   map.addSource('recent-src', { type: 'geojson', data: EMPTY_FC });
-  map.addLayer({
-    id: 'recent-fill', type: 'fill', source: 'recent-src',
-    paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.25 },
-  });
-  map.addLayer({
-    id: 'recent-border', type: 'line', source: 'recent-src',
-    paint: { 'line-color': '#FFFFFF', 'line-width': 2.5, 'line-opacity': 0.7 },
-  });
+  map.addLayer({ id: 'recent-fill', type: 'fill', source: 'recent-src',
+    paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.25 } });
+  map.addLayer({ id: 'recent-border', type: 'line', source: 'recent-src',
+    paint: { 'line-color': '#FFFFFF', 'line-width': 2.5, 'line-opacity': 0.7 } });
 
-  // Heatmap layers — data-driven color from per-feature heatColor property
+  // Heatmap layers
   map.addSource('heat-urgent-src', { type: 'geojson', data: EMPTY_FC });
-  map.addLayer({
-    id: 'heat-urgent', type: 'heatmap', source: 'heat-urgent-src',
+  map.addLayer({ id: 'heat-urgent', type: 'heatmap', source: 'heat-urgent-src',
     paint: {
-      'heatmap-weight': ['get', 'weight'],
-      'heatmap-intensity': 0.6,
-      'heatmap-radius': 30,
-      'heatmap-opacity': 0.5,
-      'heatmap-color': [
-        'interpolate', ['linear'], ['heatmap-density'],
-        0, 'rgba(0,0,0,0)',
-        0.2, 'rgba(201,53,69,0.18)',
-        0.5, 'rgba(201,53,69,0.38)',
-        0.8, 'rgba(165,40,53,0.58)',
-        1.0, 'rgba(140,30,40,0.72)',
-      ],
-    },
-  }, 'clearing-fill');
+      'heatmap-weight': ['get', 'weight'], 'heatmap-intensity': 0.6,
+      'heatmap-radius': 30, 'heatmap-opacity': 0.5,
+      'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
+        0, 'rgba(0,0,0,0)', 0.2, 'rgba(201,53,69,0.18)',
+        0.5, 'rgba(201,53,69,0.38)', 0.8, 'rgba(165,40,53,0.58)', 1.0, 'rgba(140,30,40,0.72)'],
+    } }, 'clearing-fill');
 
   map.addSource('heat-caution-src', { type: 'geojson', data: EMPTY_FC });
-  map.addLayer({
-    id: 'heat-caution', type: 'heatmap', source: 'heat-caution-src',
+  map.addLayer({ id: 'heat-caution', type: 'heatmap', source: 'heat-caution-src',
     paint: {
-      'heatmap-weight': ['get', 'weight'],
-      'heatmap-intensity': 0.5,
-      'heatmap-radius': 30,
-      'heatmap-opacity': 0.45,
-      'heatmap-color': [
-        'interpolate', ['linear'], ['heatmap-density'],
-        0, 'rgba(0,0,0,0)',
-        0.2, 'rgba(212,160,48,0.16)',
-        0.5, 'rgba(212,160,48,0.38)',
-        0.8, 'rgba(184,137,42,0.58)',
-        1.0, 'rgba(184,137,42,0.72)',
-      ],
-    },
-  }, 'clearing-fill');
+      'heatmap-weight': ['get', 'weight'], 'heatmap-intensity': 0.5,
+      'heatmap-radius': 30, 'heatmap-opacity': 0.45,
+      'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
+        0, 'rgba(0,0,0,0)', 0.2, 'rgba(212,160,48,0.16)',
+        0.5, 'rgba(212,160,48,0.38)', 0.8, 'rgba(184,137,42,0.58)', 1.0, 'rgba(184,137,42,0.72)'],
+    } }, 'clearing-fill');
 
-  // UAV-specific heatmap (purple glow)
   map.addSource('heat-uav-src', { type: 'geojson', data: EMPTY_FC });
-  map.addLayer({
-    id: 'heat-uav', type: 'heatmap', source: 'heat-uav-src',
+  map.addLayer({ id: 'heat-uav', type: 'heatmap', source: 'heat-uav-src',
     paint: {
-      'heatmap-weight': ['get', 'weight'],
-      'heatmap-intensity': 0.55,
-      'heatmap-radius': 30,
-      'heatmap-opacity': 0.5,
-      'heatmap-color': [
-        'interpolate', ['linear'], ['heatmap-density'],
-        0, 'rgba(0,0,0,0)',
-        0.2, 'rgba(139,92,246,0.18)',
-        0.5, 'rgba(139,92,246,0.38)',
-        0.8, 'rgba(115,64,216,0.58)',
-        1.0, 'rgba(100,50,200,0.72)',
-      ],
-    },
-  }, 'clearing-fill');
+      'heatmap-weight': ['get', 'weight'], 'heatmap-intensity': 0.55,
+      'heatmap-radius': 30, 'heatmap-opacity': 0.5,
+      'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
+        0, 'rgba(0,0,0,0)', 0.2, 'rgba(139,92,246,0.18)',
+        0.5, 'rgba(139,92,246,0.38)', 0.8, 'rgba(115,64,216,0.58)', 1.0, 'rgba(100,50,200,0.72)'],
+    } }, 'clearing-fill');
 
   // Click handlers for tooltips
   for (const layerId of ['urgent-fill', 'caution-fill', 'clearing-fill']) {
@@ -531,20 +336,58 @@ map.on('load', () => {
     pendingUpdate = null;
   }
 
-  // Start fade animations
   requestAnimationFrame(tickClearingFade);
   requestAnimationFrame(tickAlertFade);
-  // Start recent-zone pulse
   requestAnimationFrame(tickRecentPulse);
+
+  // Fetch geo data via HTTP (instead of Android JS bridge)
+  initMapData();
 });
 
+// ── Fetch basemap fast, then preload polygons in background ────────────
+let polygonsLoaded = false;
+
+async function initMapData() {
+  try {
+    // Basemap + zone names (~20KB total) — map outline appears immediately
+    const [outlineRes, extrasRes, namesRes] = await Promise.all([
+      fetch('data/israel-outline.json'),
+      fetch('data/geo-extras.json'),
+      fetch('data/zone-names-en.json'),
+    ]);
+    const outline = await outlineRes.json();
+    const extras = await extrasRes.json();
+    loadBasemap(outline, extras);
+
+    // Populate English zone name lookup
+    const names = await namesRes.json();
+    Object.assign(zoneNameEn, names);
+
+    // Preload polygons in background (1.8MB) — ready when alerts arrive
+    const polyRes = await fetch('data/polygons.json');
+    const polyData = await polyRes.json();
+    await new Promise(r => setTimeout(r, 0)); // yield before heavy processing
+    loadPolygons(polyData);
+    polygonsLoaded = true;
+    console.log('[map] Polygons preloaded');
+    // Re-render if an alert arrived while polygons were loading
+    if (pendingUpdate) {
+      renderFromThreatMap(pendingUpdate.threats, pendingUpdate.status, pendingUpdate.populationAtRisk || null);
+      pendingUpdate = null;
+    }
+  } catch (e) {
+    console.error('[map] Failed to load geo data:', e);
+  }
+}
+
 // ── Core Render Function ────────────────────────────────────────────────
-// Called by Android JS bridge on every alert/clear event
 window.onThreatUpdate = function(data) {
   try {
     const d = typeof data === 'string' ? JSON.parse(data) : data;
-    if (!mapReady) {
+    if (!mapReady || !polygonsLoaded) {
       pendingUpdate = d;
+      // Update status badge immediately even while loading
+      if (mapReady) updateStatusBadge(d.status || 'GREEN');
       return;
     }
     renderFromThreatMap(d.threats || {}, d.status || 'GREEN', d.populationAtRisk || null);
@@ -583,7 +426,6 @@ function renderFromThreatMap(threats, status, popAtRisk) {
       continue;
     }
 
-    // Resolve color by canonical type (ROCKET, UAV, INFILTRATION) then fall back to state
     const ctype = entry.ctype || '';
     const alertType = (state === 'URGENT') ? 'URGENT' : 'CAUTION';
     const colorKey = ALERT_COLORS[ctype] ? ctype : alertType;
@@ -613,7 +455,7 @@ function renderFromThreatMap(threats, status, popAtRisk) {
       cautionFeatures.push(feature);
     }
 
-    // Heatmap centroid — route UAV to its own purple heatmap
+    // Heatmap centroid
     const ring = poly.geometry.coordinates[0];
     if (!ring || ring.length === 0) continue;
     let cx = 0, cy = 0;
@@ -632,22 +474,18 @@ function renderFromThreatMap(threats, status, popAtRisk) {
       heatCautionFeatures.push(heatPoint);
     }
 
-    // Recent highlight
     if (entry.t && (now - entry.t) < RECENT_ZONE_MS) {
       recentFeatures.push(feature);
     }
   }
 
-  // Expose alert features for tick-based fade animation
   alertUrgentFeatures = urgentFeatures;
   alertCautionFeatures = cautionFeatures;
 
-  // Update all sources in one batch
   map.getSource('urgent-src').setData({ type: 'FeatureCollection', features: urgentFeatures });
   map.getSource('caution-src').setData({ type: 'FeatureCollection', features: cautionFeatures });
   map.getSource('recent-src').setData({ type: 'FeatureCollection', features: recentFeatures });
 
-  // Auto-expire recent pulse after RECENT_ZONE_MS window elapses
   if (recentExpireTimer) { clearTimeout(recentExpireTimer); recentExpireTimer = null; }
   if (recentFeatures.length > 0) {
     let latestT = 0;
@@ -666,7 +504,6 @@ function renderFromThreatMap(threats, status, popAtRisk) {
   map.getSource('heat-caution-src').setData({ type: 'FeatureCollection', features: heatCautionFeatures });
   map.getSource('heat-uav-src').setData({ type: 'FeatureCollection', features: heatUavFeatures });
 
-  // Merge new clearing features with existing (preserve ongoing fades)
   const newKeys = new Set(newClearingFeatures.map(f => f.properties.zone || f.properties.name));
   const preserved = clearingFeatures.filter(f => {
     const key = f.properties.zone || f.properties.name;
@@ -675,10 +512,7 @@ function renderFromThreatMap(threats, status, popAtRisk) {
   clearingFeatures = [...preserved, ...newClearingFeatures];
   map.getSource('clearing-src').setData({ type: 'FeatureCollection', features: clearingFeatures });
 
-  // Status badge
   updateStatusBadge(status);
-
-  // Population donut
   lastPopData = popAtRisk;
   updatePopulationChart(popAtRisk);
 }
@@ -686,28 +520,25 @@ function renderFromThreatMap(threats, status, popAtRisk) {
 // ── Status Badge ────────────────────────────────────────────────────────
 function updateStatusBadge(status) {
   switch (status) {
-    case 'CRITICAL':
-    case 'RED':
-      dot.className = 'alert';
-      text.textContent = L().critical;
-      break;
-    case 'WARNING':
-    case 'ORANGE':
-      dot.className = 'pre-warning';
-      text.textContent = L().warning;
-      break;
-    case 'THREAT':
-    case 'YELLOW':
-      dot.className = 'threat';
-      text.textContent = L().threat;
-      break;
+    case 'CRITICAL': case 'RED':
+      dot.className = 'alert'; text.textContent = L().critical; break;
+    case 'WARNING': case 'ORANGE':
+      dot.className = 'pre-warning'; text.textContent = L().warning; break;
+    case 'THREAT': case 'YELLOW':
+      dot.className = 'threat'; text.textContent = L().threat; break;
     default:
-      dot.className = '';
-      text.textContent = L().no_alerts;
+      dot.className = ''; text.textContent = L().no_alerts;
+  }
+  // Also update the hero status dot if present
+  const heroDot = document.getElementById('hero-status-dot');
+  const heroText = document.getElementById('hero-status-text');
+  if (heroDot && heroText) {
+    heroDot.className = 'hero-dot ' + (dot.className || 'calm');
+    heroText.textContent = text.textContent;
   }
 }
 
-// ── Clearing Fade Animation (per-feature opacity) ───────────────────────
+// ── Clearing Fade Animation ─────────────────────────────────────────────
 function tickClearingFade() {
   if (clearingFeatures.length > 0) {
     const now = Date.now();
@@ -734,14 +565,14 @@ function tickClearingFade() {
   setTimeout(tickClearingFade, 1000);
 }
 
-// ── Alert Fade Animation (visual-only fadeoff for URGENT/CAUTION) ───────
+// ── Alert Fade Animation ────────────────────────────────────────────────
 function fadeFeatures(features) {
   const now = Date.now();
   let changed = false;
   for (const f of features) {
     const elapsed = now - (f.properties.t || now);
     const fadeFactor = Math.max(0, 1 - elapsed / CLEAR_FADE_MS);
-    if (fadeFactor <= 0) continue; // already fully faded
+    if (fadeFactor <= 0) continue;
     const newOp = f.properties.baseOpacity * fadeFactor;
     const newBorderOp = f.properties.baseBorderOpacity * fadeFactor;
     if (Math.abs((f.properties.opacity || 0) - newOp) > 0.005 ||
@@ -772,12 +603,11 @@ function tickRecentPulse(ts) {
   try {
     map.setPaintProperty('recent-fill', 'fill-opacity', fillOpacity);
     map.setPaintProperty('recent-border', 'line-opacity', borderOpacity);
-  } catch {}
+  } catch (e) {
+    if (!tickRecentPulse._logged) { console.warn('[map] tickRecentPulse:', e.message); tickRecentPulse._logged = true; }
+  }
   requestAnimationFrame(tickRecentPulse);
 }
 
 // Initial status
 updateStatusBadge('GREEN');
-</script>
-</body>
-</html>
