@@ -151,7 +151,7 @@ app.post('/test-fcm', (req, res) => {
 // ── HFC Poller ──────────────────────────────────────────────────────────
 const HFC_API_URL = 'https://www.oref.org.il/WarningMessages/alert/Alerts.json';
 const HFC_HEADERS = {
-    'User-Agent': 'PikudHaoref/1.6 (iPhone; iOS 17.4; Scale/3.00)',
+    'User-Agent': 'TzevaArtzi-relay (+https://tzeva-artzi.online)',
     'Referer': 'https://www.oref.org.il/',
     'X-Requested-With': 'XMLHttpRequest',
     'Accept': 'application/json, text/javascript, */*; q=0.01',

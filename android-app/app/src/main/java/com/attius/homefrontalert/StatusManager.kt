@@ -385,7 +385,7 @@ object StatusManager {
             val conn = hfcUrl.openConnection() as java.net.HttpURLConnection
             conn.connectTimeout = 3000
             conn.readTimeout = 3000
-            conn.setRequestProperty("User-Agent", "PikudHaoref/1.6 (iPhone; iOS 17.4; Scale/3.00)")
+            conn.setRequestProperty("User-Agent", "TzevaArtzi/${BuildConfig.VERSION_NAME} (Android)")
             conn.setRequestProperty("Referer", "https://www.oref.org.il/")
 
             val code = conn.responseCode
